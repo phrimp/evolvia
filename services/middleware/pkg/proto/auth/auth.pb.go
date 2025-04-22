@@ -7,7 +7,7 @@
 package auth
 
 import (
-	"auth_service/pkg/proto/shared"
+	"middleware/pkg/proto/shared"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"

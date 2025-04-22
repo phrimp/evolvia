@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"auth_service/internal/models"
+	"auth_service/pkg/discovery"
 	"context"
 	"log"
 	"os"
@@ -18,9 +19,12 @@ type SessionSender struct {
 }
 
 func NewSessionSender() *SessionSender {
-	middlewareAddr := os.Getenv("MIDDLEWARE_SERVICE_ADDRESS")
-	if middlewareAddr == "" {
-		middlewareAddr = "middleware:9000"
+	middlewareAddr, err := discovery.ServiceDiscovery.GetServiceAddress(os.Getenv("MIDDLEWARE_SERVICE_NAME"))
+	if err != nil {
+		log.Printf("Find Middleware Address Failed: %s, Use Default Address: middleware:9000", err)
+		if middlewareAddr == "" {
+			middlewareAddr = "middleware:9000"
+		}
 	}
 
 	return &SessionSender{
