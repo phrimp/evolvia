@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package auth;
+
+import "proto/shared/common.proto";
+
+option go_package = "evolvia/proto/auth";
+
+service AuthService {
+  rpc SendSessionToMiddleware (SessionData) returns (SessionResponse);
+}
+
+message SessionData {
+  string session_id = 1;
+  string user_id = 2;
+  string token = 3;
+  string user_agent = 4;
+  string ip_address = 5;
+  bool is_valid = 6;
+  int64 created_at = 7;
+  int64 last_activity_at = 8;
+  common.Device device = 9;
+  common.Location location = 10;
+}
+
+message SessionResponse {
+  bool success = 1;
+  string message = 2;
+}

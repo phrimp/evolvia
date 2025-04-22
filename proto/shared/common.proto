@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "evolvia/proto/shared";
+
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+
+message Device {
+  string type = 1;
+  string os = 2;
+  string browser = 3;
+}
+
+message Location {
+  string country = 1;
+  string region = 2;
+  string city = 3;
+}
