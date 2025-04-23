@@ -212,6 +212,7 @@ services:
     build:
       context: ./services/auth-service
       dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
       - "${AUTH_SERVICE_PORT}:${AUTH_SERVICE_PORT}"
     environment:
@@ -220,6 +221,7 @@ services:
       - CONSUL_PORT=${CONSUL_HTTP_PORT}
       - AUTH_SERVICE_NAME=${AUTH_SERVICE_NAME}
       - AUTH_SERVICE_ADDRESS=${AUTH_SERVICE_ADDRESS}
+      - AUTH_HOSTNAME=${AUTH_HOSTNAME}
       - MONGO_URI=${MONGO_URI}
       - AUTH_SERVICE_MONGO_DB=${AUTH_SERVICE_MONGO_DB}
       - REDIS_DB=${REDIS_DB}
@@ -229,11 +231,19 @@ services:
     networks:
       - consul-net
       - traefik-net
+    volumes:
+    - ./logs/auth-service:/evolvia/log/auth_service
+    depends_on:
+      - consul-server
+      - traefik
+      - mongodb
+      - redis
+      - minio
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.auth-service.rule=PathPrefix(`/auth`)"
       - "traefik.http.services.auth-service.loadbalancer.server.port=${AUTH_SERVICE_PORT}"
-
+      - "traefik.docker.network=microservices_template_traefik-net"
 
 networks:
   consul-net:
