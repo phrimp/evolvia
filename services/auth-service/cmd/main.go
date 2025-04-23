@@ -44,9 +44,18 @@ func main() {
 	defer logFile.Close()
 
 	app := fiber.New(fiber.Config{})
+	app.Use(func(c fiber.Ctx) error {
+		log.Printf("Received request for path: %s", c.Path())
+		return c.Next()
+	})
 
-	app.Get("/", func(c fiber.Ctx) error {
-		return c.Status(200).SendString("HelloWorld")
+	app.Get("/auth", func(c fiber.Ctx) error {
+		return c.Status(200).SendString("Auth Service Root")
+	})
+
+	app.Get("/auth/*", func(c fiber.Ctx) error {
+		path := c.Params("*")
+		return c.Status(200).SendString("Auth Service Path: " + path)
 	})
 
 	app.Get("/health", func(c fiber.Ctx) error {
