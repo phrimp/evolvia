@@ -27,7 +27,7 @@ func init() {
 	var err error
 	Mongo_Client, err = mongo.Connect(opts)
 	if err != nil {
-		log.Printf("\n Error conenct to Mongo: %s", err)
+		log.Printf("\n Error connecting to Mongo: %s", err)
 	}
 	var result bson.M
 	if err := Mongo_Client.Database("admin").RunCommand(context.TODO(), bson.D{{Key: "ping", Value: 1}}).Decode(&result); err != nil {

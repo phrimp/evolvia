@@ -22,6 +22,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("Service Discovery Init Failed: %s", err)
 	}
+	ServiceDiscovery.Register()
 }
 
 func NewServiceRegistry(config *config.Config) (*ServiceRegistry, error) {

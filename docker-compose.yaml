@@ -208,6 +208,33 @@ services:
       - "traefik.http.routers.rabbitmq-ui.middlewares=rabbitmq-ui-prefix"
       - "traefik.docker.network=microservices_template_traefik-net"
 
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    ports:
+      - "${AUTH_SERVICE_PORT}:${AUTH_SERVICE_PORT}"
+    environment:
+      - SERVICE_NAME=${AUTH_SERVICE_NAME}
+      - PORT=${AUTH_SERVICE_PORT}
+      - CONSUL_PORT=${CONSUL_HTTP_PORT}
+      - AUTH_SERVICE_NAME=${AUTH_SERVICE_NAME}
+      - AUTH_SERVICE_ADDRESS=${AUTH_SERVICE_ADDRESS}
+      - MONGO_URI=${MONGO_URI}
+      - AUTH_SERVICE_MONGO_DB=${AUTH_SERVICE_MONGO_DB}
+      - REDIS_DB=${REDIS_DB}
+      - REDIS_PROTOCAL=${REDIS_PROTOCAL}
+      - REDIS_ADDR=${REDIS_ADDR}
+      - REDIS_PWD=${REDIS_PWD}
+    networks:
+      - consul-net
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth-service.rule=PathPrefix(`/auth`)"
+      - "traefik.http.services.auth-service.loadbalancer.server.port=${AUTH_SERVICE_PORT}"
+
+
 networks:
   consul-net:
     driver: bridge

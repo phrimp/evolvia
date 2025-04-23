@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 )
 
@@ -21,10 +22,10 @@ var ServiceConfig *Config
 func New() *Config {
 	return &Config{
 		Port:           getEnv("PORT", "9000"),
-		ConsulAddress:  getEnv("CONSUL_ADDRESS", "consul-server:8500"),
+		ConsulAddress:  "consul-server:" + getEnv("CONSUL_PORT", "8500"),
 		ServiceName:    getEnv("AUTH_SERVICE_NAME", "auth-service"),
-		ServiceID:      getEnv("AUTH_SERVICE_NAME", "auth-service") + "-" + getEnv("AUTH_HOSTNAME", "1"),
-		ServiceAddress: getEnv("AUTH_SERVICE_ADDRESS", "AUTH"),
+		ServiceID:      getEnv("AUTH_SERVICE_NAME", "auth-service") + "-" + getEnv("AUTH_HOSTNAME", "2"),
+		ServiceAddress: getEnv("AUTH_SERVICE_ADDRESS", "auth-service"),
 	}
 }
 
@@ -32,5 +33,6 @@ func getEnv(key, fallback string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
 	}
+	log.Printf("Error Retriving ENV: %s not exist", key)
 	return fallback
 }
