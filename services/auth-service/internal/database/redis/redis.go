@@ -26,15 +26,15 @@ func init() {
 		DB:       config.DB,
 		Protocol: config.Protocal,
 	})
-	err := Redis_Client.Conn().Ping(context.Background())
+	err := Redis_Client.Conn().Ping(context.Background()).Err()
 	if err != nil {
-		log.Printf("\n Error connect to Redis: %s", err)
+		log.Printf("Error connect to Redis: %s", err)
 	}
 }
 
 func loadConfig() *RedisConfig {
 	redis_db, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
-	redis_protocal, _ := strconv.Atoi("REDIS_PROTOCAL")
+	redis_protocal, _ := strconv.Atoi(os.Getenv("REDIS_PROTOCAL"))
 	return &RedisConfig{
 		Address:  os.Getenv("REDIS_ADDR"),
 		Password: os.Getenv("REDIS_PWD"),
