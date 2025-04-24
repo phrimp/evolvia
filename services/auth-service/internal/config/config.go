@@ -7,6 +7,7 @@ import (
 
 type Config struct {
 	Port           string
+	GrpcPort       string
 	ConsulAddress  string
 	ServiceName    string
 	ServiceID      string
@@ -21,7 +22,8 @@ var ServiceConfig *Config
 
 func New() *Config {
 	return &Config{
-		Port:           getEnv("PORT", "9000"),
+		Port:           getEnv("PORT", "9100"),
+		GrpcPort:       getEnv("GRPC_PORT", "9101"),
 		ConsulAddress:  "consul-server:" + getEnv("CONSUL_PORT", "8500"),
 		ServiceName:    getEnv("AUTH_SERVICE_NAME", "auth-service"),
 		ServiceID:      getEnv("AUTH_SERVICE_NAME", "auth-service") + "-" + getEnv("AUTH_HOSTNAME", "2"),

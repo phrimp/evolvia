@@ -4,6 +4,7 @@ import (
 	"auth_service/internal/config"
 	"fmt"
 	"log"
+	"slices"
 	"strconv"
 
 	"github.com/hashicorp/consul/api"
@@ -41,32 +42,63 @@ func NewServiceRegistry(config *config.Config) (*ServiceRegistry, error) {
 }
 
 func (sr *ServiceRegistry) Register() error {
-	port, _ := strconv.Atoi(sr.config.Port)
-	registration := &api.AgentServiceRegistration{
-		ID:      sr.config.ServiceID,
+	httpPort, _ := strconv.Atoi(sr.config.Port)
+	grpcPort, _ := strconv.Atoi(sr.config.GrpcPort)
+
+	httpRegistration := &api.AgentServiceRegistration{
+		ID:      sr.config.ServiceID + "-http",
 		Name:    sr.config.ServiceName,
-		Port:    port,
+		Port:    httpPort,
 		Address: sr.config.ServiceAddress,
 		Check: &api.AgentServiceCheck{
 			HTTP:     fmt.Sprintf("http://%s:%s/health", sr.config.ServiceAddress, sr.config.Port),
 			Interval: "10s",
 			Timeout:  "5s",
 		},
-		Tags: []string{"auth", "jwt"},
+		Tags: []string{"auth", "jwt", "http"},
+		Meta: map[string]string{
+			"protocol": "http",
+		},
 	}
 
-	err := sr.client.Agent().ServiceRegister(registration)
-	if err != nil {
-		return fmt.Errorf("failed to register service with Consul: %v", err)
+	grpcRegistration := &api.AgentServiceRegistration{
+		ID:      sr.config.ServiceID + "-grpc",
+		Name:    sr.config.ServiceName,
+		Port:    grpcPort,
+		Address: sr.config.ServiceAddress,
+		Check: &api.AgentServiceCheck{
+			TCP:      fmt.Sprintf("%s:%s", sr.config.ServiceAddress, sr.config.GrpcPort),
+			Interval: "10s",
+			Timeout:  "5s",
+		},
+		Tags: []string{"auth", "jwt", "grpc"},
+		Meta: map[string]string{
+			"protocol": "grpc",
+		},
 	}
 
-	log.Println("Successfully registered service with Consul")
+	if err := sr.client.Agent().ServiceRegister(httpRegistration); err != nil {
+		return fmt.Errorf("failed to register HTTP service with Consul: %v", err)
+	}
+
+	if err := sr.client.Agent().ServiceRegister(grpcRegistration); err != nil {
+		return fmt.Errorf("failed to register gRPC service with Consul: %v", err)
+	}
+
+	log.Println("Successfully registered HTTP and gRPC services with Consul")
 	return nil
 }
 
-// Deregister removes the service from Consul
 func (sr *ServiceRegistry) Deregister() error {
-	return sr.client.Agent().ServiceDeregister(sr.config.ServiceID)
+	if err := sr.client.Agent().ServiceDeregister(sr.config.ServiceID + "-http"); err != nil {
+		log.Printf("Error deregistering HTTP service: %v", err)
+	}
+
+	if err := sr.client.Agent().ServiceDeregister(sr.config.ServiceID + "-grpc"); err != nil {
+		log.Printf("Error deregistering gRPC service: %v", err)
+	}
+
+	return nil
 }
 
 // FindService looks up a service by name in Consul
@@ -85,13 +117,40 @@ func (sr *ServiceRegistry) FindService(serviceName string) ([]*api.ServiceEntry,
 	return services, nil
 }
 
-func (sr *ServiceRegistry) GetServiceAddress(serviceName string) (string, error) {
-	services, err := sr.FindService(serviceName)
-	if err != nil {
-		return "", err
+func (sr *ServiceRegistry) GetServiceAddress(serviceName string, protocol string) (string, error) {
+	// Default to HTTP if no protocol specified
+	if protocol == "" {
+		protocol = "http"
 	}
 
-	service := services[0]
+	services, meta, err := sr.client.Health().Service(serviceName, "", true, &api.QueryOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to find service %s: %v", serviceName, err)
+	}
+
+	log.Printf("Found %d instances of service %s (ConsulIndex: %d)", len(services), serviceName, meta.LastIndex)
+
+	if len(services) == 0 {
+		return "", fmt.Errorf("no healthy instances of service %s found", serviceName)
+	}
+
+	var matchingServices []*api.ServiceEntry
+	for _, service := range services {
+		if proto, ok := service.Service.Meta["protocol"]; ok && proto == protocol {
+			matchingServices = append(matchingServices, service)
+		} else if len(service.Service.Tags) > 0 {
+			if slices.Contains(service.Service.Tags, protocol) {
+				matchingServices = append(matchingServices, service)
+			}
+		}
+	}
+
+	if len(matchingServices) == 0 {
+		return "", fmt.Errorf("no healthy instances of service %s with protocol %s found", serviceName, protocol)
+	}
+
+	// Use the first matching service
+	service := matchingServices[0]
 
 	address := service.Service.Address
 	if address == "" {
@@ -100,6 +159,6 @@ func (sr *ServiceRegistry) GetServiceAddress(serviceName string) (string, error)
 
 	fullAddress := fmt.Sprintf("%s:%d", address, service.Service.Port)
 
-	log.Printf("Using service address: %s", fullAddress)
+	log.Printf("Using service address: %s (protocol: %s)", fullAddress, protocol)
 	return fullAddress, nil
 }

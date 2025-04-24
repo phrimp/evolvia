@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 
-	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -29,11 +28,10 @@ func init() {
 	if err != nil {
 		log.Printf("\n Error connecting to Mongo: %s", err)
 	}
-	var result bson.M
-	if err := Mongo_Client.Database("admin").RunCommand(context.TODO(), bson.D{{Key: "ping", Value: 1}}).Decode(&result); err != nil {
-		panic(err)
-	}
-	log.Println("Pinged current deployment. Auth Service successfully connected to MongoDB!")
+	go func() {
+		Mongo_Client.Ping(context.Background(), nil)
+		log.Println("Pinged current deployment. Auth Service successfully connected to MongoDB!")
+	}()
 	Mongo_Database = Mongo_Client.Database(config.Database)
 }
 

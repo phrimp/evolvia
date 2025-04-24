@@ -231,6 +231,7 @@ var (
 		(*Location)(nil),  // 2: common.Location
 	}
 )
+
 var file_proto_shared_common_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type

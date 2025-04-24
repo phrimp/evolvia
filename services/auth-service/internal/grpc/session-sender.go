@@ -4,8 +4,8 @@ import (
 	"auth_service/internal/models"
 	"auth_service/pkg/discovery"
 	"context"
+	"fmt"
 	"log"
-	"os"
 
 	pb "auth_service/pkg/proto/auth"
 	common "auth_service/pkg/proto/shared"
@@ -14,26 +14,23 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type SessionSender struct {
-	middlewareAddr string
+type SessionSenderService struct {
+	discoveryService *discovery.ServiceRegistry
 }
 
-func NewSessionSender() *SessionSender {
-	middlewareAddr, err := discovery.ServiceDiscovery.GetServiceAddress(os.Getenv("MIDDLEWARE_SERVICE_NAME"))
+func NewSessionSenderService(discoveryService *discovery.ServiceRegistry) *SessionSenderService {
+	return &SessionSenderService{
+		discoveryService: discoveryService,
+	}
+}
+
+func (s *SessionSenderService) SendSession(ctx context.Context, session *models.Session, serviceName string) error {
+	serviceAddr, err := s.discoveryService.GetServiceAddress(serviceName, "grpc")
 	if err != nil {
-		log.Printf("Find Middleware Address Failed: %s, Use Default Address: middleware:9000", err)
-		if middlewareAddr == "" {
-			middlewareAddr = "middleware:9000"
-		}
+		return fmt.Errorf("failed to find service address: %v", err)
 	}
 
-	return &SessionSender{
-		middlewareAddr: middlewareAddr,
-	}
-}
-
-func (s *SessionSender) SendSession(ctx context.Context, session *models.Session) error {
-	conn, err := grpc.NewClient(s.middlewareAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(serviceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Printf("Failed to connect to middleware: %v", err)
 		return err
@@ -42,7 +39,7 @@ func (s *SessionSender) SendSession(ctx context.Context, session *models.Session
 
 	client := pb.NewAuthServiceClient(conn)
 
-	sessionData := &pb.SessionData{
+	sessionData := &common.SessionData{
 		SessionId:      session.ID.Hex(),
 		UserId:         session.UserID.Hex(),
 		Token:          session.Token,

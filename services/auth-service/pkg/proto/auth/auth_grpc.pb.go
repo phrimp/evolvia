@@ -7,6 +7,7 @@
 package auth
 
 import (
+	"auth_service/pkg/proto/shared"
 	context "context"
 
 	grpc "google.golang.org/grpc"
@@ -27,7 +28,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuthServiceClient interface {
-	SendSessionToMiddleware(ctx context.Context, in *SessionData, opts ...grpc.CallOption) (*SessionResponse, error)
+	SendSessionToMiddleware(ctx context.Context, in *shared.SessionData, opts ...grpc.CallOption) (*shared.SessionResponse, error)
 }
 
 type authServiceClient struct {
@@ -38,9 +39,9 @@ func NewAuthServiceClient(cc grpc.ClientConnInterface) AuthServiceClient {
 	return &authServiceClient{cc}
 }
 
-func (c *authServiceClient) SendSessionToMiddleware(ctx context.Context, in *SessionData, opts ...grpc.CallOption) (*SessionResponse, error) {
+func (c *authServiceClient) SendSessionToMiddleware(ctx context.Context, in *shared.SessionData, opts ...grpc.CallOption) (*shared.SessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SessionResponse)
+	out := new(shared.SessionResponse)
 	err := c.cc.Invoke(ctx, AuthService_SendSessionToMiddleware_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -52,7 +53,7 @@ func (c *authServiceClient) SendSessionToMiddleware(ctx context.Context, in *Ses
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
 type AuthServiceServer interface {
-	SendSessionToMiddleware(context.Context, *SessionData) (*SessionResponse, error)
+	SendSessionToMiddleware(context.Context, *shared.SessionData) (*shared.SessionResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -63,7 +64,7 @@ type AuthServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAuthServiceServer struct{}
 
-func (UnimplementedAuthServiceServer) SendSessionToMiddleware(context.Context, *SessionData) (*SessionResponse, error) {
+func (UnimplementedAuthServiceServer) SendSessionToMiddleware(context.Context, *shared.SessionData) (*shared.SessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendSessionToMiddleware not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
@@ -88,7 +89,7 @@ func RegisterAuthServiceServer(s grpc.ServiceRegistrar, srv AuthServiceServer) {
 }
 
 func _AuthService_SendSessionToMiddleware_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SessionData)
+	in := new(shared.SessionData)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -100,7 +101,7 @@ func _AuthService_SendSessionToMiddleware_Handler(srv interface{}, ctx context.C
 		FullMethod: AuthService_SendSessionToMiddleware_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).SendSessionToMiddleware(ctx, req.(*SessionData))
+		return srv.(AuthServiceServer).SendSessionToMiddleware(ctx, req.(*shared.SessionData))
 	}
 	return interceptor(ctx, in, info, handler)
 }
