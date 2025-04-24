@@ -1,1 +1,41 @@
-logs/*.log
+# Log files and directories
+logs/
+*.log
+**/*.log
+**/logs/
+services/**/logs/
+/var/log/
+*/var/log/
+**/var/log/
+
+# Specific log directories from docker-compose
+logs/mongodb/
+logs/redis/
+logs/minio/
+logs/rabbitmq/
+logs/auth-service/
+
+# Service-specific log directories
+services/*/log/
+/evolvia/log/
+**/evolvia/log/
+
+# MongoDB logs
+mongodb.log*
+
+# Redis logs
+redis.log*
+
+# System/temporary files
+.DS_Store
+Thumbs.db
+.tmp/
+.temp/
+*.swp
+*~
+
+# IDE and editor files
+.idea/
+.vscode/
+*.sublime-*
+*.iml
