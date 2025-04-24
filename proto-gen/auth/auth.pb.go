@@ -7,7 +7,7 @@
 package auth
 
 import (
-	"proto-gen/proto/shared"
+	"proto-gen/shared"
 	reflect "reflect"
 	unsafe "unsafe"
 

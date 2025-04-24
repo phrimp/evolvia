@@ -7,11 +7,11 @@ import (
 	_ "middleware/internal/database/redis"
 	grpcServer "middleware/internal/grpc"
 	_ "middleware/pkg/discovery"
-	pb "middleware/pkg/proto/middleware"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
+	pb "proto-gen/middleware"
 	"syscall"
 	"time"
 

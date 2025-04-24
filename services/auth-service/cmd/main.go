@@ -9,7 +9,6 @@ import (
 	"auth_service/pkg/discovery"
 
 	//_ "auth_service/pkg/discovery"
-	pb "auth_service/pkg/proto/auth"
 	"context"
 	"fmt"
 	"log"
@@ -17,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	pb "proto-gen/auth"
 	"slices"
 	"syscall"
 	"time"

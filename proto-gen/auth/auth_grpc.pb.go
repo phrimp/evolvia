@@ -8,7 +8,7 @@ package auth
 
 import (
 	context "context"
-	"proto-gen/proto/shared"
+	"proto-gen/shared"
 
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"

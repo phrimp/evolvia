@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"log"
 
-	pb "auth_service/pkg/proto/middleware"
-	common "auth_service/pkg/proto/shared"
+	pb "proto-gen/middleware"
+	common "proto-gen/shared"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

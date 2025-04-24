@@ -1,7 +1,7 @@
 package grpc
 
 import (
-	pb "auth_service/pkg/proto/auth"
+	pb "proto-gen/auth"
 )
 
 type AuthServer struct {

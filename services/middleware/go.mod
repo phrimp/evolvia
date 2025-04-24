@@ -3,10 +3,15 @@ module middleware
 go 1.24.2
 
 require (
+	github.com/gofiber/fiber/v3 v3.0.0-beta.4
 	github.com/hashicorp/consul/api v1.32.0
+	github.com/redis/go-redis/v9 v9.7.3
 	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6
+	proto-gen v0.0.0
 )
+
+replace proto-gen => ../../proto-gen
 
 require (
 	github.com/andybalholm/brotli v1.1.1 // indirect
@@ -15,7 +20,6 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/gofiber/fiber/v3 v3.0.0-beta.4 // indirect
 	github.com/gofiber/schema v1.2.0 // indirect
 	github.com/gofiber/utils/v2 v2.0.0-beta.7 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -33,8 +37,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
-	github.com/redis/go-redis/v9 v9.7.3 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tinylib/msgp v1.2.5 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.58.0 // indirect

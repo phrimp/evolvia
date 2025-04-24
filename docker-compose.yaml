@@ -210,8 +210,8 @@ services:
 
   auth-service:
     build:
-      context: ./services/auth-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/auth-service/Dockerfile
     restart: unless-stopped
     ports:
       - "${AUTH_SERVICE_PORT}:${AUTH_SERVICE_PORT}"
@@ -248,8 +248,8 @@ services:
 
   middleware:
     build:
-      context: ./services/middleware
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/middleware/Dockerfile
     restart: unless-stopped
     ports:
       - "${MIDDLEWARE_SERVICE_PORT}:${MIDDLEWARE_SERVICE_PORT}"

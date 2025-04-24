@@ -236,6 +236,7 @@ var (
 		(*Location)(nil),        // 3: common.Location
 	}
 )
+
 var file_proto_shared_session_types_proto_depIdxs = []int32{
 	2, // 0: shared.SessionData.device:type_name -> common.Device
 	3, // 1: shared.SessionData.location:type_name -> common.Location

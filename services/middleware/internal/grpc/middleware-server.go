@@ -4,8 +4,8 @@ import (
 	"context"
 	"log"
 	"middleware/internal/models"
-	pb "middleware/pkg/proto/middleware"
-	"middleware/pkg/proto/shared"
+	pb "proto-gen/middleware"
+	"proto-gen/shared"
 )
 
 type MiddlewareServer struct {
