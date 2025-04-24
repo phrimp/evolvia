@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log"
 
-	pb "auth_service/pkg/proto/auth"
+	pb "auth_service/pkg/proto/middleware"
 	common "auth_service/pkg/proto/shared"
 
 	"google.golang.org/grpc"
@@ -37,7 +37,7 @@ func (s *SessionSenderService) SendSession(ctx context.Context, session *models.
 	}
 	defer conn.Close()
 
-	client := pb.NewAuthServiceClient(conn)
+	client := pb.NewMiddlewareServiceClient(conn)
 
 	sessionData := &common.SessionData{
 		SessionId:      session.ID.Hex(),
@@ -60,7 +60,7 @@ func (s *SessionSenderService) SendSession(ctx context.Context, session *models.
 		},
 	}
 
-	response, err := client.SendSessionToMiddleware(ctx, sessionData)
+	response, err := client.ProcessSession(ctx, sessionData)
 	if err != nil {
 		log.Printf("Error sending session: %v", err)
 		return err

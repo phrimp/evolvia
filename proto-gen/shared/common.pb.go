@@ -7,11 +7,12 @@
 package shared
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -222,12 +223,14 @@ func file_proto_shared_common_proto_rawDescGZIP() []byte {
 	return file_proto_shared_common_proto_rawDescData
 }
 
-var file_proto_shared_common_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_proto_shared_common_proto_goTypes = []any{
-	(*Timestamp)(nil), // 0: common.Timestamp
-	(*Device)(nil),    // 1: common.Device
-	(*Location)(nil),  // 2: common.Location
-}
+var (
+	file_proto_shared_common_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+	file_proto_shared_common_proto_goTypes  = []any{
+		(*Timestamp)(nil), // 0: common.Timestamp
+		(*Device)(nil),    // 1: common.Device
+		(*Location)(nil),  // 2: common.Location
+	}
+)
 var file_proto_shared_common_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type

@@ -7,11 +7,12 @@
 package auth
 
 import (
-	shared "evolvia/proto/shared"
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	"proto-gen/proto/shared"
 	reflect "reflect"
 	unsafe "unsafe"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -33,6 +34,7 @@ var file_proto_auth_auth_proto_goTypes = []any{
 	(*shared.SessionData)(nil),     // 0: shared.SessionData
 	(*shared.SessionResponse)(nil), // 1: shared.SessionResponse
 }
+
 var file_proto_auth_auth_proto_depIdxs = []int32{
 	0, // 0: auth.AuthService.SendSessionToMiddleware:input_type -> shared.SessionData
 	1, // 1: auth.AuthService.SendSessionToMiddleware:output_type -> shared.SessionResponse

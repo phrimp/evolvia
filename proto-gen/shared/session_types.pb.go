@@ -7,11 +7,12 @@
 package shared
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -226,13 +227,15 @@ func file_proto_shared_session_types_proto_rawDescGZIP() []byte {
 	return file_proto_shared_session_types_proto_rawDescData
 }
 
-var file_proto_shared_session_types_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_proto_shared_session_types_proto_goTypes = []any{
-	(*SessionData)(nil),     // 0: shared.SessionData
-	(*SessionResponse)(nil), // 1: shared.SessionResponse
-	(*Device)(nil),          // 2: common.Device
-	(*Location)(nil),        // 3: common.Location
-}
+var (
+	file_proto_shared_session_types_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+	file_proto_shared_session_types_proto_goTypes  = []any{
+		(*SessionData)(nil),     // 0: shared.SessionData
+		(*SessionResponse)(nil), // 1: shared.SessionResponse
+		(*Device)(nil),          // 2: common.Device
+		(*Location)(nil),        // 3: common.Location
+	}
+)
 var file_proto_shared_session_types_proto_depIdxs = []int32{
 	2, // 0: shared.SessionData.device:type_name -> common.Device
 	3, // 1: shared.SessionData.location:type_name -> common.Location

@@ -8,7 +8,8 @@ package middleware
 
 import (
 	context "context"
-	shared "evolvia/proto/shared"
+	"proto-gen/proto/shared"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
