@@ -1,6 +1,7 @@
 package models
 
 import (
+	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -13,7 +14,6 @@ type UserAuth struct {
 	IsEmailVerified     bool               `bson:"isEmailVerified" json:"isEmailVerified"`
 	FailedLoginAttempts int                `bson:"failedLoginAttempts" json:"-"`
 	LastLoginAttempt    int                `bson:"lastLoginAttempt,omitempty" json:"-"`
-	LockoutUntil        int                `bson:"lockoutUntil,omitempty" json:"-"`
 	CreatedAt           int                `bson:"createdAt" json:"createdAt"`
 	UpdatedAt           int                `bson:"updatedAt" json:"updatedAt"`
 	LastLoginAt         int                `bson:"lastLoginAt,omitempty" json:"lastLoginAt"`
@@ -84,4 +84,11 @@ type AuditLog struct {
 	UserAgent string             `bson:"userAgent" json:"userAgent"`
 	Details   map[string]any     `bson:"details,omitempty" json:"details"`
 	Timestamp int                `bson:"timestamp" json:"timestamp"`
+}
+
+type Claims struct {
+	jwt.RegisteredClaims
+	Id       string
+	Username string
+	Email    string
 }
