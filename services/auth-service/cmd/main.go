@@ -50,8 +50,25 @@ func setupLogging() (*os.File, error) {
 	return file, nil
 }
 
+type ServerServices struct {
+	JwtService        *service.JWTService
+	UserService       *service.UserService
+	UserRoleService   *service.UserRoleService
+	RoleService       *service.RoleService
+	PermissionService *service.PermissionService
+}
+
 func main() {
 	logFile, err := setupLogging()
+
+	services_init := &ServerServices{
+		JwtService:        service.NewJWTService(),
+		UserService:       service.NewUserService(),
+		UserRoleService:   service.NewUserRoleService(),
+		RoleService:       service.NewRoleService(),
+		PermissionService: service.NewPermissionService(),
+	}
+
 	if err != nil {
 		log.Fatalf("Failed to set up logging: %v", err)
 	}
@@ -64,8 +81,14 @@ func main() {
 		}
 		return c.Next()
 	})
-	auth_handler := handlers.NewAuthHandler(service.NewUserService(), service.NewJWTService())
+
+	// Init Handlers
+	auth_handler := handlers.NewAuthHandler(services_init.UserService, services_init.JwtService)
+	role_handler := handlers.NewRoleHandler(services_init.RoleService, services_init.UserRoleService)
+
+	// Register Routes
 	auth_handler.RegisterRoutes(app)
+	role_handler.RegisterRoutes(app)
 
 	shutdownChan := make(chan os.Signal, 1)
 	doneChan := make(chan bool, 1)

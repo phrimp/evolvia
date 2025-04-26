@@ -235,10 +235,18 @@ services:
       - mongodb
       - redis
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.auth-service.rule=PathPrefix(`/auth`)"
-      - "traefik.http.services.auth-service.loadbalancer.server.port=${AUTH_SERVICE_PORT}"
-      - "traefik.docker.network=microservices_template_traefik-net"
+    - "traefik.enable=true"
+    #Public
+    - "traefik.http.routers.auth-service-public.rule=PathPrefix(`/auth`)"
+    - "traefik.http.middlewares.public-rewrite.replacepathregex.regex=^/auth(.*)"
+    - "traefik.http.middlewares.public-rewrite.replacepathregex.replacement=/public/auth$$1"
+    - "traefik.http.routers.auth-service-public.middlewares=public-rewrite"
+    #Secure
+    - "traefik.http.routers.auth-service-secure.rule=PathPrefix(`/auth`)"
+    - "traefik.http.middlewares.protected-rewrite.replacepathregex.regex=^/auth(.*)"
+    - "traefik.http.middlewares.protected-rewrite.replacepathregex.replacement=/protected/auth$$1"
+    - "traefik.http.routers.auth-service-secure.middlewares=auth-middleware,protected-rewrite"
+    - "traefik.docker.network=microservices_template_traefik-net"
 
   middleware:
     build:

@@ -21,7 +21,6 @@ type UserAuth struct {
 
 type Session struct {
 	Token          string   `bson:"token" json:"-"`
-	UserAgent      string   `bson:"userAgent" json:"userAgent"`
 	IPAddress      string   `bson:"ipAddress" json:"ipAddress"`
 	IsValid        bool     `bson:"isValid" json:"isValid"`
 	CreatedAt      int      `bson:"createdAt" json:"createdAt"`
@@ -86,8 +85,8 @@ type AuditLog struct {
 
 type Claims struct {
 	jwt.RegisteredClaims
-	Id       string
-	Username string
-	Email    string
-	Role     Role
+	Id          string
+	Username    string
+	Email       string
+	Permissions []*Permission
 }

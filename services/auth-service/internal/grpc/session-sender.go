@@ -41,7 +41,6 @@ func (s *SessionSenderService) SendSession(ctx context.Context, session *models.
 
 	sessionData := &common.SessionData{
 		Token:          session.Token,
-		UserAgent:      session.UserAgent,
 		IpAddress:      session.IPAddress,
 		IsValid:        session.IsValid,
 		CreatedAt:      int64(session.CreatedAt),

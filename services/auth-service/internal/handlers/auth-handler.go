@@ -29,7 +29,7 @@ func NewAuthHandler(userService *service.UserService, jwtService *service.JWTSer
 
 func (h *AuthHandler) RegisterRoutes(app *fiber.App) {
 	app.Get("/health", h.HealthCheck)
-	authGroup := app.Group("/auth")
+	authGroup := app.Group("/public/auth")
 
 	authGroup.Post("/register", h.Register)
 	authGroup.Post("/login", h.Login)
