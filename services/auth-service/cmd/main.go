@@ -5,21 +5,21 @@ import (
 	_ "auth_service/internal/database/mongo"
 	_ "auth_service/internal/database/redis"
 	grpcServer "auth_service/internal/grpc"
-	"auth_service/internal/models"
-	"auth_service/pkg/discovery"
-
-	//_ "auth_service/pkg/discovery"
-	"context"
+	"auth_service/internal/handlers"
+	"auth_service/internal/service"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
-	pb "proto-gen/auth"
 	"slices"
 	"syscall"
 	"time"
+
+	_ "auth_service/pkg/discovery"
+
+	pb "proto-gen/auth"
 
 	"github.com/gofiber/fiber/v3"
 	"google.golang.org/grpc"
@@ -64,28 +64,8 @@ func main() {
 		}
 		return c.Next()
 	})
-
-	app.Get("/auth", func(c fiber.Ctx) error {
-		test := models.Session{
-			Token: "test-Token",
-		}
-		a := grpcServer.NewSessionSenderService(discovery.ServiceDiscovery)
-		err := a.SendSession(context.Background(), &test, "middleware")
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		return c.Status(200).SendString("Auth Service Root")
-	})
-
-	app.Get("/auth/*", func(c fiber.Ctx) error {
-		path := c.Params("*")
-		return c.Status(200).SendString("Auth Service Path: " + path)
-	})
-
-	app.Get("/health", func(c fiber.Ctx) error {
-		return c.Status(200).SendString("OK")
-	})
+	auth_handler := handlers.NewAuthHandler(service.NewUserService(), service.NewJWTService())
+	auth_handler.RegisterRoutes(app)
 
 	shutdownChan := make(chan os.Signal, 1)
 	doneChan := make(chan bool, 1)

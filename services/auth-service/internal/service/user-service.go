@@ -56,7 +56,7 @@ func (us *UserService) Register(ctx context.Context, user *models.UserAuth, prof
 }
 
 func (us *UserService) Login(ctx context.Context, username, password string) (map[string]string, error) {
-	if repository.RedisRepository.GetInt(ctx, username, "auth-service-lock-user-"+username) == 0 {
+	if repository.RedisRepository.GetInt(ctx, username, "auth-service-lock-user-"+username) != 0 {
 		return nil, fmt.Errorf("user locked")
 	}
 	user, err := us.UserRepo.FindByUsername(ctx, username)
@@ -67,6 +67,9 @@ func (us *UserService) Login(ctx context.Context, username, password string) (ma
 	login_time := time.Now().Local().UnixMilli()
 
 	if !isPassword {
+		if us.FailedLoginAttempts[username] == nil {
+			us.FailedLoginAttempts[username] = &FailedLoginAttempt{}
+		}
 		last_failed_login_attempt := us.FailedLoginAttempts[username].failed_at
 		if login_time-last_failed_login_attempt < 1000 {
 			log.Printf("WARN: Suspicious activity detect for user: %s. Instant locked activated", username)
@@ -82,11 +85,14 @@ func (us *UserService) Login(ctx context.Context, username, password string) (ma
 		us.FailedLoginAttempts[username].failed_at = login_time
 		us.FailedLoginAttempts[username].failed_number++
 		us.mu.Unlock()
+
 		return nil, fmt.Errorf("error finding user with username password: %s", err)
 	}
 
 	if !user.IsActive {
 		return nil, fmt.Errorf("user is not activated")
 	}
+	// session, err := GenerateSession()
+
 	return make(map[string]string), nil
 }

@@ -87,6 +87,7 @@ func (r *UserAuthRepository) FindByUsername(ctx context.Context, username string
 	if err == nil {
 		return &user, nil
 	}
+	log.Printf("Failed to find User in Cached: %s, Find User in DB", err)
 
 	err = r.collection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
 	if err != nil {

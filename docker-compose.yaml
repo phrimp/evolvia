@@ -94,13 +94,7 @@ services:
     volumes:
       - mongodb_data:/data/db
       - ./logs/mongodb:/var/log/mongodb
-    command: >
-      bash -c "
-        mkdir -p /var/log/mongodb &&
-        touch /var/log/mongodb/mongodb.log &&
-        chmod 777 /var/log/mongodb/mongodb.log &&
-        mongod --logpath /var/log/mongodb/mongodb.log --logRotate reopen --logappend
-      "
+    command: mongod --logpath /var/log/mongodb/mongodb.log --logRotate reopen --logappend
     networks:
       - consul-net
       - traefik-net

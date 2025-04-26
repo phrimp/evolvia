@@ -40,8 +40,6 @@ func (s *SessionSenderService) SendSession(ctx context.Context, session *models.
 	client := pb.NewMiddlewareServiceClient(conn)
 
 	sessionData := &common.SessionData{
-		SessionId:      session.ID.Hex(),
-		UserId:         session.UserID.Hex(),
 		Token:          session.Token,
 		UserAgent:      session.UserAgent,
 		IpAddress:      session.IPAddress,

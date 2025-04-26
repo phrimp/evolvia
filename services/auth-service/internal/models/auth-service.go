@@ -20,16 +20,14 @@ type UserAuth struct {
 }
 
 type Session struct {
-	ID             primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	UserID         primitive.ObjectID `bson:"userId" json:"userId"`
-	Token          string             `bson:"token" json:"-"`
-	UserAgent      string             `bson:"userAgent" json:"userAgent"`
-	IPAddress      string             `bson:"ipAddress" json:"ipAddress"`
-	IsValid        bool               `bson:"isValid" json:"isValid"`
-	CreatedAt      int                `bson:"createdAt" json:"createdAt"`
-	LastActivityAt int                `bson:"lastActivityAt" json:"lastActivityAt"`
-	Device         Device             `bson:"device,omitempty" json:"device"`
-	Location       Location           `bson:"location,omitempty" json:"location"`
+	Token          string   `bson:"token" json:"-"`
+	UserAgent      string   `bson:"userAgent" json:"userAgent"`
+	IPAddress      string   `bson:"ipAddress" json:"ipAddress"`
+	IsValid        bool     `bson:"isValid" json:"isValid"`
+	CreatedAt      int      `bson:"createdAt" json:"createdAt"`
+	LastActivityAt int      `bson:"lastActivityAt" json:"lastActivityAt"`
+	Device         Device   `bson:"device,omitempty" json:"device"`
+	Location       Location `bson:"location,omitempty" json:"location"`
 }
 
 type Device struct {
@@ -91,4 +89,5 @@ type Claims struct {
 	Id       string
 	Username string
 	Email    string
+	Role     Role
 }
