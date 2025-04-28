@@ -106,6 +106,22 @@ services:
     labels:
       - "traefik.enable=false"
 
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
+    depends_on:
+      - mongodb
+    networks:
+      - consul-net
+      - traefik-net
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongodb:27017
+      ME_CONFIG_BASICAUTH: false
+
   # Redis Service
   redis:
     image: redis:latest
@@ -236,16 +252,11 @@ services:
       - redis
     labels:
     - "traefik.enable=true"
-    #Public
-    - "traefik.http.routers.auth-service-public.rule=PathPrefix(`/auth`)"
-    - "traefik.http.middlewares.public-rewrite.replacepathregex.regex=^/auth(.*)"
-    - "traefik.http.middlewares.public-rewrite.replacepathregex.replacement=/public/auth$$1"
-    - "traefik.http.routers.auth-service-public.middlewares=public-rewrite"
-    #Secure
-    - "traefik.http.routers.auth-service-secure.rule=PathPrefix(`/auth`)"
-    - "traefik.http.middlewares.protected-rewrite.replacepathregex.regex=^/auth(.*)"
-    - "traefik.http.middlewares.protected-rewrite.replacepathregex.replacement=/protected/auth$$1"
-    - "traefik.http.routers.auth-service-secure.middlewares=auth-middleware,protected-rewrite"
+    # Public
+    - "traefik.http.routers.auth-service-public.rule=PathPrefix(`/public/auth`)"
+    # Secure
+    - "traefik.http.routers.auth-service-secure.rule=PathPrefix(`/protected/auth`)"
+    - "traefik.http.routers.auth-service-secure.middlewares=auth-middleware"
     - "traefik.docker.network=microservices_template_traefik-net"
 
   middleware:

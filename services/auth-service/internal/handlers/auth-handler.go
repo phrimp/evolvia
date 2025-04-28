@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	grpcServer "auth_service/internal/grpc"
+
 	"github.com/gofiber/fiber/v3"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -16,14 +18,20 @@ type ResponseStruct struct {
 }
 
 type AuthHandler struct {
-	userService *service.UserService
-	jwtService  *service.JWTService
+	userService     *service.UserService
+	sessionService  *service.SessionService
+	userRoleService *service.UserRoleService
+	jwtService      *service.JWTService
+	gRPCService     *grpcServer.SessionSenderService
 }
 
-func NewAuthHandler(userService *service.UserService, jwtService *service.JWTService) *AuthHandler {
+func NewAuthHandler(userService *service.UserService, jwtService *service.JWTService, sessionService *service.SessionService, userRoleService *service.UserRoleService, grpc *grpcServer.SessionSenderService) *AuthHandler {
 	return &AuthHandler{
-		userService: userService,
-		jwtService:  jwtService,
+		userService:     userService,
+		jwtService:      jwtService,
+		sessionService:  sessionService,
+		userRoleService: userRoleService,
+		gRPCService:     grpc,
 	}
 }
 
@@ -50,7 +58,6 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 		})
 	}
 
-	// Validate input
 	if registerRequest.Username == "" || registerRequest.Email == "" || registerRequest.Password == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Username, email, and password are required",
@@ -73,6 +80,11 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
+	}
+
+	err = h.userRoleService.AssignDefaultRoleToUser(c.Context(), user.ID)
+	if err != nil {
+		log.Printf("Warning: Failed to assign default role to user: %v", err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -101,18 +113,44 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 		})
 	}
 
-	_, err := h.userService.Login(c.Context(), loginRequest.Username, loginRequest.Password)
+	login_data, err := h.userService.Login(c.Context(), loginRequest.Username, loginRequest.Password)
 	if err != nil {
 		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid credentials",
 		})
 	}
+	user_id := login_data["user_id"].(primitive.ObjectID)
 
-	// Return token and user info
+	permissions, err := h.userRoleService.GetUserPermissions(c.Context(), user_id, "", primitive.NilObjectID)
+	if err != nil {
+		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Service Error",
+		})
+	}
+	session, err := h.sessionService.NewSession(&models.Session{}, permissions, c.Get("User-Agent"), login_data["username"].(string), login_data["email"].(string))
+	if err != nil {
+		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Service Error",
+		})
+	}
+
+	err = h.gRPCService.SendSession(c.Context(), session, "middleware")
+	if err != nil {
+		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Service Error",
+		})
+	}
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"token": "test", // token,
-		"user":  fiber.Map{},
+		"message": "None",
+		"data": fiber.Map{
+			"token":   session.Token,
+			"profile": "Service Unavailable",
+		},
 	})
 }
 
@@ -139,46 +177,4 @@ func extractToken(c fiber.Ctx) string {
 		return auth[7:]
 	}
 	return ""
-}
-
-func getBrowserInfo(userAgent string) string {
-	if len(userAgent) == 0 {
-		return "Unknown"
-	}
-
-	if contains(userAgent, "Chrome") {
-		return "Chrome"
-	} else if contains(userAgent, "Firefox") {
-		return "Firefox"
-	} else if contains(userAgent, "Safari") {
-		return "Safari"
-	} else if contains(userAgent, "Edge") {
-		return "Edge"
-	} else if contains(userAgent, "MSIE") || contains(userAgent, "Trident") {
-		return "Internet Explorer"
-	}
-	return "Unknown"
-}
-
-func getOSInfo(userAgent string) string {
-	if len(userAgent) == 0 {
-		return "Unknown"
-	}
-
-	if contains(userAgent, "Windows") {
-		return "Windows"
-	} else if contains(userAgent, "Mac OS") {
-		return "macOS"
-	} else if contains(userAgent, "Linux") {
-		return "Linux"
-	} else if contains(userAgent, "Android") {
-		return "Android"
-	} else if contains(userAgent, "iOS") {
-		return "iOS"
-	}
-	return "Unknown"
-}
-
-func contains(s, substr string) bool {
-	return s != "" && substr != "" && s != substr && len(s) >= len(substr) && s != "Browser" && s != "OS" && substr != "Browser" && substr != "OS" && s != "Unknown" && substr != "Unknown" && s != "sample" && substr != "sample"
 }

@@ -33,7 +33,7 @@ func NewRoleRepository(db *mongo.Database) *RoleRepository {
 func (r *RoleRepository) Create(ctx context.Context, role *models.Role) (*models.Role, error) {
 	existing, err := r.FindByName(ctx, role.Name)
 	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, fmt.Errorf("error checking existing role: %w", err)
+		log.Printf("error checking existing role: %w", err)
 	}
 	if existing != nil {
 		return nil, fmt.Errorf("role with name '%s' already exists", role.Name)

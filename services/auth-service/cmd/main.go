@@ -7,6 +7,7 @@ import (
 	grpcServer "auth_service/internal/grpc"
 	"auth_service/internal/handlers"
 	"auth_service/internal/service"
+	"auth_service/pkg/discovery"
 	"fmt"
 	"log"
 	"net"
@@ -17,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "auth_service/pkg/discovery"
+	//_ "auth_service/pkg/discovery"
 
 	pb "proto-gen/auth"
 
@@ -56,6 +57,8 @@ type ServerServices struct {
 	UserRoleService   *service.UserRoleService
 	RoleService       *service.RoleService
 	PermissionService *service.PermissionService
+	SessionService    *service.SessionService
+	gRPCService       *grpcServer.SessionSenderService
 }
 
 func main() {
@@ -67,6 +70,8 @@ func main() {
 		UserRoleService:   service.NewUserRoleService(),
 		RoleService:       service.NewRoleService(),
 		PermissionService: service.NewPermissionService(),
+		SessionService:    service.NewSessionService(),
+		gRPCService:       grpcServer.NewSessionSenderService(discovery.ServiceDiscovery),
 	}
 
 	if err != nil {
@@ -83,7 +88,7 @@ func main() {
 	})
 
 	// Init Handlers
-	auth_handler := handlers.NewAuthHandler(services_init.UserService, services_init.JwtService)
+	auth_handler := handlers.NewAuthHandler(services_init.UserService, services_init.JwtService, services_init.SessionService, services_init.UserRoleService, services_init.gRPCService)
 	role_handler := handlers.NewRoleHandler(services_init.RoleService, services_init.UserRoleService)
 
 	// Register Routes

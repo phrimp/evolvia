@@ -1,7 +1,6 @@
 package service
 
 import (
-	"auth_service/internal/database/mongo"
 	"auth_service/internal/models"
 	"auth_service/internal/repository"
 	"context"
@@ -9,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -19,8 +19,8 @@ type RoleService struct {
 }
 
 func NewRoleService() *RoleService {
-	roleRepo := repository.NewRoleRepository(mongo.Mongo_Database)
-	permissionRepo := repository.NewPermissionRepository(mongo.Mongo_Database)
+	roleRepo := repository.Repositories_instance.RoleRepository
+	permissionRepo := repository.Repositories_instance.PermissionRepository
 
 	if err := roleRepo.CollectRoles(context.Background()); err != nil {
 		log.Printf("Warning: Failed to load roles into cache: %v", err)
@@ -35,7 +35,7 @@ func NewRoleService() *RoleService {
 func (s *RoleService) CreateRole(ctx context.Context, name, description string, permissions []string, isSystem bool) (*models.Role, error) {
 	validPermissions := make([]string, 0, len(permissions))
 	for _, permName := range permissions {
-		perm, err := s.permissionRepo.FindAvailablePermission(permName)
+		perm, err := s.permissionRepo.FindAvailablePermission(ctx, permName)
 		if err != nil {
 			return nil, fmt.Errorf("invalid permission '%s': %w", permName, err)
 		}
@@ -64,7 +64,7 @@ func (s *RoleService) UpdateRole(ctx context.Context, id primitive.ObjectID, nam
 
 	validPermissions := make([]string, 0, len(permissions))
 	for _, permName := range permissions {
-		perm, err := s.permissionRepo.FindAvailablePermission(permName)
+		perm, err := s.permissionRepo.FindAvailablePermission(ctx, permName)
 		if err != nil {
 			return nil, fmt.Errorf("invalid permission '%s': %w", permName, err)
 		}
@@ -115,7 +115,7 @@ func (s *RoleService) AddPermissionToRole(ctx context.Context, roleID primitive.
 		return err
 	}
 
-	_, err = s.permissionRepo.FindAvailablePermission(permissionName)
+	_, err = s.permissionRepo.FindAvailablePermission(ctx, permissionName)
 	if err != nil {
 		return fmt.Errorf("invalid permission '%s': %w", permissionName, err)
 	}
@@ -162,7 +162,7 @@ func (s *RoleService) HasPermission(role *models.Role, permissionName string) bo
 
 func (s *RoleService) CreateDefaultRoles(ctx context.Context) error {
 	_, err := s.roleRepo.FindByName(ctx, "admin")
-	if err != nil {
+	if err != nil && strings.Contains(err.Error(), "not found") {
 		allPermissions, err := s.permissionRepo.FindAll(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get all permissions: %w", err)
@@ -178,16 +178,24 @@ func (s *RoleService) CreateDefaultRoles(ctx context.Context) error {
 			return fmt.Errorf("failed to create admin role: %w", err)
 		}
 		log.Println("Created default admin role")
+	} else if err != nil {
+		return fmt.Errorf("error checking for admin role: %w", err)
+	} else {
+		log.Println("Admin role already exists, skipping creation")
 	}
 
 	_, err = s.roleRepo.FindByName(ctx, "user")
-	if err != nil {
-		basicPermissions := []string{"profile:read", "profile:update"}
+	if err != nil && strings.Contains(err.Error(), "not found") {
+		basicPermissions := []string{"read", "write"}
 		_, err = s.CreateRole(ctx, "user", "Basic user role", basicPermissions, true)
 		if err != nil {
 			return fmt.Errorf("failed to create user role: %w", err)
 		}
 		log.Println("Created default user role")
+	} else if err != nil {
+		return fmt.Errorf("error checking for user role: %w", err)
+	} else {
+		log.Println("User role already exists, skipping creation")
 	}
 
 	return nil

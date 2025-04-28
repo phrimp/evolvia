@@ -1,11 +1,11 @@
 package service
 
 import (
-	"auth_service/internal/database/mongo"
 	"auth_service/internal/models"
 	"auth_service/internal/repository"
 	"context"
 	"fmt"
+	"log"
 )
 
 type PermissionService struct {
@@ -13,7 +13,12 @@ type PermissionService struct {
 }
 
 func NewPermissionService() *PermissionService {
-	p_repo := repository.NewPermissionRepository(mongo.Mongo_Database)
+	p_repo := repository.Repositories_instance.PermissionRepository
+
+	if err := p_repo.InitDefaultPermissions(context.Background()); err != nil {
+		log.Printf("Warning: Failed to initialize default permissions: %v", err)
+	}
+
 	p_repo.CollectPermissions(context.Background())
 	return &PermissionService{
 		PermissionRepo: p_repo,
@@ -35,6 +40,6 @@ func (ps *PermissionService) NewPermission(ctx context.Context, name, category, 
 	return nil
 }
 
-func (ps *PermissionService) GetAvailablePermission(name string) (*models.Permission, error) {
-	return ps.PermissionRepo.FindAvailablePermission(name)
+func (ps *PermissionService) GetAvailablePermission(ctx context.Context, name string) (*models.Permission, error) {
+	return ps.PermissionRepo.FindAvailablePermission(ctx, name)
 }

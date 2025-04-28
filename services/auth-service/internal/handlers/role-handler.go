@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"auth_service/internal/service"
+	"context"
+	"log"
 
 	"github.com/gofiber/fiber/v3"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -36,6 +38,8 @@ func (h *RoleHandler) RegisterRoutes(app *fiber.App) {
 	userRoleGroup.Delete("/:id", h.RemoveRoleFromUser)
 	userRoleGroup.Get("/users/:userId", h.GetUserRoles)
 	userRoleGroup.Get("/roles/:roleName/users", h.GetUsersWithRole)
+	err := h.roleService.CreateDefaultRoles(context.Background())
+	log.Printf("Error Loading Default Roles: %s", err)
 }
 
 func (h *RoleHandler) GetAllRoles(c fiber.Ctx) error {

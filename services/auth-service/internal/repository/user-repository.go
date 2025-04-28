@@ -83,7 +83,7 @@ func (r *UserAuthRepository) FindByID(ctx context.Context, id primitive.ObjectID
 func (r *UserAuthRepository) FindByUsername(ctx context.Context, username string) (*models.UserAuth, error) {
 	var user models.UserAuth
 
-	err := RedisRepository.GetStructCached(ctx, "auth-service-auth-user-"+username, username, &user)
+	err := Repositories_instance.RedisRepository.GetStructCached(ctx, "auth-service-auth-user-"+username, username, &user)
 	if err == nil {
 		return &user, nil
 	}
@@ -96,7 +96,7 @@ func (r *UserAuthRepository) FindByUsername(ctx context.Context, username string
 		}
 		return nil, err
 	}
-	isCached, err := RedisRepository.SaveStructCached(ctx, username, "auth-service-auth-user-"+username, user)
+	isCached, err := Repositories_instance.RedisRepository.SaveStructCached(ctx, username, "auth-service-auth-user-"+username, user)
 	if !isCached {
 		log.Printf("Failed to save Auth User to Cache: %s", err)
 	}

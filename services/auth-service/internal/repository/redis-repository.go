@@ -11,12 +11,6 @@ import (
 	redis_v9 "github.com/redis/go-redis/v9"
 )
 
-var RedisRepository *RedisRepo
-
-func init() {
-	RedisRepository = NewRedisRepo()
-}
-
 type RedisRepo struct {
 	client *redis_v9.Client
 }

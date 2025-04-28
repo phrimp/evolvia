@@ -1,7 +1,6 @@
 package service
 
 import (
-	"auth_service/internal/database/mongo"
 	"auth_service/internal/models"
 	"auth_service/internal/repository"
 	"context"
@@ -15,6 +14,7 @@ import (
 
 type UserService struct {
 	UserRepo            *repository.UserAuthRepository
+	RedisRepo           *repository.RedisRepo
 	mu                  *sync.Mutex
 	FailedLoginAttempts map[string]*FailedLoginAttempt
 }
@@ -26,9 +26,10 @@ type FailedLoginAttempt struct {
 
 func NewUserService() *UserService {
 	return &UserService{
-		UserRepo:            repository.NewUserAuthRepository(mongo.Mongo_Database),
+		UserRepo:            repository.Repositories_instance.UserAuthRepository,
 		mu:                  &sync.Mutex{},
 		FailedLoginAttempts: make(map[string]*FailedLoginAttempt),
+		RedisRepo:           repository.Repositories_instance.RedisRepository,
 	}
 }
 
@@ -55,9 +56,9 @@ func (us *UserService) Register(ctx context.Context, user *models.UserAuth, prof
 	return true, nil
 }
 
-func (us *UserService) Login(ctx context.Context, username, password string) (map[string]string, error) {
-	if repository.RedisRepository.GetInt(ctx, username, "auth-service-lock-user-"+username) != 0 {
-		return nil, fmt.Errorf("user locked")
+func (us *UserService) Login(ctx context.Context, username, password string) (map[string]any, error) {
+	if us.RedisRepo.GetInt(ctx, username, "auth-service-lock-user-"+username) != 0 {
+		return nil, fmt.Errorf("user is locked")
 	}
 	user, err := us.UserRepo.FindByUsername(ctx, username)
 	if err != nil {
@@ -73,12 +74,12 @@ func (us *UserService) Login(ctx context.Context, username, password string) (ma
 		last_failed_login_attempt := us.FailedLoginAttempts[username].failed_at
 		if login_time-last_failed_login_attempt < 1000 {
 			log.Printf("WARN: Suspicious activity detect for user: %s. Instant locked activated", username)
-			repository.RedisRepository.SaveInt(ctx, username, login_time, 10, "auth-service-lock-user-"+username)
+			us.RedisRepo.SaveInt(ctx, username, login_time, 10, "auth-service-lock-user-"+username)
 		}
 		failed_nums := us.FailedLoginAttempts[username].failed_number
 		if failed_nums > 10 {
 			log.Printf("User %s, login failed %v time. Locked for %v minute", username, failed_nums, 10)
-			repository.RedisRepository.SaveInt(ctx, username, login_time, 10, "auth-service-lock-user-"+username)
+			us.RedisRepo.SaveInt(ctx, username, login_time, 10, "auth-service-lock-user-"+username)
 		}
 
 		us.mu.Lock()
@@ -86,13 +87,17 @@ func (us *UserService) Login(ctx context.Context, username, password string) (ma
 		us.FailedLoginAttempts[username].failed_number++
 		us.mu.Unlock()
 
-		return nil, fmt.Errorf("error finding user with username password: %s", err)
+		return nil, fmt.Errorf("error finding user with username password: wrong password")
 	}
 
 	if !user.IsActive {
 		return nil, fmt.Errorf("user is not activated")
 	}
-	// session, err := GenerateSession()
+	login_return := map[string]any{
+		"user_id":  user.ID,
+		"username": user.Username,
+		"email":    user.Email,
+	}
 
-	return make(map[string]string), nil
+	return login_return, nil
 }

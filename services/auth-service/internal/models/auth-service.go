@@ -9,11 +9,11 @@ type UserAuth struct {
 	ID                  primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	Email               string             `bson:"email" json:"email" validate:"required,email"`
 	Username            string             `bson:"username,omitempty" json:"username"`
-	PasswordHash        string             `bson:"passwordHash" json:"-"`
+	PasswordHash        string             `bson:"passwordHash" json:"passwordHash"`
 	IsActive            bool               `bson:"isActive" json:"isActive"`
 	IsEmailVerified     bool               `bson:"isEmailVerified" json:"isEmailVerified"`
-	FailedLoginAttempts int                `bson:"failedLoginAttempts" json:"-"`
-	LastLoginAttempt    int                `bson:"lastLoginAttempt,omitempty" json:"-"`
+	FailedLoginAttempts int                `bson:"failedLoginAttempts" json:"failedLoginAttempts"`
+	LastLoginAttempt    int                `bson:"lastLoginAttempt,omitempty" json:"lastLoginAttempt"`
 	CreatedAt           int                `bson:"createdAt" json:"createdAt"`
 	UpdatedAt           int                `bson:"updatedAt" json:"updatedAt"`
 	LastLoginAt         int                `bson:"lastLoginAt,omitempty" json:"lastLoginAt"`
@@ -88,5 +88,5 @@ type Claims struct {
 	Id          string
 	Username    string
 	Email       string
-	Permissions []*Permission
+	Permissions []string
 }

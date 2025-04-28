@@ -1,7 +1,6 @@
 package service
 
 import (
-	"auth_service/internal/database/mongo"
 	"auth_service/internal/models"
 	"auth_service/internal/repository"
 	"context"
@@ -21,9 +20,9 @@ type UserRoleService struct {
 
 func NewUserRoleService() *UserRoleService {
 	return &UserRoleService{
-		userRoleRepo: repository.NewUserRoleRepository(mongo.Mongo_Database),
-		roleRepo:     repository.NewRoleRepository(mongo.Mongo_Database),
-		userRepo:     repository.NewUserAuthRepository(mongo.Mongo_Database),
+		userRoleRepo: repository.Repositories_instance.UserRoleRepository,
+		roleRepo:     repository.Repositories_instance.RoleRepository,
+		userRepo:     repository.Repositories_instance.UserAuthRepository,
 	}
 }
 
