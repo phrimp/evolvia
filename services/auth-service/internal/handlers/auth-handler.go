@@ -129,12 +129,15 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 			"error": "Service Error",
 		})
 	}
-	session, err := h.sessionService.NewSession(&models.Session{}, permissions, c.Get("User-Agent"), login_data["username"].(string), login_data["email"].(string))
+	session, err := h.sessionService.GetSession(c.Context(), login_data["username"].(string))
 	if err != nil {
-		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Service Error",
-		})
+		session, err = h.sessionService.NewSession(&models.Session{}, permissions, c.Get("User-Agent"), login_data["username"].(string), login_data["email"].(string))
+		if err != nil {
+			log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Service Error",
+			})
+		}
 	}
 
 	err = h.gRPCService.SendSession(c.Context(), session, "middleware")

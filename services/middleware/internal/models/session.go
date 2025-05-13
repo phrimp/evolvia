@@ -1,6 +1,8 @@
 package models
 
 type Session struct {
+	ID             string
+	UserID         string
 	Token          string
 	UserAgent      string
 	IPAddress      string

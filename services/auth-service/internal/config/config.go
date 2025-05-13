@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -12,6 +13,7 @@ type Config struct {
 	ServiceName    string
 	ServiceID      string
 	ServiceAddress string
+	JWTExpired     int64
 }
 
 func init() {
@@ -21,6 +23,9 @@ func init() {
 var ServiceConfig *Config
 
 func New() *Config {
+	jwt_expired_str := getEnv("TOKEN_EXPIRY_TIME", "24")
+	jwt_expired, _ := strconv.Atoi(jwt_expired_str)
+
 	return &Config{
 		Port:           getEnv("PORT", "9100"),
 		GrpcPort:       getEnv("GRPC_PORT", "9101"),
@@ -28,6 +33,7 @@ func New() *Config {
 		ServiceName:    getEnv("AUTH_SERVICE_NAME", "auth-service"),
 		ServiceID:      getEnv("AUTH_SERVICE_NAME", "auth-service") + "-" + getEnv("AUTH_HOSTNAME", "2"),
 		ServiceAddress: getEnv("AUTH_SERVICE_ADDRESS", "auth-service"),
+		JWTExpired:     int64(jwt_expired),
 	}
 }
 

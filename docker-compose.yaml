@@ -240,6 +240,7 @@ services:
       - REDIS_PROTOCAL=${REDIS_PROTOCAL}
       - REDIS_ADDR=${REDIS_ADDR}
       - REDIS_PWD=${REDIS_PWD}
+      - TOKEN_EXPIRY_TIME=${TOKEN_EXPIRY_TIME}
     networks:
       - consul-net
       - traefik-net
@@ -252,6 +253,9 @@ services:
       - redis
     labels:
     - "traefik.enable=true"
+    - "traefik.http.services.auth-service.loadbalancer.server.port=${AUTH_SERVICE_PORT}"
+    - "traefik.http.routers.auth-service-public.service=auth-service"
+    - "traefik.http.routers.auth-service-secure.service=auth-service"
     # Public
     - "traefik.http.routers.auth-service-public.rule=PathPrefix(`/public/auth`)"
     # Secure
@@ -273,7 +277,7 @@ services:
       - GRPC_PORT=${MIDDLEWARE_SERVICE_GRPC_PORT}
       - CONSUL_ADDRESS=consul-server:${CONSUL_HTTP_PORT}
       - JWT_SECRET=${JWT_SECRET}
-      - TOKEN_EXPIRY_HOURS=${TOKEN_EXPIRY_HOURS}
+      - TOKEN_EXPIRY_TIME=${TOKEN_EXPIRY_TIME}
       - MIDDLEWARE_SERVICE_NAME=${MIDDLEWARE_SERVICE_NAME}
       - MIDDLEWARE_SERVICE_ADDRESS=${MIDDLEWARE_SERVICE_ADDRESS}
       - MIDDLEWARE_HOSTNAME=${MIDDLEWARE_HOSTNAME}

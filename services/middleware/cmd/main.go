@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	pb "proto-gen/middleware"
+	"strings"
 	"syscall"
 	"time"
 
@@ -51,7 +52,9 @@ func main() {
 	grpcServer := setupGRPCServer()
 	app := fiber.New(fiber.Config{})
 	app.Use(func(c fiber.Ctx) error {
-		log.Printf("Received request for path: %s", c.Path())
+		if !strings.Contains(c.Path(), "/health") {
+			log.Printf("Received request for path: %s", c.Path())
+		}
 		return c.Next()
 	})
 

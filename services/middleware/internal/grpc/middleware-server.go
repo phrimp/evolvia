@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"middleware/internal/models"
+	"middleware/internal/services"
 	pb "proto-gen/middleware"
 	"proto-gen/shared"
 )
@@ -20,6 +21,8 @@ func (s *MiddlewareServer) ProcessSession(ctx context.Context, req *shared.Sessi
 	log.Printf("Received session data for user ID: %s", req.UserId)
 
 	session := &models.Session{
+		ID:             req.SessionId,
+		UserID:         req.UserId,
 		Token:          req.Token,
 		UserAgent:      req.UserAgent,
 		IPAddress:      req.IpAddress,
@@ -36,6 +39,10 @@ func (s *MiddlewareServer) ProcessSession(ctx context.Context, req *shared.Sessi
 			Region:  req.Location.Region,
 			City:    req.Location.City,
 		},
+	}
+	_, err := services.Redis_service.SaveStructCached(ctx, req.Token, session, 24)
+	if err != nil {
+		log.Printf("error saving session to cache: %s", err)
 	}
 
 	log.Printf("Processing session: %v", session)

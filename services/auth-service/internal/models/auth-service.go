@@ -20,7 +20,7 @@ type UserAuth struct {
 }
 
 type Session struct {
-	Token          string   `bson:"token" json:"-"`
+	Token          string   `bson:"token" json:"token"`
 	IPAddress      string   `bson:"ipAddress" json:"ipAddress"`
 	IsValid        bool     `bson:"isValid" json:"isValid"`
 	CreatedAt      int      `bson:"createdAt" json:"createdAt"`

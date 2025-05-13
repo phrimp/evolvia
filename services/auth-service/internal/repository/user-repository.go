@@ -96,7 +96,7 @@ func (r *UserAuthRepository) FindByUsername(ctx context.Context, username string
 		}
 		return nil, err
 	}
-	isCached, err := Repositories_instance.RedisRepository.SaveStructCached(ctx, username, "auth-service-auth-user-"+username, user)
+	isCached, err := Repositories_instance.RedisRepository.SaveStructCached(ctx, username, "auth-service-auth-user-"+username, user, 24)
 	if !isCached {
 		log.Printf("Failed to save Auth User to Cache: %s", err)
 	}
