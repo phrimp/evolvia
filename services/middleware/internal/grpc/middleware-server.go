@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 	"middleware/internal/models"
-	"middleware/internal/services"
+	"middleware/internal/repository"
 	pb "proto-gen/middleware"
 	"proto-gen/shared"
 )
@@ -40,7 +40,7 @@ func (s *MiddlewareServer) ProcessSession(ctx context.Context, req *shared.Sessi
 			City:    req.Location.City,
 		},
 	}
-	_, err := services.Redis_service.SaveStructCached(ctx, req.Token, session, 24)
+	_, err := repository.Redis_repo.SaveStructCached(ctx, req.Token, session, 24)
 	if err != nil {
 		log.Printf("error saving session to cache: %s", err)
 	}

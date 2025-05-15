@@ -13,6 +13,7 @@ type Config struct {
 	ServiceName    string
 	ServiceID      string
 	ServiceAddress string
+	JWTSecret      string
 	JWTExpired     int64
 }
 
@@ -33,6 +34,7 @@ func New() *Config {
 		ServiceName:    getEnv("AUTH_SERVICE_NAME", "auth-service"),
 		ServiceID:      getEnv("AUTH_SERVICE_NAME", "auth-service") + "-" + getEnv("AUTH_HOSTNAME", "2"),
 		ServiceAddress: getEnv("AUTH_SERVICE_ADDRESS", "auth-service"),
+		JWTSecret:      getEnv("JWT_SECRET", ""),
 		JWTExpired:     int64(jwt_expired),
 	}
 }

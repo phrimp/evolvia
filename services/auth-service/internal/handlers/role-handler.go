@@ -4,6 +4,7 @@ import (
 	"auth_service/internal/service"
 	"context"
 	"log"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -38,13 +39,39 @@ func (h *RoleHandler) RegisterRoutes(app *fiber.App) {
 	userRoleGroup.Delete("/:id", h.RemoveRoleFromUser)
 	userRoleGroup.Get("/users/:userId", h.GetUserRoles)
 	userRoleGroup.Get("/roles/:roleName/users", h.GetUsersWithRole)
+
 	err := h.roleService.CreateDefaultRoles(context.Background())
 	log.Printf("Error Loading Default Roles: %s", err)
 }
 
 func (h *RoleHandler) GetAllRoles(c fiber.Ctx) error {
+	userID := c.Get("X-User-ID")
+	userPermissions := c.Get("X-User-Permissions")
+
+	// Parse pagination parameters
 	page := fiber.Query(c, "page", 1)
 	limit := fiber.Query(c, "limit", 10)
+
+	// Check if user has permission to view roles
+	hasPermission := false
+	if userPermissions != "" {
+		permissions := strings.SplitSeq(userPermissions, ",")
+		// Check for any permission that would allow viewing roles
+		for perm := range permissions {
+			if perm == "read" || strings.HasPrefix(perm, "role:") || perm == "admin" {
+				hasPermission = true
+				break
+			}
+		}
+	}
+
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "You don't have permission to view roles",
+		})
+	}
+
+	log.Printf("User %s requesting all roles (page: %d, limit: %d)", userID, page, limit)
 
 	roles, err := h.roleService.GetAllRoles(c.Context(), page, limit)
 	if err != nil {

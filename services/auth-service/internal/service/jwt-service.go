@@ -1,9 +1,9 @@
 package service
 
 import (
+	"auth_service/internal/config"
 	"auth_service/internal/models"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -28,7 +28,7 @@ func (jwt_s *JWTService) GenerateNewToken(permissions []string, username, email 
 		Permissions: permissions,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claim)
-	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	tokenString, err := token.SignedString([]byte(config.ServiceConfig.JWTSecret))
 	if err != nil {
 		return "", fmt.Errorf("error generate token string: %s", err)
 	}

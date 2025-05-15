@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"middleware/internal/api/handlers"
 	"middleware/internal/config"
 	_ "middleware/internal/database/redis"
 	grpcServer "middleware/internal/grpc"
+	"middleware/internal/services"
 	_ "middleware/pkg/discovery"
 	"net"
 	"os"
@@ -51,6 +53,17 @@ func main() {
 	defer logFile.Close()
 	grpcServer := setupGRPCServer()
 	app := fiber.New(fiber.Config{})
+
+	// Service Init
+	jwtService := services.NewJWTService(config.ServiceConfig.JWTSecret)
+	sessionService := services.NewSessionService(jwtService)
+
+	// Handler Init
+	middlewareHandler := handlers.NewMiddlewareHandler(sessionService)
+
+	// Register Routes
+	middlewareHandler.RegisterRoutes(app)
+
 	app.Use(func(c fiber.Ctx) error {
 		if !strings.Contains(c.Path(), "/health") {
 			log.Printf("Received request for path: %s", c.Path())

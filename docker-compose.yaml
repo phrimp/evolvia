@@ -240,6 +240,7 @@ services:
       - REDIS_PROTOCAL=${REDIS_PROTOCAL}
       - REDIS_ADDR=${REDIS_ADDR}
       - REDIS_PWD=${REDIS_PWD}
+      - JWT_SECRET=${JWT_SECRET}
       - TOKEN_EXPIRY_TIME=${TOKEN_EXPIRY_TIME}
     networks:
       - consul-net
