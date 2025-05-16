@@ -4,6 +4,7 @@ import (
 	"auth_service/internal/config"
 	"auth_service/internal/models"
 	"fmt"
+	utils "proto-gen/utils"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -16,7 +17,7 @@ func NewJWTService() *JWTService {
 }
 
 func (jwt_s *JWTService) GenerateNewToken(permissions []string, username, email string) (string, error) {
-	claim_id := "C-" + GenerateRandomStringWithLength(6)
+	claim_id := "C-" + utils.GenerateRandomStringWithLength(6)
 	claim := models.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt: jwt.NewNumericDate(time.Now()),

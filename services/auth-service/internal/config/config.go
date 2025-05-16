@@ -7,14 +7,17 @@ import (
 )
 
 type Config struct {
-	Port           string
-	GrpcPort       string
-	ConsulAddress  string
-	ServiceName    string
-	ServiceID      string
-	ServiceAddress string
-	JWTSecret      string
-	JWTExpired     int64
+	Port             string
+	GrpcPort         string
+	ConsulAddress    string
+	ServiceName      string
+	ServiceID        string
+	ServiceAddress   string
+	RabbitMQUSer     string
+	RabbitMQPassword string
+	RabbitMQPort     string
+	JWTSecret        string
+	JWTExpired       int64
 }
 
 func init() {
@@ -28,14 +31,17 @@ func New() *Config {
 	jwt_expired, _ := strconv.Atoi(jwt_expired_str)
 
 	return &Config{
-		Port:           getEnv("PORT", "9100"),
-		GrpcPort:       getEnv("GRPC_PORT", "9101"),
-		ConsulAddress:  "consul-server:" + getEnv("CONSUL_PORT", "8500"),
-		ServiceName:    getEnv("AUTH_SERVICE_NAME", "auth-service"),
-		ServiceID:      getEnv("AUTH_SERVICE_NAME", "auth-service") + "-" + getEnv("AUTH_HOSTNAME", "2"),
-		ServiceAddress: getEnv("AUTH_SERVICE_ADDRESS", "auth-service"),
-		JWTSecret:      getEnv("JWT_SECRET", ""),
-		JWTExpired:     int64(jwt_expired),
+		Port:             getEnv("PORT", "9100"),
+		GrpcPort:         getEnv("GRPC_PORT", "9101"),
+		RabbitMQUSer:     getEnv("RABBITMQ_USER", ""),
+		RabbitMQPassword: getEnv("RABBITMQ_PASSWORD", ""),
+		RabbitMQPort:     getEnv("RABBITMQ_PORT", ""),
+		ConsulAddress:    "consul-server:" + getEnv("CONSUL_PORT", "8500"),
+		ServiceName:      getEnv("AUTH_SERVICE_NAME", "auth-service"),
+		ServiceID:        getEnv("AUTH_SERVICE_NAME", "auth-service") + "-" + getEnv("AUTH_HOSTNAME", "2"),
+		ServiceAddress:   getEnv("AUTH_SERVICE_ADDRESS", "auth-service"),
+		JWTSecret:        getEnv("JWT_SECRET", ""),
+		JWTExpired:       int64(jwt_expired),
 	}
 }
 

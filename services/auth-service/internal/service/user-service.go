@@ -1,6 +1,7 @@
 package service
 
 import (
+	"auth_service/internal/events"
 	"auth_service/internal/models"
 	"auth_service/internal/repository"
 	"context"
@@ -17,6 +18,7 @@ type UserService struct {
 	RedisRepo           *repository.RedisRepo
 	mu                  *sync.Mutex
 	FailedLoginAttempts map[string]*FailedLoginAttempt
+	eventPublisher      events.Publisher
 }
 
 type FailedLoginAttempt struct {
@@ -24,12 +26,13 @@ type FailedLoginAttempt struct {
 	failed_number int
 }
 
-func NewUserService() *UserService {
+func NewUserService(eventPublisher events.Publisher) *UserService {
 	return &UserService{
 		UserRepo:            repository.Repositories_instance.UserAuthRepository,
 		mu:                  &sync.Mutex{},
 		FailedLoginAttempts: make(map[string]*FailedLoginAttempt),
 		RedisRepo:           repository.Repositories_instance.RedisRepository,
+		eventPublisher:      eventPublisher,
 	}
 }
 
@@ -51,7 +54,21 @@ func (us *UserService) Register(ctx context.Context, user *models.UserAuth, prof
 	}
 	log.Printf("New auth user created: %v", user_added)
 
-	// _, err := CreateUserProfile(profile)
+	if us.eventPublisher != nil {
+		err := us.eventPublisher.PublishUserCreated(
+			ctx,
+			user.ID.Hex(),
+			user.Username,
+			user.Email,
+			profile,
+		)
+		if err != nil {
+			// Log the error but don't fail the registration
+			log.Printf("Warning: Failed to publish user created event: %v", err)
+		} else {
+			log.Printf("Published user created event for user: %s", user.Username)
+		}
+	}
 
 	return true, nil
 }

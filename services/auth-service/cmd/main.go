@@ -4,8 +4,10 @@ import (
 	"auth_service/internal/config"
 	_ "auth_service/internal/database/mongo"
 	_ "auth_service/internal/database/redis"
+	"auth_service/internal/events"
 	grpcServer "auth_service/internal/grpc"
 	"auth_service/internal/handlers"
+	"auth_service/internal/repository"
 	"auth_service/internal/service"
 	"auth_service/pkg/discovery"
 	"fmt"
@@ -63,10 +65,43 @@ type ServerServices struct {
 
 func main() {
 	logFile, err := setupLogging()
+	if err != nil {
+		log.Fatalf("Failed to set up logging: %v", err)
+	}
+	defer logFile.Close()
+
+	rabbitmqURI := fmt.Sprintf("amqp://%s:%s@%s:%s/",
+		config.ServiceConfig.RabbitMQUSer,
+		config.ServiceConfig.RabbitMQPassword,
+		"rabbitmq", // host
+		config.ServiceConfig.RabbitMQPort)
+
+	eventPublisher, err := events.NewEventPublisher(rabbitmqURI)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize event publisher: %v", err)
+		eventPublisher = nil
+	} else {
+		defer eventPublisher.Close()
+	}
+
+	eventConsumer, err := events.NewEventConsumer(rabbitmqURI, repository.Repositories_instance.RedisRepository)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize event consumer: %v", err)
+	} else {
+		// Start the consumer
+		if err := eventConsumer.Start(); err != nil {
+			log.Printf("Warning: Failed to start event consumer: %v", err)
+			eventConsumer.Close()
+		} else {
+			log.Println("Successfully started event consumer for profile updates")
+			// Ensure consumer is closed when application exits
+			defer eventConsumer.Close()
+		}
+	}
 
 	services_init := &ServerServices{
 		JwtService:        service.NewJWTService(),
-		UserService:       service.NewUserService(),
+		UserService:       service.NewUserService(eventPublisher),
 		UserRoleService:   service.NewUserRoleService(),
 		RoleService:       service.NewRoleService(),
 		PermissionService: service.NewPermissionService(),
@@ -74,10 +109,6 @@ func main() {
 		gRPCService:       grpcServer.NewSessionSenderService(discovery.ServiceDiscovery),
 	}
 
-	if err != nil {
-		log.Fatalf("Failed to set up logging: %v", err)
-	}
-	defer logFile.Close()
 	_grpcServer := setupGRPCServer()
 	app := fiber.New(fiber.Config{})
 	app.Use(func(c fiber.Ctx) error {
