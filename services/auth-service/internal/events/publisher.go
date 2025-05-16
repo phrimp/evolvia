@@ -6,7 +6,7 @@ import (
 )
 
 type Publisher interface {
-	PublishUserCreated(ctx context.Context, userID, username, email string, profileData map[string]string) error
+	PublishUserRegister(ctx context.Context, userID, username, email string, profileData map[string]string) error
 
 	// Close closes the publisher and releases resources
 	Close() error
@@ -45,14 +45,14 @@ func NewEventPublisher(rabbitURI string) (*EventPublisher, error) {
 	}, nil
 }
 
-func (p *EventPublisher) PublishUserCreated(ctx context.Context, userID, username, email string, profileData map[string]string) error {
+func (p *EventPublisher) PublishUserRegister(ctx context.Context, userID, username, email string, profileData map[string]string) error {
 	if !p.enabled {
-		log.Println("Event publishing is disabled, skipping UserCreatedEvent")
+		log.Println("Event publishing is disabled, skipping UserRegisterEvent")
 		return nil
 	}
 
 	// Create event
-	event := NewUserCreatedEvent(userID, username, email, profileData)
+	event := NewUserRegisterEvent(userID, username, email, profileData)
 
 	// Serialize to JSON
 	eventData, err := event.ToJSON()
@@ -61,12 +61,12 @@ func (p *EventPublisher) PublishUserCreated(ctx context.Context, userID, usernam
 	}
 
 	// Publish to RabbitMQ
-	err = p.rabbitMQ.PublishEvent("user-events", string(UserCreated), eventData)
+	err = p.rabbitMQ.PublishEvent("user-events", string(UserRegister), eventData)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Published UserCreated event for user ID: %s", userID)
+	log.Printf("Published UserRegister event for user ID: %s", userID)
 	return nil
 }
 

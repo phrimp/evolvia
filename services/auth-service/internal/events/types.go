@@ -9,8 +9,8 @@ import (
 type EventType string
 
 const (
-	// UserCreated is triggered when a new user is registered
-	UserCreated EventType = "user.created"
+	// UserRegister is triggered when a new user is registered
+	UserRegister EventType = "user.registered"
 	// ProfileUpdated is triggered when a user profile is updated
 	ProfileUpdated EventType = "profile.updated"
 )
@@ -22,7 +22,7 @@ type BaseEvent struct {
 	Version   string    `json:"version"`
 }
 
-type UserCreatedEvent struct {
+type UserRegisterEvent struct {
 	BaseEvent
 	UserID      string            `json:"user_id"`
 	Username    string            `json:"username"`
@@ -30,11 +30,11 @@ type UserCreatedEvent struct {
 	ProfileData map[string]string `json:"profile_data"`
 }
 
-func NewUserCreatedEvent(userID, username, email string, profileData map[string]string) *UserCreatedEvent {
-	return &UserCreatedEvent{
+func NewUserRegisterEvent(userID, username, email string, profileData map[string]string) *UserRegisterEvent {
+	return &UserRegisterEvent{
 		BaseEvent: BaseEvent{
 			ID:        generateEventID(),
-			Type:      UserCreated,
+			Type:      UserRegister,
 			Timestamp: time.Now().Unix(),
 			Version:   "1.0",
 		},
@@ -45,7 +45,7 @@ func NewUserCreatedEvent(userID, username, email string, profileData map[string]
 	}
 }
 
-func (e *UserCreatedEvent) ToJSON() ([]byte, error) {
+func (e *UserRegisterEvent) ToJSON() ([]byte, error) {
 	return json.Marshal(e)
 }
 

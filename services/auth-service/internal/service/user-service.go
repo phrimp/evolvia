@@ -55,7 +55,7 @@ func (us *UserService) Register(ctx context.Context, user *models.UserAuth, prof
 	log.Printf("New auth user created: %v", user_added)
 
 	if us.eventPublisher != nil {
-		err := us.eventPublisher.PublishUserCreated(
+		err := us.eventPublisher.PublishUserRegister(
 			ctx,
 			user.ID.Hex(),
 			user.Username,
@@ -117,4 +117,30 @@ func (us *UserService) Login(ctx context.Context, username, password string) (ma
 	}
 
 	return login_return, nil
+}
+
+func (s *UserService) GetProfile(ctx context.Context, userID primitive.ObjectID) (*models.UserWithProfile, error) {
+	return nil, nil
+}
+
+func (s *UserService) DeactivateUser(ctx context.Context, userID primitive.ObjectID) error {
+	s.invalidateUserCache(userID.String())
+	return nil
+}
+
+func (s *UserService) VerifyEmail(ctx context.Context, token string) error {
+	return nil
+}
+
+func (s *UserService) RequestPasswordReset(ctx context.Context, email string) error {
+	return nil
+}
+
+func (s *UserService) ResetPassword(ctx context.Context, token string, newPassword string) error {
+	return nil
+}
+
+func (s *UserService) invalidateUserCache(userID string) {
+	s.RedisRepo.DeleteKey(context.Background(), "auth-service-auth-user-"+userID)
+	s.RedisRepo.DeleteKey(context.Background(), "user-profile:"+userID)
 }
