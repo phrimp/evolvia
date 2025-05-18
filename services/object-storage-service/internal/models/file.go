@@ -40,3 +40,11 @@ type FileVersion struct {
 	CreatedAt     time.Time          `bson:"createdAt" json:"createdAt"`         // Creation timestamp
 	CreatedBy     string             `bson:"createdBy" json:"createdBy"`         // User ID who created this version
 }
+
+type FileUpdateRequest struct {
+	Description string            `json:"description,omitempty"` // Updated description
+	FolderPath  string            `json:"folderPath,omitempty"`  // Updated folder path
+	IsPublic    *bool             `json:"isPublic,omitempty"`    // Updated public status
+	Tags        []string          `json:"tags,omitempty"`        // Updated tags
+	Metadata    map[string]string `json:"metadata,omitempty"`    // Updated metadata
+}
