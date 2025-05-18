@@ -51,7 +51,7 @@ func (sr *ServiceRegistry) Register() error {
 		Port: port,
 		Tags: []string{"storage", "file", "avatar", "minio"},
 		Check: &api.AgentServiceCheck{
-			HTTP:     fmt.Sprintf("http://localhost:%s/health", sr.servicePort),
+			HTTP:     fmt.Sprintf("http://%s:%s/health", sr.serviceName, sr.servicePort),
 			Interval: "10s",
 			Timeout:  "5s",
 		},

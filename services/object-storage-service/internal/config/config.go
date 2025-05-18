@@ -45,6 +45,11 @@ type MongoDBConfig struct {
 type RabbitMQConfig struct {
 	URI       string
 	QueueName string
+	User      string
+	Password  string
+	Host      string
+	Port      string
+	VHost     string
 }
 
 type ConsulConfig struct {
@@ -75,14 +80,19 @@ func Load() *Config {
 			FileBucket:      getEnv("MINIO_FILE_BUCKET", "files"),
 		},
 		MongoDB: MongoDBConfig{
-			URI:      getEnv("MONGODB_URI", "mongodb://localhost:27017"),
-			Database: getEnv("MONGODB_DATABASE", "object_storage"),
+			URI:      getEnv("MONGODB_URI", "mongodb://mongodb:27017"),
+			Database: getEnv("OBJECT_STORAGE_MONGO_DB", "object_storage"),
 			PoolSize: getEnvAsUint64("MONGODB_POOL_SIZE", 100),
 			Timeout:  getEnvAsDuration("MONGODB_TIMEOUT", 10*time.Second),
 		},
 		RabbitMQ: RabbitMQConfig{
 			URI:       getEnv("RABBITMQ_URI", "amqp://guest:guest@rabbitmq:5672/"),
 			QueueName: getEnv("RABBITMQ_QUEUE", "storage.events"),
+			User:      getEnv("RABBITMQ_USER", "guest"),
+			Password:  getEnv("RABBITMQ_PASSWORD", "guest"),
+			Host:      getEnv("RABBITMQ_HOST", "rabbitmq"),
+			Port:      getEnv("RABBITMQ_PORT", "5672"),
+			VHost:     getEnv("RABBITMQ_VHOST", "/"),
 		},
 		Consul: ConsulConfig{
 			Address:     getEnv("CONSUL_ADDRESS", "consul-server:8500"),

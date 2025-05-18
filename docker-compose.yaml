@@ -346,11 +346,11 @@ services:
       - MINIO_FILE_BUCKET=${MINIO_FILE_BUCKET:-files}
       
       # RabbitMQ configuration
-      - RABBITMQ_URI=${RABBITMQ_URI:-amqp://rabbitmq:rabbitmq_password@rabbitmq:5672/}
+      - RABBITMQ_URI=amqp://${RABBITMQ_USER:-rabbitmq}:${RABBITMQ_PASSWORD:-rabbitmq_password}@rabbitmq:${RABBITMQ_PORT:-5672}/
       - RABBITMQ_QUEUE=${RABBITMQ_QUEUE:-storage.events}
       
       # Consul configuration
-      - CONSUL_ADDRESS=${CONSUL_ADDRESS:-consul-server:8500}
+      - CONSUL_ADDRESS=consul-server:${CONSUL_HTTP_PORT:-8500}
     networks:
       - consul-net
       - traefik-net
@@ -377,6 +377,12 @@ services:
       
       # Network configuration
       - "traefik.docker.network=microservices_template_traefik-net"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:${OBJECT_STORAGE_SERVICE_PORT:-9300}/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 networks:
   consul-net:
