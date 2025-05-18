@@ -16,6 +16,8 @@ type Config struct {
 
 type ServerConfig struct {
 	Port         string
+	ServiceName  string
+	ServiceID    string
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	Host         string
@@ -43,6 +45,8 @@ func Load() *Config {
 	return &Config{
 		Server: ServerConfig{
 			Port:         getEnv("PORT", "8080"),
+			ServiceName:  getEnv("PROFILE_SERVICE_NAME", "profile-service"),
+			ServiceID:    getEnv("PROFILE_SERVICE_NAME", "profile-service") + "-" + getEnv("HOSTNAME", "profile"),
 			ReadTimeout:  getEnvAsDuration("READ_TIMEOUT", 15*time.Second),
 			WriteTimeout: getEnvAsDuration("WRITE_TIMEOUT", 15*time.Second),
 			Host:         getEnv("HOST", "0.0.0.0"),
