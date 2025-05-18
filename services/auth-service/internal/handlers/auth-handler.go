@@ -64,6 +64,12 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 		})
 	}
 
+	if name, ok := registerRequest.Profile["fullname"]; !ok || name == "" {
+		return c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
+			"error": "Fullname is required",
+		})
+	}
+
 	user := &models.UserAuth{
 		ID:              primitive.NewObjectID(),
 		Username:        registerRequest.Username,
@@ -148,11 +154,14 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 		})
 	}
 
+	// Processing Basic Profile Data
+	basic_profile := login_data["basic_profile"].(models.UserProfile)
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "None",
 		"data": fiber.Map{
-			"token":   session.Token,
-			"profile": "Service Unavailable",
+			"token":        session.Token,
+			"basicProfile": basic_profile,
 		},
 	})
 }

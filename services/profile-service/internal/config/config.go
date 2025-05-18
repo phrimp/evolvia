@@ -7,20 +7,33 @@ import (
 	"time"
 )
 
+func init() {
+	ServiceConfig = Load()
+}
+
+var ServiceConfig *Config
+
 type Config struct {
 	Server   ServerConfig
 	MongoDB  MongoDBConfig
 	Redis    RedisConfig
 	RabbitMQ RabbitMQConfig
+	Consul   ConsulConfig
 }
 
 type ServerConfig struct {
-	Port         string
-	ServiceName  string
-	ServiceID    string
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
-	Host         string
+	Port           string
+	ServiceName    string
+	ServiceAddress string
+	ServiceID      string
+	GRPCPort       string
+	ReadTimeout    time.Duration
+	WriteTimeout   time.Duration
+	Host           string
+}
+
+type ConsulConfig struct {
+	ConsulAddress string
 }
 
 type MongoDBConfig struct {
@@ -44,12 +57,17 @@ type RabbitMQConfig struct {
 func Load() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Port:         getEnv("PORT", "8080"),
-			ServiceName:  getEnv("PROFILE_SERVICE_NAME", "profile-service"),
-			ServiceID:    getEnv("PROFILE_SERVICE_NAME", "profile-service") + "-" + getEnv("HOSTNAME", "profile"),
-			ReadTimeout:  getEnvAsDuration("READ_TIMEOUT", 15*time.Second),
-			WriteTimeout: getEnvAsDuration("WRITE_TIMEOUT", 15*time.Second),
-			Host:         getEnv("HOST", "0.0.0.0"),
+			Port:           getEnv("PORT", "9200"),
+			GRPCPort:       getEnv("GRPC_PORT", "9201"),
+			ServiceName:    getEnv("PROFILE_SERVICE_NAME", "profile-service"),
+			ServiceAddress: getEnv("PROFILE_SERVICE_ADDRESS", "profile-service"),
+			ServiceID:      getEnv("PROFILE_SERVICE_NAME", "profile-service") + "-" + getEnv("HOSTNAME", "profile"),
+			ReadTimeout:    getEnvAsDuration("READ_TIMEOUT", 15*time.Second),
+			WriteTimeout:   getEnvAsDuration("WRITE_TIMEOUT", 15*time.Second),
+			Host:           getEnv("HOST", "0.0.0.0"),
+		},
+		Consul: ConsulConfig{
+			ConsulAddress: "consul-server:" + getEnv("CONSUL_PORT", "8500"),
 		},
 		MongoDB: MongoDBConfig{
 			URI:      getEnv("MONGODB_URI", "mongodb://localhost:27017"),

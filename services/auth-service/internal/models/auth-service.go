@@ -16,6 +16,7 @@ type UserAuth struct {
 	LastLoginAttempt    int                `bson:"lastLoginAttempt,omitempty" json:"lastLoginAttempt"`
 	CreatedAt           int                `bson:"createdAt" json:"createdAt"`
 	UpdatedAt           int                `bson:"updatedAt" json:"updatedAt"`
+	BasicProfile        UserProfile        `bson:"basicProfile" json:"basicProfile"`
 	LastLoginAt         int                `bson:"lastLoginAt,omitempty" json:"lastLoginAt"`
 }
 

@@ -43,6 +43,7 @@ func (us *UserService) Register(ctx context.Context, user *models.UserAuth, prof
 		user.ID = primitive.NewObjectID()
 	}
 
+	user.BasicProfile.DisplayName = profile["fullName"]
 	user.CreatedAt = currentTime
 	user.UpdatedAt = currentTime
 	user.IsActive = true
@@ -111,9 +112,10 @@ func (us *UserService) Login(ctx context.Context, username, password string) (ma
 		return nil, fmt.Errorf("user is not activated")
 	}
 	login_return := map[string]any{
-		"user_id":  user.ID,
-		"username": user.Username,
-		"email":    user.Email,
+		"user_id":       user.ID,
+		"username":      user.Username,
+		"email":         user.Email,
+		"basic_profile": user.BasicProfile,
 	}
 
 	return login_return, nil
