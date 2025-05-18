@@ -124,3 +124,9 @@ func GetPresignedURL(ctx context.Context, bucketName, objectName string, expiry 
 
 	return presignedURL.String(), nil
 }
+
+func UploadFileStream(ctx context.Context, bucketName, objectName string, reader io.Reader, size int64, contentType string) (minio.UploadInfo, error) {
+	return MinioClient.PutObject(ctx, bucketName, objectName, reader, size, minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+}
