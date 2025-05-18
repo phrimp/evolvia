@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"object-storage-service/internal/api/handlers"
 	"object-storage-service/internal/config"
 	"object-storage-service/internal/database/minio"
 	"object-storage-service/internal/database/mongo"
@@ -156,6 +157,14 @@ func main() {
 	doneChan := make(chan bool, 1)
 
 	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Initialize handlers
+	fileHandler := handlers.NewFileHandler(container.FileService)
+	avatarHandler := handlers.NewAvatarHandler(container.AvatarService)
+
+	// Register routes
+	fileHandler.RegisterRoutes(app)
+	avatarHandler.RegisterRoutes(app)
 
 	go func() {
 		log.Printf("Starting server on port %s", cfg.Server.Port)
