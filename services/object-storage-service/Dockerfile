@@ -5,13 +5,13 @@ WORKDIR /app
 
 RUN apk add --no-cache git
 
-COPY services/auth-service/go.mod services/auth-service/go.sum ./
+COPY services/object-storage-service/go.mod services/object-storage-service/go.sum ./
 
 COPY proto-gen/ /proto-gen/
 
 RUN go mod download
 
-COPY services/auth-service/ ./
+COPY services/object-storage-service/ ./
 
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd
 

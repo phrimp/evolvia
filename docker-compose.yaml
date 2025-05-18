@@ -165,6 +165,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_LOGGER_FILE: "/var/log/minio"
+      MINIO_BUCKET_MAKE_BUCKET: "on"
+      MINIO_BUCKET_NAME: "${MINIO_AVATAR_BUCKET:-avatars},${MINIO_FILE_BUCKET:-files}"
     volumes:
       - minio_data:/data
       - ./logs/minio:/var/log/minio
@@ -178,7 +180,13 @@ services:
       - consul-net
       - traefik-net
     labels:
-      - "traefik.enable=false"
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio-console.rule=PathPrefix(`/minio-console`)"
+      - "traefik.http.routers.minio-console.service=minio-console"
+      - "traefik.http.services.minio-console.loadbalancer.server.port=${MINIO_CONSOLE_PORT:-9001}"
+      - "traefik.http.middlewares.minio-console-prefix.stripprefix.prefixes=/minio-console"
+      - "traefik.http.routers.minio-console.middlewares=minio-console-prefix"
+      - "traefik.docker.network=microservices_template_traefik-net"
 
   # RabbitMQ Service
   rabbitmq:
@@ -305,6 +313,69 @@ services:
       - "traefik.http.services.middleware.loadbalancer.server.port=${MIDDLEWARE_SERVICE_PORT}"
       - "traefik.http.middlewares.auth-middleware.forwardauth.address=http://middleware:${MIDDLEWARE_SERVICE_PORT}/auth/validate"
       - "traefik.http.middlewares.auth-middleware.forwardauth.authResponseHeaders=X-User-ID,X-User-Role,X-User-Permissions"
+      - "traefik.docker.network=microservices_template_traefik-net"
+
+  object-storage-service:
+    build:
+      context: .
+      dockerfile: services/object-storage-service/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${OBJECT_STORAGE_SERVICE_PORT:-9300}:${OBJECT_STORAGE_SERVICE_PORT:-9300}"
+    environment:
+      - SERVICE_NAME=${OBJECT_STORAGE_SERVICE_NAME:-object-storage-service}
+      - PORT=${OBJECT_STORAGE_SERVICE_PORT:-9300}
+      - HOSTNAME=${OBJECT_STORAGE_HOSTNAME:-1}
+      - READ_TIMEOUT=${READ_TIMEOUT:-15}
+      - WRITE_TIMEOUT=${WRITE_TIMEOUT:-15}
+      - HOST=${HOST:-0.0.0.0}
+      
+      # MongoDB configuration
+      - MONGODB_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
+      - MONGODB_DATABASE=${OBJECT_STORAGE_MONGO_DB:-object_storage}
+      - MONGODB_POOL_SIZE=100
+      - MONGODB_TIMEOUT=10
+      
+      # MinIO configuration
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio:9000}
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_USE_SSL=${MINIO_USE_SSL:-false}
+      - MINIO_REGION=${MINIO_REGION:-us-east-1}
+      - MINIO_AVATAR_BUCKET=${MINIO_AVATAR_BUCKET:-avatars}
+      - MINIO_FILE_BUCKET=${MINIO_FILE_BUCKET:-files}
+      
+      # RabbitMQ configuration
+      - RABBITMQ_URI=${RABBITMQ_URI:-amqp://rabbitmq:rabbitmq_password@rabbitmq:5672/}
+      - RABBITMQ_QUEUE=${RABBITMQ_QUEUE:-storage.events}
+      
+      # Consul configuration
+      - CONSUL_ADDRESS=${CONSUL_ADDRESS:-consul-server:8500}
+    networks:
+      - consul-net
+      - traefik-net
+    volumes:
+      - ./logs/object-storage-service:/evolvia/log/object_storage_service
+    depends_on:
+      - consul-server
+      - traefik
+      - mongodb
+      - minio
+      - rabbitmq
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.object-storage-service.loadbalancer.server.port=${OBJECT_STORAGE_SERVICE_PORT:-9300}"
+      
+      # Public routes
+      - "traefik.http.routers.storage-service-public.service=object-storage-service"
+      - "traefik.http.routers.storage-service-public.rule=PathPrefix(`/public/storage`)"
+      
+      # Protected routes (with auth middleware)
+      - "traefik.http.routers.storage-service-protected.service=object-storage-service"
+      - "traefik.http.routers.storage-service-protected.rule=PathPrefix(`/protected/storage`)"
+      - "traefik.http.routers.storage-service-protected.middlewares=auth-middleware"
+      
+      # Network configuration
       - "traefik.docker.network=microservices_template_traefik-net"
 
 networks:
