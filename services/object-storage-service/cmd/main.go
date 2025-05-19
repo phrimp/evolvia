@@ -188,3 +188,35 @@ func main() {
 	<-doneChan
 	log.Println("Server exited, goodbye!")
 }
+
+// func LoadDefaultAssets(services *ServiceContainer) error {
+// 	dir_path := "../assets/"
+// 	err := filepath.Walk(dir_path, func(path string, info os.FileInfo, err error) error {
+// 		if err != nil {
+// 			fmt.Printf("Error accessing path %s: %v\n", path, err)
+// 			return err
+// 		}
+//
+// 		// Skip directories
+// 		if info.IsDir() {
+// 			return nil
+// 		}
+//
+// 		// Open the file
+// 		file, err := os.Open(path)
+// 		if err != nil {
+// 			fmt.Printf("Error opening file %s: %v\n", path, err)
+// 			return nil // Continue with next file
+// 		}
+// 		defer file.Close()
+//
+// 		data, err := io.ReadAll(file)
+// 		if err != nil {
+// 			fmt.Printf("Error reading file %s: %v\n", path, err)
+// 			return nil // Continue with next file
+// 		}
+//
+// 		return nil
+// 	})
+// 	return nil
+// }

@@ -1,0 +1,439 @@
+{
+  "info": {
+    "name": "Evolvia Auth System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Authentication and authorization API endpoints for Evolvia through Traefik"
+  },
+  "item": [
+    {
+      "name": "Auth Service",
+      "description": "Authentication endpoints",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/public/auth/health",
+            "description": "Health check endpoint to verify if the Auth Service is running"
+          },
+          "response": []
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/public/auth/register",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"password\": \"securepassword\",\n  \"profile\": {\n    \"firstName\": \"Test\",\n    \"lastName\": \"User\"\n  }\n}"
+            },
+            "description": "Register a new user with username, email, and password. Optionally include profile information."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/public/auth/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"securepassword\"\n}"
+            },
+            "description": "Login with username and password. Returns a JWT token."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/public/auth/logout",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Logout and invalidate the current token."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Role Management",
+      "description": "Endpoints for managing roles",
+      "item": [
+        {
+          "name": "Get All Roles",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/protected/auth/roles?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["protected", "auth", "roles"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "X-User-Permissions",
+                "value": "read"
+              }
+            ],
+            "description": "Get all roles with pagination."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Role by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/protected/auth/roles/{{role_id}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Get a specific role by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/protected/auth/roles",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"editor\",\n  \"description\": \"Editor role\",\n  \"permissions\": [\"read\", \"write\", \"update\"],\n  \"isSystem\": false\n}"
+            },
+            "description": "Create a new role with specified permissions."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/protected/auth/roles/{{role_id}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"editor\",\n  \"description\": \"Updated editor role\",\n  \"permissions\": [\"read\", \"write\", \"update\", \"delete\"],\n  \"isSystem\": false\n}"
+            },
+            "description": "Update an existing role's properties and permissions."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "method": "DELETE",
+            "url": "{{auth_service_url}}/protected/auth/roles/{{role_id}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Delete a role (system roles cannot be deleted)."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Permission to Role",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/protected/auth/roles/{{role_id}}/permissions",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permission\": \"delete\"\n}"
+            },
+            "description": "Add a single permission to an existing role."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Permission from Role",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/protected/auth/roles/{{role_id}}/permissions/{{permission}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Remove a specific permission from a role."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User Role Management",
+      "description": "Endpoints for managing user-role assignments",
+      "item": [
+        {
+          "name": "Assign Role to User",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/protected/auth/user-roles",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{user_id}}\",\n  \"roleName\": \"editor\",\n  \"scopeType\": \"project\",\n  \"scopeId\": \"{{scope_id}}\",\n  \"expiresInDays\": 30\n}"
+            },
+            "description": "Assign a role to a user, optionally with scope and expiration."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Role from User",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/protected/auth/user-roles/{{user_role_id}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Remove a role assignment from a user."
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Roles",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/protected/auth/user-roles/users/{{user_id}}?scopeType=project&scopeID={{scope_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["protected", "auth", "user-roles", "users", "{{user_id}}"],
+              "query": [
+                {
+                  "key": "scopeType",
+                  "value": "project"
+                },
+                {
+                  "key": "scopeID",
+                  "value": "{{scope_id}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Get all roles assigned to a user, optionally filtered by scope."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Users with Role",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/protected/auth/user-roles/roles/{{role_name}}/users?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["protected", "auth", "user-roles", "roles", "{{role_name}}", "users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Get all users who have a specific role."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Middleware Service",
+      "description": "Endpoints for token validation and middleware services",
+      "item": [
+        {
+          "name": "Validate Token",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/auth/validate",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "description": "Validate a JWT token and extract user information."
+          },
+          "response": []
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/health",
+            "description": "Health check endpoint to verify if the Middleware Service is running"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Automatically capture the token from login response",
+          "if (pm.response.code === 200 && pm.info.requestName === \"Login\") {",
+          "    const responseJson = pm.response.json();",
+          "    if (responseJson.data && responseJson.data.token) {",
+          "        pm.collectionVariables.set(\"token\", responseJson.data.token);",
+          "        console.log(\"Token saved to collection variable\");",
+          "    }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost",
+      "type": "string",
+      "description": "Base URL for all services through Traefik"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string",
+      "description": "JWT token received after login"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string",
+      "description": "ObjectID of a user"
+    },
+    {
+      "key": "role_id",
+      "value": "",
+      "type": "string",
+      "description": "ObjectID of a role"
+    },
+    {
+      "key": "permission",
+      "value": "",
+      "type": "string",
+      "description": "Name of a permission (e.g., 'read', 'write')"
+    },
+    {
+      "key": "user_role_id",
+      "value": "",
+      "type": "string",
+      "description": "ObjectID of a user-role assignment"
+    },
+    {
+      "key": "role_name",
+      "value": "",
+      "type": "string",
+      "description": "Name of a role (e.g., 'admin', 'user')"
+    },
+    {
+      "key": "scope_id",
+      "value": "",
+      "type": "string",
+      "description": "ObjectID of a scope (e.g., project, organization)"
+    }
+  ]
+}

@@ -33,6 +33,7 @@ type MinIOConfig struct {
 	Region          string
 	AvatarBucket    string
 	FileBucket      string
+	DefaultBucket   string
 }
 
 type MongoDBConfig struct {
@@ -78,6 +79,7 @@ func Load() *Config {
 			Region:          getEnv("MINIO_REGION", "us-east-1"),
 			AvatarBucket:    getEnv("MINIO_AVATAR_BUCKET", "avatars"),
 			FileBucket:      getEnv("MINIO_FILE_BUCKET", "files"),
+			DefaultBucket:   "default",
 		},
 		MongoDB: MongoDBConfig{
 			URI:      getEnv("MONGODB_URI", "mongodb://mongodb:27017"),
