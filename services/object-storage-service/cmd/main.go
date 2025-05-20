@@ -12,9 +12,12 @@ import (
 	"object-storage-service/internal/repository"
 	"object-storage-service/internal/service"
 	"object-storage-service/pkg/discovery"
+	"object-storage-service/pkg/utils"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 	"time"
 
@@ -61,10 +64,9 @@ func main() {
 	// Setup logging
 	logFile, err := setupLogging()
 	if err != nil {
-		log.Printf("Warning: Failed to set up logging: %v", err)
-	} else {
-		defer logFile.Close()
+		log.Fatalf("Failed to set up logging: %v", err)
 	}
+	defer logFile.Close()
 
 	// Initialize MongoDB
 	if err := mongo.InitMongoDB(&cfg.MongoDB); err != nil {
@@ -174,6 +176,8 @@ func main() {
 		doneChan <- true
 	}()
 
+	LoadDefaultAssets(container)
+
 	<-shutdownChan
 	log.Println("Shutting down server...")
 
@@ -189,34 +193,45 @@ func main() {
 	log.Println("Server exited, goodbye!")
 }
 
-// func LoadDefaultAssets(services *ServiceContainer) error {
-// 	dir_path := "../assets/"
-// 	err := filepath.Walk(dir_path, func(path string, info os.FileInfo, err error) error {
-// 		if err != nil {
-// 			fmt.Printf("Error accessing path %s: %v\n", path, err)
-// 			return err
-// 		}
-//
-// 		// Skip directories
-// 		if info.IsDir() {
-// 			return nil
-// 		}
-//
-// 		// Open the file
-// 		file, err := os.Open(path)
-// 		if err != nil {
-// 			fmt.Printf("Error opening file %s: %v\n", path, err)
-// 			return nil // Continue with next file
-// 		}
-// 		defer file.Close()
-//
-// 		data, err := io.ReadAll(file)
-// 		if err != nil {
-// 			fmt.Printf("Error reading file %s: %v\n", path, err)
-// 			return nil // Continue with next file
-// 		}
-//
-// 		return nil
-// 	})
-// 	return nil
-// }
+func LoadDefaultAssets(services *ServiceContainer) error {
+	assetDir := filepath.Join("/evolvia", "assets")
+	image_file_tail := []string{"jpg", "png"}
+
+	err := filepath.Walk(assetDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Printf("Error accessing path %s: %v\n", path, err)
+			return err
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Open the file
+		file, err := os.Open(path)
+		if err != nil {
+			log.Printf("Error opening file %s: %v\n", path, err)
+			return nil // Continue with next file
+		}
+		defer file.Close()
+
+		file_name := strings.Split(file.Name(), "/")[3]
+		file_name_split := strings.Split(file_name, ".")
+		file_multipart_header := utils.CreateMultipartFileHeader(file.Name())
+		if slices.Contains(image_file_tail, file_name_split[1]) {
+			log.Printf("adding default avatar: %s", file_name)
+			services.AvatarService.UploadAvatar(context.Background(), file_multipart_header, "", true)
+		} else {
+			log.Printf("adding default file: %s", file_name)
+			services.FileService.UploadFile(context.Background(), file_multipart_header, "", "Default System File", file.Name(), true, []string{"system", "default"}, make(map[string]string))
+		}
+
+		return nil
+	})
+	if err != nil {
+		log.Printf("Error walking the directory: %v\n", err)
+		os.Exit(1)
+	}
+	return nil
+}

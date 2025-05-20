@@ -10,7 +10,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodb "go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type AvatarRepository struct {
@@ -29,26 +28,13 @@ func (r *AvatarRepository) Create(ctx context.Context, avatar *models.Avatar) (*
 	avatar.CreatedAt = time.Now()
 	avatar.UpdatedAt = time.Now()
 
-	// If this is the default avatar, unset all other default avatars for this user
-	if avatar.IsDefault {
-		_, err := r.collection.UpdateMany(
-			ctx,
-			bson.M{"userId": avatar.UserID, "isDefault": true},
-			bson.M{"$set": bson.M{"isDefault": false}},
-		)
-		if err != nil {
-			log.Printf("Error unsetting default avatars: %v", err)
-			return nil, err
-		}
-	}
-
 	result, err := r.collection.InsertOne(ctx, avatar)
 	if err != nil {
 		log.Printf("Error creating avatar: %v", err)
 		return nil, err
 	}
 
-	avatar.ID = result.InsertedID.(primitive.ObjectID)
+	avatar.ID = result.InsertedID.(bson.ObjectID)
 	return avatar, nil
 }
 
@@ -152,31 +138,6 @@ func (r *AvatarRepository) Delete(ctx context.Context, id string) error {
 	_, err = r.collection.DeleteOne(ctx, bson.M{"_id": objectID})
 	if err != nil {
 		return err
-	}
-
-	// If this was the default avatar, set another avatar as default
-	if avatar.IsDefault {
-		// Find another avatar for this user
-		var newDefault models.Avatar
-		err = r.collection.FindOne(
-			ctx,
-			bson.M{"userId": avatar.UserID},
-			options.FindOne().SetSort(bson.M{"createdAt": -1}),
-		).Decode(&newDefault)
-
-		if err == nil {
-			// Set this avatar as default
-			_, err = r.collection.UpdateOne(
-				ctx,
-				bson.M{"_id": newDefault.ID},
-				bson.M{"$set": bson.M{"isDefault": true, "updatedAt": time.Now()}},
-			)
-			if err != nil {
-				log.Printf("Error setting new default avatar: %v", err)
-			}
-		} else if err != mongodb.ErrNoDocuments {
-			log.Printf("Error finding new default avatar: %v", err)
-		}
 	}
 
 	return nil

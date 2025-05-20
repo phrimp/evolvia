@@ -357,7 +357,492 @@
           "response": []
         }
       ]
+    }, 
+    {
+  "name": "Object Storage Service",
+  "description": "API endpoints for the Object Storage Service",
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/health",
+        "description": "Check if the Object Storage Service is running properly"
+      },
+      "response": []
+    },
+    {
+      "name": "File Management",
+      "description": "Endpoints for managing files",
+      "item": [
+        {
+          "name": "Public Endpoints",
+          "description": "Publicly accessible file endpoints",
+          "item": [
+            {
+              "name": "Get Public File",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/public/storage/files/{{file_id}}",
+                "description": "Get metadata for a publicly accessible file"
+              },
+              "response": []
+            },
+            {
+              "name": "Download Public File",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/public/storage/files/{{file_id}}/download",
+                "description": "Download a publicly accessible file"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Protected Endpoints",
+          "description": "Authentication required file endpoints",
+          "item": [
+            {
+              "name": "Upload File",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/protected/storage/files",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": "",
+                      "description": "File to upload"
+                    },
+                    {
+                      "key": "description",
+                      "value": "File description",
+                      "type": "text",
+                      "description": "Description of the file"
+                    },
+                    {
+                      "key": "folderPath",
+                      "value": "/documents",
+                      "type": "text",
+                      "description": "Virtual folder path"
+                    },
+                    {
+                      "key": "isPublic",
+                      "value": "false",
+                      "type": "text",
+                      "description": "Whether the file is publicly accessible"
+                    },
+                    {
+                      "key": "tags",
+                      "value": "document,important,2025",
+                      "type": "text",
+                      "description": "Comma-separated tags"
+                    },
+                    {
+                      "key": "X-Metadata-category",
+                      "value": "documents",
+                      "type": "text",
+                      "description": "Custom metadata (use X-Metadata- prefix)"
+                    }
+                  ]
+                },
+                "description": "Upload a new file with metadata"
+              },
+              "response": []
+            },
+            {
+              "name": "List Files",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/protected/storage/files?folderPath=/documents&page=1&pageSize=10",
+                  "host": ["{{base_url}}"],
+                  "path": ["protected", "storage", "files"],
+                  "query": [
+                    {
+                      "key": "folderPath",
+                      "value": "/documents",
+                      "description": "Optional filter by folder path"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "description": "Page number for pagination"
+                    },
+                    {
+                      "key": "pageSize",
+                      "value": "10",
+                      "description": "Number of items per page"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "List files with pagination and optional folder filtering"
+              },
+              "response": []
+            },
+            {
+              "name": "Get File",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/protected/storage/files/{{file_id}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Get metadata for a specific file"
+              },
+              "response": []
+            },
+            {
+              "name": "Update File",
+              "request": {
+                "method": "PUT",
+                "url": "{{base_url}}/protected/storage/files/{{file_id}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Updated file description\",\n  \"folderPath\": \"/documents/important\",\n  \"isPublic\": true,\n  \"tags\": [\"document\", \"important\", \"updated\", \"2025\"],\n  \"metadata\": {\n    \"category\": \"important-documents\",\n    \"version\": \"2.0\"\n  }\n}"
+                },
+                "description": "Update file metadata"
+              },
+              "response": []
+            },
+            {
+              "name": "Delete File",
+              "request": {
+                "method": "DELETE",
+                "url": "{{base_url}}/protected/storage/files/{{file_id}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Delete a file (only owner or admin can delete)"
+              },
+              "response": []
+            },
+            {
+              "name": "Download File",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/protected/storage/files/{{file_id}}/download",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Download file content"
+              },
+              "response": []
+            },
+            {
+              "name": "Add File Version",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/protected/storage/files/{{file_id}}/version",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": "",
+                      "description": "New version of the file"
+                    }
+                  ]
+                },
+                "description": "Upload a new version of an existing file"
+              },
+              "response": []
+            },
+            {
+              "name": "Get File Versions",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/protected/storage/files/{{file_id}}/versions",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Get all versions of a file"
+              },
+              "response": []
+            },
+            {
+              "name": "Update File Permissions",
+              "request": {
+                "method": "PUT",
+                "url": "{{base_url}}/protected/storage/files/{{file_id}}/permissions",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "[\n  {\n    \"entityId\": \"{{user_id}}\",\n    \"entityType\": \"user\",\n    \"accessLevel\": \"read\"\n  },\n  {\n    \"entityId\": \"{{group_id}}\",\n    \"entityType\": \"group\",\n    \"accessLevel\": \"write\"\n  }\n]"
+                },
+                "description": "Update file access permissions (only owner can update)"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Presigned URL",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/protected/storage/files/{{file_id}}/url?expiry=3600",
+                  "host": ["{{base_url}}"],
+                  "path": ["protected", "storage", "files", "{{file_id}}", "url"],
+                  "query": [
+                    {
+                      "key": "expiry",
+                      "value": "3600",
+                      "description": "Expiry time in seconds (default: 3600)"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Generate a presigned URL for direct file access"
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Avatar Management",
+      "description": "Endpoints for managing user avatars",
+      "item": [
+        {
+          "name": "Public Endpoints",
+          "description": "Publicly accessible avatar endpoints",
+          "item": [
+            {
+              "name": "Get Avatar",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/public/storage/avatars/{{avatar_id}}",
+                "description": "Get metadata for an avatar"
+              },
+              "response": []
+            },
+            {
+              "name": "Download Avatar",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/public/storage/avatars/{{avatar_id}}/download",
+                "description": "Download avatar image"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Protected Endpoints",
+          "description": "Authentication required avatar endpoints",
+          "item": [
+            {
+              "name": "Upload Avatar",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/protected/storage/avatars",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "avatar",
+                      "type": "file",
+                      "src": "",
+                      "description": "Avatar image to upload"
+                    },
+                    {
+                      "key": "isDefault",
+                      "value": "true",
+                      "type": "text",
+                      "description": "Set as default avatar"
+                    }
+                  ]
+                },
+                "description": "Upload a new avatar image"
+              },
+              "response": []
+            },
+            {
+              "name": "Get User Avatars",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/protected/storage/avatars",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Get all avatars for the authenticated user"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Default Avatar",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/protected/storage/avatars/default",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Get the default avatar for the authenticated user"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Avatar",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/protected/storage/avatars/{{avatar_id}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Get metadata for a specific avatar"
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Avatar",
+              "request": {
+                "method": "DELETE",
+                "url": "{{base_url}}/protected/storage/avatars/{{avatar_id}}",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Delete an avatar (only owner can delete)"
+              },
+              "response": []
+            },
+            {
+              "name": "Download Avatar",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/protected/storage/avatars/{{avatar_id}}/download",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Download avatar image"
+              },
+              "response": []
+            },
+            {
+              "name": "Set Default Avatar",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/protected/storage/avatars/{{avatar_id}}/set-default",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Set an avatar as the default avatar"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Presigned URL",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/protected/storage/avatars/{{avatar_id}}/url?expiry=3600",
+                  "host": ["{{base_url}}"],
+                  "path": ["protected", "storage", "avatars", "{{avatar_id}}", "url"],
+                  "query": [
+                    {
+                      "key": "expiry",
+                      "value": "3600",
+                      "description": "Expiry time in seconds (default: 3600)"
+                    }
+                  ]
+                },
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "description": "Generate a presigned URL for direct avatar access"
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
     }
+  ]
+}
   ],
   "event": [
     {
@@ -434,6 +919,24 @@
       "value": "",
       "type": "string",
       "description": "ObjectID of a scope (e.g., project, organization)"
-    }
+    },
+    {
+  "key": "file_id",
+  "value": "",
+  "type": "string",
+  "description": "ObjectID of a file"
+},
+{
+  "key": "avatar_id",
+  "value": "",
+  "type": "string",
+  "description": "ObjectID of an avatar"
+},
+{
+  "key": "group_id",
+  "value": "",
+  "type": "string",
+  "description": "ObjectID of a group"
+}
   ]
 }

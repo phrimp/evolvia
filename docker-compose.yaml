@@ -37,7 +37,11 @@ services:
       - "${TRAEFIK_DASHBOARD_PORT}:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./logs/traefik:/var/log/traefik
     environment:
+      - TRAEFIK_LOG_LEVEL=DEBUG
+      - TRAEFIK_ACCESSLOG=true
+      - TRAEFIK_ACCESSLOG_FILEPATH=/var/log/traefik/access.log
       - TRAEFIK_ENTRYPOINTS_WEB_ADDRESS=:80
       - TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS=:443
       - TRAEFIK_API_DASHBOARD=${TRAEFIK_DASHBOARD_ENABLED:-false}
@@ -49,7 +53,6 @@ services:
       - TRAEFIK_PROVIDERS_CONSUL=true
       - TRAEFIK_PROVIDERS_CONSUL_ENDPOINTS=http://consul-server:8500
       - TRAEFIK_PROVIDERS_CONSUL_ROOTKEY=${TRAEFIK_CONSUL_ROOTKEY:-traefik}
-      - TRAEFIK_LOG_LEVEL=${TRAEFIK_LOG_LEVEL:-INFO}
     networks:
       - consul-net
       - traefik-net
@@ -321,22 +324,18 @@ services:
       dockerfile: services/object-storage-service/Dockerfile
     restart: unless-stopped
     ports:
-      - "${OBJECT_STORAGE_SERVICE_PORT:-9300}:${OBJECT_STORAGE_SERVICE_PORT:-9300}"
+      - "${OBJECT_STORAGE_SERVICE_PORT:-9210}:${OBJECT_STORAGE_SERVICE_PORT:-9210}"
     environment:
       - SERVICE_NAME=${OBJECT_STORAGE_SERVICE_NAME:-object-storage-service}
-      - PORT=${OBJECT_STORAGE_SERVICE_PORT:-9300}
+      - PORT=${OBJECT_STORAGE_SERVICE_PORT:-9210}
       - HOSTNAME=${OBJECT_STORAGE_HOSTNAME:-1}
       - READ_TIMEOUT=${READ_TIMEOUT:-15}
       - WRITE_TIMEOUT=${WRITE_TIMEOUT:-15}
       - HOST=${HOST:-0.0.0.0}
-      
-      # MongoDB configuration
       - MONGODB_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
       - MONGODB_DATABASE=${OBJECT_STORAGE_MONGO_DB:-object_storage}
       - MONGODB_POOL_SIZE=100
       - MONGODB_TIMEOUT=10
-      
-      # MinIO configuration
       - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio:9000}
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -344,17 +343,14 @@ services:
       - MINIO_REGION=${MINIO_REGION:-us-east-1}
       - MINIO_AVATAR_BUCKET=${MINIO_AVATAR_BUCKET:-avatars}
       - MINIO_FILE_BUCKET=${MINIO_FILE_BUCKET:-files}
-      
-      # RabbitMQ configuration
       - RABBITMQ_URI=amqp://${RABBITMQ_USER:-rabbitmq}:${RABBITMQ_PASSWORD:-rabbitmq_password}@rabbitmq:${RABBITMQ_PORT:-5672}/
       - RABBITMQ_QUEUE=${RABBITMQ_QUEUE:-storage.events}
-      
-      # Consul configuration
       - CONSUL_ADDRESS=consul-server:${CONSUL_HTTP_PORT:-8500}
     networks:
       - consul-net
       - traefik-net
     volumes:
+      - ./assets:/evolvia/assets
       - ./logs/object-storage-service:/evolvia/log/object_storage_service
     depends_on:
       - consul-server
@@ -364,25 +360,16 @@ services:
       - rabbitmq
     labels:
       - "traefik.enable=true"
-      - "traefik.http.services.object-storage-service.loadbalancer.server.port=${OBJECT_STORAGE_SERVICE_PORT:-9300}"
-      
-      # Public routes
-      - "traefik.http.routers.storage-service-public.service=object-storage-service"
-      - "traefik.http.routers.storage-service-public.rule=PathPrefix(`/public/storage`)"
-      
-      # Protected routes (with auth middleware)
-      - "traefik.http.routers.storage-service-protected.service=object-storage-service"
-      - "traefik.http.routers.storage-service-protected.rule=PathPrefix(`/protected/storage`)"
-      - "traefik.http.routers.storage-service-protected.middlewares=auth-middleware"
-      
-      # Network configuration
+      - "traefik.http.services.object-storage-service.loadbalancer.server.port=${OBJECT_STORAGE_SERVICE_PORT:-9210}"
+      - "traefik.http.routers.object-storage-service-public.service=object-storage-service"
+      - "traefik.http.routers.object-storage-service-secure.service=object-storage-service"
+      # Public
+      - "traefik.http.routers.object-storage-service-public.rule=PathPrefix(`/public/storage`)"
+      # Secure
+      - "traefik.http.routers.object-storage-service-secure.rule=PathPrefix(`/protected/storage`)"
+      - "traefik.http.routers.object-storage-service-secure.middlewares=auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:${OBJECT_STORAGE_SERVICE_PORT:-9300}/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+    user: "0:0"
 
 networks:
   consul-net:

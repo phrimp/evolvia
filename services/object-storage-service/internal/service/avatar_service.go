@@ -36,10 +36,7 @@ func NewAvatarService(repo *repository.AvatarRepository, eventPublisher events.P
 	}
 }
 
-// UploadAvatar uploads an avatar
-// Update the AvatarService.UploadAvatar method in internal/service/avatar_service.go
 func (s *AvatarService) UploadAvatar(ctx context.Context, fileHeader *multipart.FileHeader, userID string, isDefault bool) (*models.Avatar, error) {
-	// Open the uploaded file
 	file, err := fileHeader.Open()
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
@@ -62,7 +59,6 @@ func (s *AvatarService) UploadAvatar(ctx context.Context, fileHeader *multipart.
 		contentType = "image/jpeg" // Default to JPEG for avatars
 	}
 
-	// Stream directly to MinIO without buffering
 	uploadInfo, err := minio.UploadFileStream(
 		ctx,
 		s.config.MinIO.AvatarBucket,
@@ -117,14 +113,15 @@ func (s *AvatarService) UploadAvatar(ctx context.Context, fileHeader *multipart.
 		ContentType: contentType,
 		StoragePath: objectName,
 		BucketName:  s.config.MinIO.AvatarBucket,
-		IsDefault:   isDefault,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
 
-	// Rest of the method remains the same...
 	createdAvatar, err := s.avatarRepository.Create(ctx, avatar)
-	// ... (remaining code for event publishing)
+	if err != nil {
+		return nil, fmt.Errorf("error creating avatar: %s", err)
+	}
+	log.Printf("Avatar added successfully: %v", createdAvatar)
 
 	return createdAvatar, nil
 }

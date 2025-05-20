@@ -65,9 +65,15 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	}
 
 	if name, ok := registerRequest.Profile["fullname"]; !ok || name == "" {
-		return c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
-			"error": "Fullname is required",
-		})
+		first, ok_first := registerRequest.Profile["firstName"]
+		last, ok_last := registerRequest.Profile["lastName"]
+		if !ok_first && !ok_last {
+			return c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
+				"error": "First name or Last name are required",
+			})
+		}
+		name = first + " " + last
+		registerRequest.Profile["fullname"] = name
 	}
 
 	user := &models.UserAuth{

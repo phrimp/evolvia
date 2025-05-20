@@ -43,7 +43,7 @@ func (us *UserService) Register(ctx context.Context, user *models.UserAuth, prof
 		user.ID = primitive.NewObjectID()
 	}
 
-	user.BasicProfile.DisplayName = profile["fullName"]
+	user.BasicProfile.DisplayName = profile["fullname"]
 	user.CreatedAt = currentTime
 	user.UpdatedAt = currentTime
 	user.IsActive = true

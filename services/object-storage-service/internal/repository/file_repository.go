@@ -38,7 +38,7 @@ func (r *FileRepository) Create(ctx context.Context, file *models.File) (*models
 		return nil, err
 	}
 
-	file.ID = result.InsertedID.(primitive.ObjectID)
+	file.ID = result.InsertedID.(bson.ObjectID)
 	return file, nil
 }
 

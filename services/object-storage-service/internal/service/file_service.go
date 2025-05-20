@@ -21,7 +21,7 @@ import (
 	"time"
 
 	miniogh "github.com/minio/minio-go/v7"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type FileService struct {
@@ -132,7 +132,10 @@ func (s *FileService) UploadFile(ctx context.Context, fileHeader *multipart.File
 
 	// Rest of the method remains the same...
 	createdFile, err := s.fileRepository.Create(ctx, file_metadata)
-	// ... (remaining code for version creation and event publishing)
+	if err != nil {
+		return nil, fmt.Errorf("error creating file metadata: %s", err)
+	}
+	log.Printf("File Metadata created successfully: %v", createdFile)
 
 	return createdFile, nil
 }
@@ -382,7 +385,7 @@ func (s *FileService) NewVersion(ctx context.Context, id string, fileHeader *mul
 
 	// Create version
 	version := &models.FileVersion{
-		ID:            primitive.NewObjectID(),
+		ID:            bson.NewObjectID(),
 		FileID:        file.ID,
 		VersionNumber: file.VersionCount + 1,
 		Size:          fileHeader.Size,
