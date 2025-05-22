@@ -423,3 +423,12 @@ func (s *FileService) NewVersion(ctx context.Context, id string, fileHeader *mul
 func (s *FileService) GetVersions(ctx context.Context, id string) ([]*models.FileVersion, error) {
 	return s.fileRepository.GetVersions(ctx, id)
 }
+
+func (s *FileService) UploadDefaultFile(ctx context.Context, df_file *models.File) error {
+	_, err := s.fileRepository.Create(context.Background(), df_file)
+	if err != nil {
+		return fmt.Errorf("error creating file metadata for %s: %v", df_file.Name, err)
+	}
+	log.Printf("Added default file: %s", df_file.Name)
+	return nil
+}

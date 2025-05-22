@@ -30,7 +30,7 @@ func InitMinioClient(cfg *config.MinIOConfig) error {
 	}
 
 	// Check if buckets exist and create them if they don't
-	bucketsToCreate := []string{cfg.AvatarBucket, cfg.FileBucket}
+	bucketsToCreate := []string{cfg.AvatarBucket, cfg.FileBucket, cfg.DefaultBucket}
 	for _, bucket := range bucketsToCreate {
 		exists, err := MinioClient.BucketExists(context.Background(), bucket)
 		if err != nil {
@@ -129,4 +129,20 @@ func UploadFileStream(ctx context.Context, bucketName, objectName string, reader
 	return MinioClient.PutObject(ctx, bucketName, objectName, reader, size, minio.PutObjectOptions{
 		ContentType: contentType,
 	})
+}
+
+func CountObjectInBucket(bucketName string) (int, error) {
+	objectCount := 0
+	objectCh := MinioClient.ListObjects(context.Background(), bucketName, minio.ListObjectsOptions{
+		Recursive: true,
+	})
+
+	for object := range objectCh {
+		if object.Err != nil {
+			log.Printf("Error listing objects in bucket: %v", object.Err)
+			return 0, object.Err
+		}
+		objectCount++
+	}
+	return objectCount, nil
 }

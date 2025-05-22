@@ -2,17 +2,22 @@ package main
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"log"
+	"mime"
+	"net/http"
 	"object-storage-service/internal/api/handlers"
 	"object-storage-service/internal/config"
 	"object-storage-service/internal/database/minio"
 	"object-storage-service/internal/database/mongo"
 	"object-storage-service/internal/events"
+	"object-storage-service/internal/models"
 	"object-storage-service/internal/repository"
 	"object-storage-service/internal/service"
 	"object-storage-service/pkg/discovery"
-	"object-storage-service/pkg/utils"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -176,7 +181,7 @@ func main() {
 		doneChan <- true
 	}()
 
-	LoadDefaultAssets(container)
+	LoadDefaultAssets(container, cfg.MinIO.DefaultBucket)
 
 	<-shutdownChan
 	log.Println("Shutting down server...")
@@ -193,13 +198,47 @@ func main() {
 	log.Println("Server exited, goodbye!")
 }
 
-func LoadDefaultAssets(services *ServiceContainer) error {
+func LoadDefaultAssets(services *ServiceContainer, defaultBucket string) error {
 	assetDir := filepath.Join("/evolvia", "assets")
-	image_file_tail := []string{"jpg", "png"}
+	imageFileExts := []string{"jpg", "png", "jpeg", "gif", "webp", "svg"}
 
+	// Count file in assets
+	assetCount := 0
 	err := filepath.Walk(assetDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			log.Printf("Error accessing path %s: %v\n", path, err)
+			return err
+		}
+		if !info.IsDir() {
+			assetCount++
+		}
+		return nil
+	})
+	if err != nil {
+		log.Printf("Error counting asset files: %v", err)
+		return err
+	}
+
+	if assetCount == 0 {
+		log.Println("No asset files found to load")
+		return nil
+	}
+
+	objectCount, err := minio.CountObjectInBucket(defaultBucket)
+	if err != nil {
+		log.Printf("error counting object in default bucket: %s", err)
+		return nil
+	}
+
+	if objectCount >= assetCount {
+		log.Printf("Default assets already loaded (%d objects in bucket), skipping...", objectCount)
+		return nil
+	}
+
+	log.Printf("Loading %d default assets to %s bucket...", assetCount, defaultBucket)
+
+	err = filepath.Walk(assetDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Printf("Error accessing path %s: %v", path, err)
 			return err
 		}
 
@@ -211,27 +250,115 @@ func LoadDefaultAssets(services *ServiceContainer) error {
 		// Open the file
 		file, err := os.Open(path)
 		if err != nil {
-			log.Printf("Error opening file %s: %v\n", path, err)
+			log.Printf("Error opening file %s: %v", path, err)
 			return nil // Continue with next file
 		}
 		defer file.Close()
 
-		file_name := strings.Split(file.Name(), "/")[3]
-		file_name_split := strings.Split(file_name, ".")
-		file_multipart_header := utils.CreateMultipartFileHeader(file.Name())
-		if slices.Contains(image_file_tail, file_name_split[1]) {
-			log.Printf("adding default avatar: %s", file_name)
-			services.AvatarService.UploadAvatar(context.Background(), file_multipart_header, "", true)
+		fileName := filepath.Base(path)
+		fileExt := strings.ToLower(filepath.Ext(fileName))
+
+		// Determine content type
+		contentType := ""
+		if fileExt != "" {
+			contentType = mime.TypeByExtension(fileExt)
+		}
+
+		if contentType == "" {
+			buffer := make([]byte, 512)
+			_, err = file.Read(buffer)
+			if err != nil && err != io.EOF {
+				log.Printf("Error reading file header: %v", err)
+				return nil
+			}
+
+			contentType = http.DetectContentType(buffer)
+
+			// Reset file position
+			_, err = file.Seek(0, 0)
+			if err != nil {
+				log.Printf("Error resetting file position: %v", err)
+				return nil
+			}
+		}
+
+		// Upload file to default bucket
+		_, err = minio.UploadFileStream(
+			context.Background(),
+			defaultBucket,
+			fileName,
+			file,
+			info.Size(),
+			contentType,
+		)
+		if err != nil {
+			log.Printf("Error uploading asset %s to default bucket: %v", fileName, err)
+			return nil
+		}
+
+		// Create metadata based on file type
+		ext := strings.TrimPrefix(fileExt, ".")
+		if slices.Contains(imageFileExts, ext) {
+			avatar := &models.Avatar{
+				UserID:      "", // Empty for system defaults
+				FileName:    fileName,
+				Size:        info.Size(),
+				ContentType: contentType,
+				StoragePath: fileName, // Store with same name in default bucket
+				BucketName:  defaultBucket,
+				CreatedAt:   time.Now(),
+				UpdatedAt:   time.Now(),
+			}
+			err := services.AvatarService.CreateDefaultAvatar(context.Background(), avatar)
+			if err != nil {
+				log.Printf("error create default avatar: %s", err)
+			}
 		} else {
-			log.Printf("adding default file: %s", file_name)
-			services.FileService.UploadFile(context.Background(), file_multipart_header, "", "Default System File", file.Name(), true, []string{"system", "default"}, make(map[string]string))
+
+			_, err = file.Seek(0, 0)
+			if err != nil {
+				log.Printf("Error resetting file for checksum: %v", err)
+				return nil
+			}
+
+			hash := md5.New()
+			if _, err := io.Copy(hash, file); err != nil {
+				log.Printf("Error calculating checksum: %v", err)
+				return nil
+			}
+			checksum := hex.EncodeToString(hash.Sum(nil))
+
+			// Create file metadata
+			fileMetadata := &models.File{
+				OwnerID:      "", // Empty for system defaults
+				Name:         fileName,
+				Description:  "Default System File",
+				Size:         info.Size(),
+				ContentType:  contentType,
+				StoragePath:  fileName, // Store with same name in default bucket
+				BucketName:   defaultBucket,
+				IsPublic:     true,
+				Checksum:     checksum,
+				VersionCount: 1,
+				FolderPath:   "/system/defaults",
+				Tags:         []string{"system", "default"},
+				Metadata:     make(map[string]string),
+				CreatedAt:    time.Now(),
+				UpdatedAt:    time.Now(),
+			}
+			err := services.FileService.UploadDefaultFile(context.Background(), fileMetadata)
+			if err != nil {
+				log.Printf("Error create default file: %s", err)
+			}
 		}
 
 		return nil
 	})
 	if err != nil {
-		log.Printf("Error walking the directory: %v\n", err)
-		os.Exit(1)
+		log.Printf("Error walking assets directory: %v", err)
+		return err
 	}
+
+	log.Println("Default assets loaded successfully")
 	return nil
 }

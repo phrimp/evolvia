@@ -263,3 +263,12 @@ func (s *AvatarService) GetAvatarURL(ctx context.Context, id string, expiry int)
 
 	return url, nil
 }
+
+func (s *AvatarService) CreateDefaultAvatar(ctx context.Context, df_avatar *models.Avatar) error {
+	_, err := s.avatarRepository.Create(context.Background(), df_avatar)
+	if err != nil {
+		return fmt.Errorf("error creating avatar metadata for %s: %v", df_avatar.FileName, err)
+	}
+	log.Printf("Added default avatar: %s", df_avatar.FileName)
+	return nil
+}
