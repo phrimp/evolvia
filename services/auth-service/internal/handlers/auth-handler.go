@@ -151,23 +151,21 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 			})
 		}
 	}
-
 	err = h.gRPCService.SendSession(c.Context(), session, "middleware")
 	if err != nil {
 		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Service Error",
-		})
 	}
 
 	// Processing Basic Profile Data
 	basic_profile := login_data["basic_profile"].(models.UserProfile)
+	avatar_url := login_data["avatar_url"].(string)
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "None",
 		"data": fiber.Map{
 			"token":        session.Token,
 			"basicProfile": basic_profile,
+			"avatarUrl":    avatar_url,
 		},
 	})
 }

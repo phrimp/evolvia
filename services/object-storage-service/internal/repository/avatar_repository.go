@@ -7,9 +7,9 @@ import (
 	"object-storage-service/internal/models"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	mongodb "go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type AvatarRepository struct {
@@ -40,7 +40,7 @@ func (r *AvatarRepository) Create(ctx context.Context, avatar *models.Avatar) (*
 
 // GetByID retrieves an avatar by ID
 func (r *AvatarRepository) GetByID(ctx context.Context, id string) (*models.Avatar, error) {
-	objectID, err := primitive.ObjectIDFromHex(id)
+	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, err
 	}
@@ -57,9 +57,11 @@ func (r *AvatarRepository) GetByID(ctx context.Context, id string) (*models.Avat
 	return &avatar, nil
 }
 
-// GetByUserID retrieves all avatars for a user
+// Update GetByUserID to return avatars sorted by creation date (newest first)
 func (r *AvatarRepository) GetByUserID(ctx context.Context, userID string) ([]*models.Avatar, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"userId": userID})
+	opts := options.Find().SetSort(bson.M{"createdAt": -1})
+
+	cursor, err := r.collection.Find(ctx, bson.M{"userId": userID}, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +78,7 @@ func (r *AvatarRepository) GetByUserID(ctx context.Context, userID string) ([]*m
 // GetDefaultAvatar retrieves the default avatar for a user
 func (r *AvatarRepository) GetDefaultAvatar(ctx context.Context, userID string) (*models.Avatar, error) {
 	var avatar models.Avatar
-	err := r.collection.FindOne(ctx, bson.M{"userId": userID, "isDefault": true}).Decode(&avatar)
+	err := r.collection.FindOne(ctx, bson.M{"userId": userID}).Decode(&avatar)
 	if err != nil {
 		if err == mongodb.ErrNoDocuments {
 			return nil, nil
@@ -87,42 +89,9 @@ func (r *AvatarRepository) GetDefaultAvatar(ctx context.Context, userID string) 
 	return &avatar, nil
 }
 
-// SetDefault sets an avatar as the default
-func (r *AvatarRepository) SetDefault(ctx context.Context, id string) error {
-	objectID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return err
-	}
-
-	// Get the avatar to get the user ID
-	var avatar models.Avatar
-	err = r.collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&avatar)
-	if err != nil {
-		return err
-	}
-
-	// Update all avatars for this user to not be default
-	_, err = r.collection.UpdateMany(
-		ctx,
-		bson.M{"userId": avatar.UserID, "isDefault": true},
-		bson.M{"$set": bson.M{"isDefault": false}},
-	)
-	if err != nil {
-		return err
-	}
-
-	// Now set the selected avatar as default
-	_, err = r.collection.UpdateOne(
-		ctx,
-		bson.M{"_id": objectID},
-		bson.M{"$set": bson.M{"isDefault": true, "updatedAt": time.Now()}},
-	)
-	return err
-}
-
 // Delete deletes an avatar by ID
 func (r *AvatarRepository) Delete(ctx context.Context, id string) error {
-	objectID, err := primitive.ObjectIDFromHex(id)
+	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return err
 	}
@@ -141,4 +110,21 @@ func (r *AvatarRepository) Delete(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func (r *AvatarRepository) GetSystemDefaultAvatar(ctx context.Context) (*models.Avatar, error) {
+	var avatar models.Avatar
+	err := r.collection.FindOne(ctx, bson.M{"userId": ""}).Decode(&avatar)
+	if err != nil {
+		if err == mongodb.ErrNoDocuments {
+			// If no specific default, get any system avatar
+			err = r.collection.FindOne(ctx, bson.M{"userId": ""}).Decode(&avatar)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	}
+	return &avatar, nil
 }

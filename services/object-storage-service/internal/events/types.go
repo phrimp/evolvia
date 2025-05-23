@@ -17,13 +17,15 @@ const (
 	EventTypeAvatarUploaded EventType = "avatar.uploaded"
 	EventTypeAvatarUpdated  EventType = "avatar.updated"
 	EventTypeAvatarDeleted  EventType = "avatar.deleted"
+
+	EventTypeUserRegistered EventType = "user.registered"
 )
 
 // BaseEvent represents the common fields for all events
 type BaseEvent struct {
 	ID        string    `json:"id"`
 	Type      EventType `json:"type"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp int64     `json:"timestamp"`
 	Version   string    `json:"version"`
 }
 
@@ -56,7 +58,7 @@ func NewFileUploadedEvent(fileID, ownerID, fileName string) *FileEvent {
 		BaseEvent: BaseEvent{
 			ID:        generateEventID(),
 			Type:      EventTypeFileUploaded,
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Unix(),
 			Version:   "1.0",
 		},
 		FileID:   fileID,
@@ -71,7 +73,7 @@ func NewFileUpdatedEvent(fileID, ownerID string) *FileEvent {
 		BaseEvent: BaseEvent{
 			ID:        generateEventID(),
 			Type:      EventTypeFileUpdated,
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Unix(),
 			Version:   "1.0",
 		},
 		FileID:  fileID,
@@ -85,7 +87,7 @@ func NewFileDeletedEvent(fileID, ownerID string) *FileEvent {
 		BaseEvent: BaseEvent{
 			ID:        generateEventID(),
 			Type:      EventTypeFileDeleted,
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Unix(),
 			Version:   "1.0",
 		},
 		FileID:  fileID,
@@ -99,7 +101,7 @@ func NewFileAccessedEvent(fileID, ownerID string) *FileEvent {
 		BaseEvent: BaseEvent{
 			ID:        generateEventID(),
 			Type:      EventTypeFileAccessed,
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Unix(),
 			Version:   "1.0",
 		},
 		FileID:  fileID,
@@ -113,7 +115,7 @@ func NewAvatarUploadedEvent(avatarID, userID string) *AvatarEvent {
 		BaseEvent: BaseEvent{
 			ID:        generateEventID(),
 			Type:      EventTypeAvatarUploaded,
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Unix(),
 			Version:   "1.0",
 		},
 		AvatarID: avatarID,
@@ -127,7 +129,7 @@ func NewAvatarUpdatedEvent(avatarID, userID string) *AvatarEvent {
 		BaseEvent: BaseEvent{
 			ID:        generateEventID(),
 			Type:      EventTypeAvatarUpdated,
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Unix(),
 			Version:   "1.0",
 		},
 		AvatarID: avatarID,
@@ -141,7 +143,7 @@ func NewAvatarDeletedEvent(avatarID, userID string) *AvatarEvent {
 		BaseEvent: BaseEvent{
 			ID:        generateEventID(),
 			Type:      EventTypeAvatarDeleted,
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Unix(),
 			Version:   "1.0",
 		},
 		AvatarID: avatarID,
@@ -162,4 +164,28 @@ func randomString(length int) string {
 		b[i] = charset[time.Now().UnixNano()%int64(len(charset))]
 	}
 	return string(b)
+}
+
+type UserRegisterEvent struct {
+	BaseEvent
+	UserID      string            `json:"user_id"`
+	Username    string            `json:"username"`
+	Email       string            `json:"email"`
+	ProfileData map[string]string `json:"profile_data"`
+}
+
+// Add constructor function
+func NewUserRegisteredEvent(userID, username, email string, profileData map[string]string) *UserRegisterEvent {
+	return &UserRegisterEvent{
+		BaseEvent: BaseEvent{
+			ID:        generateEventID(),
+			Type:      EventTypeUserRegistered,
+			Timestamp: time.Now().Unix(),
+			Version:   "1.0",
+		},
+		UserID:      userID,
+		Username:    username,
+		Email:       email,
+		ProfileData: profileData,
+	}
 }

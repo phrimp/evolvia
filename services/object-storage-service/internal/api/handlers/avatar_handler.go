@@ -23,6 +23,7 @@ func (h *AvatarHandler) RegisterRoutes(app *fiber.App) {
 	publicGroup := app.Group("/public/storage/avatars")
 	publicGroup.Get("/:id", h.GetAvatar)
 	publicGroup.Get("/:id/download", h.DownloadAvatar)
+	publicGroup.Get("/:id/url", h.GetPresignedURL) // id is user id
 
 	// Protected routes for avatar management
 	avatarGroup := app.Group("/protected/storage/avatars")
@@ -32,8 +33,6 @@ func (h *AvatarHandler) RegisterRoutes(app *fiber.App) {
 	avatarGroup.Get("/:id", h.GetAvatar)
 	avatarGroup.Delete("/:id", h.DeleteAvatar)
 	avatarGroup.Get("/:id/download", h.DownloadAvatar)
-	avatarGroup.Post("/:id/set-default", h.SetDefaultAvatar)
-	avatarGroup.Get("/:id/url", h.GetPresignedURL)
 }
 
 func (h *AvatarHandler) UploadAvatar(c fiber.Ctx) error {
@@ -146,14 +145,25 @@ func (h *AvatarHandler) GetDefaultAvatar(c fiber.Ctx) error {
 		})
 	}
 
+	url, err := h.avatarService.GetAvatarURLSystem(c.Context(), avatar, userID, 3600)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
 	if avatar == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "No default avatar found",
 		})
 	}
+	result := map[string]any{
+		"avatar": avatar,
+		"url":    url,
+	}
 
 	return c.JSON(fiber.Map{
-		"data": avatar,
+		"data": result,
 	})
 }
 
@@ -188,36 +198,36 @@ func (h *AvatarHandler) DeleteAvatar(c fiber.Ctx) error {
 	})
 }
 
-func (h *AvatarHandler) SetDefaultAvatar(c fiber.Ctx) error {
-	id := c.Params("id")
-	userID := c.Get("X-User-ID")
-
-	// Get avatar to check ownership
-	avatar, err := h.avatarService.GetAvatar(c.Context(), id)
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	// Check ownership
-	if avatar.UserID != userID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "You don't have permission to modify this avatar",
-		})
-	}
-
-	// Set as default
-	if err := h.avatarService.SetDefaultAvatar(c.Context(), id); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	return c.JSON(fiber.Map{
-		"message": "Avatar set as default successfully",
-	})
-}
+//func (h *AvatarHandler) SetDefaultAvatar(c fiber.Ctx) error {
+//	id := c.Params("id")
+//	userID := c.Get("X-User-ID")
+//
+//	// Get avatar to check ownership
+//	avatar, err := h.avatarService.GetAvatar(c.Context(), id)
+//	if err != nil {
+//		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+//			"error": err.Error(),
+//		})
+//	}
+//
+//	// Check ownership
+//	if avatar.UserID != userID {
+//		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+//			"error": "You don't have permission to modify this avatar",
+//		})
+//	}
+//
+//	// Set as default
+//	if err := h.avatarService.SetDefaultAvatar(c.Context(), id); err != nil {
+//		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+//			"error": err.Error(),
+//		})
+//	}
+//
+//	return c.JSON(fiber.Map{
+//		"message": "Avatar set as default successfully",
+//	})
+//}
 
 func (h *AvatarHandler) GetPresignedURL(c fiber.Ctx) error {
 	id := c.Params("id")

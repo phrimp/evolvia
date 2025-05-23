@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package object-storage;
+
+option go_package = "evolvia/proto/object-storage";
+
+service ObjectStorageService {
+  rpc GetAvatarURL (string) returns (string);
+}

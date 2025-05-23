@@ -111,11 +111,19 @@ func (us *UserService) Login(ctx context.Context, username, password string) (ma
 	if !user.IsActive {
 		return nil, fmt.Errorf("user is not activated")
 	}
+
+	url := ""
+	err = us.RedisRepo.GetStructCached(ctx, "avatar-cached:", user.ID.String(), &url)
+	if err != nil {
+		// Communicate to object service
+	}
+
 	login_return := map[string]any{
 		"user_id":       user.ID,
 		"username":      user.Username,
 		"email":         user.Email,
 		"basic_profile": user.BasicProfile,
+		"avatar_url":    url,
 	}
 
 	return login_return, nil

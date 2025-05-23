@@ -55,6 +55,7 @@ func setupLogging() (*os.File, error) {
 type ServiceContainer struct {
 	FileRepository   *repository.FileRepository
 	AvatarRepository *repository.AvatarRepository
+	RedisRepository  *repository.RedisRepo
 	FileService      *service.FileService
 	AvatarService    *service.AvatarService
 	EventPublisher   events.Publisher
@@ -87,44 +88,78 @@ func main() {
 	// Initialize repositories
 	fileRepository := repository.NewFileRepository()
 	avatarRepository := repository.NewAvatarRepository()
+	redisRepository := repository.NewRedisRepo()
 
-	// Initialize event publisher
-	eventPublisher, err := events.NewEventPublisher(cfg.RabbitMQ.URI)
-	if err != nil {
-		log.Printf("Warning: Failed to initialize event publisher: %v", err)
-		eventPublisher = nil
-	} else {
-		defer eventPublisher.Close()
+	// Simple startup retry
+	var eventPublisher events.Publisher
+	for i := range 3 {
+		eventPublisher, err = events.NewEventPublisher(cfg.RabbitMQ.URI)
+		if err == nil {
+			defer eventPublisher.Close()
+			break
+		}
+		if i < 2 {
+			time.Sleep(time.Second * 5)
+		}
+	}
+
+	if eventPublisher == nil {
+		log.Println("Starting without event publisher - events will be skipped")
 	}
 
 	// Initialize service container
 	container := &ServiceContainer{
 		FileRepository:   fileRepository,
 		AvatarRepository: avatarRepository,
+		RedisRepository:  redisRepository,
 		FileService:      service.NewFileService(fileRepository, eventPublisher, cfg),
-		AvatarService:    service.NewAvatarService(avatarRepository, eventPublisher, cfg),
+		AvatarService:    service.NewAvatarService(avatarRepository, eventPublisher, cfg, redisRepository),
 		EventPublisher:   eventPublisher,
 	}
 
 	// Initialize event consumer
-	eventConsumer, err := events.NewEventConsumer(
-		cfg.RabbitMQ.URI,
-		fileRepository,
-		avatarRepository,
-	)
-	if err != nil {
-		log.Printf("Warning: Failed to initialize event consumer: %v", err)
-	} else {
-		// Start the consumer
-		if err := eventConsumer.Start(); err != nil {
-			log.Printf("Warning: Failed to start event consumer: %v", err)
-			eventConsumer.Close()
+	var eventConsumer events.Consumer
+	maxRetries := 3
+	retryDelays := []time.Duration{5 * time.Second, 15 * time.Second, 30 * time.Second}
+
+	for i := range maxRetries {
+		eventConsumer, err = events.NewEventConsumer(
+			cfg.RabbitMQ.URI,
+			fileRepository,
+			avatarRepository,
+		)
+		if err == nil {
+			// Successfully created consumer, now try to start it
+			if err := eventConsumer.Start(); err != nil {
+				log.Printf("Failed to start event consumer (attempt %d/%d): %v", i+1, maxRetries, err)
+				eventConsumer.Close()
+				eventConsumer = nil
+			} else {
+				// Successfully started
+				log.Println("Successfully started event consumer")
+				container.EventConsumer = eventConsumer
+				defer eventConsumer.Close()
+				break
+			}
 		} else {
-			log.Println("Successfully started event consumer")
-			container.EventConsumer = eventConsumer
-			// Ensure consumer is closed when application exits
-			defer eventConsumer.Close()
+			log.Printf("Failed to initialize event consumer (attempt %d/%d): %v", i+1, maxRetries, err)
 		}
+
+		// If this was the last attempt, give up
+		if i == maxRetries-1 {
+			log.Printf("Failed to initialize event consumer after %d attempts", maxRetries)
+			eventConsumer = nil
+			break
+		}
+
+		// Wait before retrying
+		delay := retryDelays[i]
+		log.Printf("Retrying in %v", delay)
+		time.Sleep(delay)
+	}
+
+	if eventConsumer == nil {
+		log.Println("Starting without event consumer - user registration events will not be processed")
 	}
 
 	// Initialize service discovery

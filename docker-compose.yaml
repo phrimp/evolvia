@@ -193,7 +193,7 @@ services:
 
   # RabbitMQ Service
   rabbitmq:
-    image: rabbitmq:latest
+    image: rabbitmq:management
     container_name: rabbitmq
     restart: unless-stopped
     ports:

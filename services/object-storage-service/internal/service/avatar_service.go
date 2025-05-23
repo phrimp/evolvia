@@ -16,6 +16,7 @@ import (
 	"object-storage-service/internal/repository"
 	"object-storage-service/pkg/utils"
 	"path/filepath"
+	"strings"
 	"time"
 
 	miniogh "github.com/minio/minio-go/v7"
@@ -23,14 +24,16 @@ import (
 
 type AvatarService struct {
 	avatarRepository *repository.AvatarRepository
+	redisRepository  *repository.RedisRepo
 	eventPublisher   events.Publisher
 	config           *config.Config
 }
 
 // NewAvatarService creates a new avatar service
-func NewAvatarService(repo *repository.AvatarRepository, eventPublisher events.Publisher, config *config.Config) *AvatarService {
+func NewAvatarService(repo *repository.AvatarRepository, eventPublisher events.Publisher, config *config.Config, redisRepo *repository.RedisRepo) *AvatarService {
 	return &AvatarService{
 		avatarRepository: repo,
+		redisRepository:  redisRepo,
 		eventPublisher:   eventPublisher,
 		config:           config,
 	}
@@ -169,47 +172,64 @@ func (s *AvatarService) GetUserAvatars(ctx context.Context, userID string) ([]*m
 	return s.avatarRepository.GetByUserID(ctx, userID)
 }
 
-// GetDefaultAvatar retrieves the default avatar for a user
 func (s *AvatarService) GetDefaultAvatar(ctx context.Context, userID string) (*models.Avatar, error) {
-	avatar, err := s.avatarRepository.GetDefaultAvatar(ctx, userID)
+	avatars, err := s.avatarRepository.GetByUserID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving default avatar: %w", err)
-	}
-	if avatar == nil {
-		// No default avatar found
-		return nil, nil
+		return nil, fmt.Errorf("error retrieving user avatars: %w", err)
 	}
 
-	return avatar, nil
+	if len(avatars) > 0 {
+		return avatars[0], nil
+	}
+
+	return s.getSystemDefaultAvatar(ctx)
+}
+
+func (s *AvatarService) getSystemDefaultAvatar(ctx context.Context) (*models.Avatar, error) {
+	avatars, err := s.avatarRepository.GetByUserID(ctx, "")
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving system avatars: %w", err)
+	}
+
+	if len(avatars) > 0 {
+		for _, avatar := range avatars {
+			if strings.Contains(avatar.FileName, "default_avatar") {
+				return avatar, nil
+			}
+		}
+		return avatars[0], nil // Return first system avatar
+	}
+
+	return nil, errors.New("no default avatar available")
 }
 
 // SetDefaultAvatar sets an avatar as the default
-func (s *AvatarService) SetDefaultAvatar(ctx context.Context, id string) error {
-	// Check if avatar exists
-	avatar, err := s.avatarRepository.GetByID(ctx, id)
-	if err != nil {
-		return fmt.Errorf("error retrieving avatar: %w", err)
-	}
-	if avatar == nil {
-		return errors.New("avatar not found")
-	}
-
-	// Set as default
-	err = s.avatarRepository.SetDefault(ctx, id)
-	if err != nil {
-		return fmt.Errorf("error setting default avatar: %w", err)
-	}
-
-	// Publish event
-	if s.eventPublisher != nil {
-		err = s.eventPublisher.PublishAvatarUpdated(ctx, id, avatar.UserID)
-		if err != nil {
-			log.Printf("Error publishing avatar updated event: %v", err)
-		}
-	}
-
-	return nil
-}
+//func (s *AvatarService) SetDefaultAvatar(ctx context.Context, id string) error {
+//	// Check if avatar exists
+//	avatar, err := s.avatarRepository.GetByID(ctx, id)
+//	if err != nil {
+//		return fmt.Errorf("error retrieving avatar: %w", err)
+//	}
+//	if avatar == nil {
+//		return errors.New("avatar not found")
+//	}
+//
+//	// Set as default
+//	err = s.avatarRepository.SetDefault(ctx, id)
+//	if err != nil {
+//		return fmt.Errorf("error setting default avatar: %w", err)
+//	}
+//
+//	// Publish event
+//	if s.eventPublisher != nil {
+//		err = s.eventPublisher.PublishAvatarUpdated(ctx, id, avatar.UserID)
+//		if err != nil {
+//			log.Printf("Error publishing avatar updated event: %v", err)
+//		}
+//	}
+//
+//	return nil
+//}
 
 // DeleteAvatar deletes an avatar
 func (s *AvatarService) DeleteAvatar(ctx context.Context, id string) error {
@@ -245,21 +265,34 @@ func (s *AvatarService) DeleteAvatar(ctx context.Context, id string) error {
 	return nil
 }
 
+func (s *AvatarService) GetAvatarURLSystem(ctx context.Context, avatar *models.Avatar, user_id string, expiry int) (string, error) {
+	url, err := minio.GetPresignedURL(ctx, avatar.BucketName, avatar.StoragePath, expiry)
+	if err != nil {
+		return "", fmt.Errorf("error generating presigned URL: %w", err)
+	}
+	s.redisRepository.SaveStructCached(ctx, user_id, "avatar-cached:", url, 24)
+
+	return url, nil
+}
+
 // GetAvatarURL generates a presigned URL for avatar access
-func (s *AvatarService) GetAvatarURL(ctx context.Context, id string, expiry int) (string, error) {
-	avatar, err := s.avatarRepository.GetByID(ctx, id)
+func (s *AvatarService) GetAvatarURL(ctx context.Context, user_id string, expiry int) (string, error) {
+	avatars, err := s.avatarRepository.GetByUserID(ctx, user_id)
 	if err != nil {
 		return "", fmt.Errorf("error retrieving avatar: %w", err)
 	}
-	if avatar == nil {
+	if len(avatars) == 0 {
+		log.Printf("no avatar (even default avatar) found by user: %s", user_id)
 		return "", errors.New("avatar not found")
 	}
+	avatar := avatars[0]
 
 	// Generate presigned URL
 	url, err := minio.GetPresignedURL(ctx, avatar.BucketName, avatar.StoragePath, expiry)
 	if err != nil {
 		return "", fmt.Errorf("error generating presigned URL: %w", err)
 	}
+	s.redisRepository.SaveStructCached(ctx, user_id, "avatar-cached:", url, 24)
 
 	return url, nil
 }

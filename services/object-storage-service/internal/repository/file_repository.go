@@ -44,7 +44,7 @@ func (r *FileRepository) Create(ctx context.Context, file *models.File) (*models
 
 // GetByID retrieves a file by ID
 func (r *FileRepository) GetByID(ctx context.Context, id string) (*models.File, error) {
-	objectID, err := primitive.ObjectIDFromHex(id)
+	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (r *FileRepository) Update(ctx context.Context, file *models.File) error {
 
 // Delete deletes a file by ID
 func (r *FileRepository) Delete(ctx context.Context, id string) error {
-	objectID, err := primitive.ObjectIDFromHex(id)
+	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return err
 	}
