@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -40,7 +39,7 @@ func (r *RoleRepository) Create(ctx context.Context, role *models.Role) (*models
 	}
 
 	if role.ID.IsZero() {
-		role.ID = primitive.NewObjectID()
+		role.ID = bson.NewObjectID()
 	}
 
 	currentTime := int(time.Now().Unix())
@@ -79,7 +78,7 @@ func (r *RoleRepository) Update(ctx context.Context, role *models.Role) error {
 	return nil
 }
 
-func (r *RoleRepository) Delete(ctx context.Context, id primitive.ObjectID) error {
+func (r *RoleRepository) Delete(ctx context.Context, id bson.ObjectID) error {
 	role, err := r.FindByID(ctx, id)
 	if err != nil {
 		return err
@@ -98,7 +97,7 @@ func (r *RoleRepository) Delete(ctx context.Context, id primitive.ObjectID) erro
 	return nil
 }
 
-func (r *RoleRepository) FindByID(ctx context.Context, id primitive.ObjectID) (*models.Role, error) {
+func (r *RoleRepository) FindByID(ctx context.Context, id bson.ObjectID) (*models.Role, error) {
 	var role models.Role
 	err := r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&role)
 	if err != nil {

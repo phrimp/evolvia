@@ -1,3 +1,4 @@
+// services/object-storage-service/internal/database/minio/minio.go
 package minio
 
 import (
@@ -18,7 +19,6 @@ var MinioClient *minio.Client
 func InitMinioClient(cfg *config.MinIOConfig) error {
 	var err error
 
-	// Initialize MinIO client
 	MinioClient, err = minio.New(cfg.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
 		Secure: cfg.UseSSL,
@@ -28,6 +28,7 @@ func InitMinioClient(cfg *config.MinIOConfig) error {
 		log.Printf("Error initializing MinIO client: %v", err)
 		return err
 	}
+	log.Println(MinioClient.ListBuckets(context.Background()))
 
 	// Check if buckets exist and create them if they don't
 	bucketsToCreate := []string{cfg.AvatarBucket, cfg.FileBucket, cfg.DefaultBucket}
@@ -115,7 +116,6 @@ func GetPresignedURL(ctx context.Context, bucketName, objectName string, expiry 
 		return "", errors.New("invalid object name")
 	}
 
-	// Get presigned URL
 	presignedURL, err := MinioClient.PresignedGetObject(ctx, bucketName, objectName, time.Duration(expiry)*time.Second, nil)
 	if err != nil {
 		log.Printf("Error generating presigned URL: %v", err)

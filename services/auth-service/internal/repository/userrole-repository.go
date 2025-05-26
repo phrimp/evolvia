@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -45,7 +44,7 @@ func (r *UserRoleRepository) Create(ctx context.Context, userRole *models.UserRo
 	}
 
 	if userRole.ID.IsZero() {
-		userRole.ID = primitive.NewObjectID()
+		userRole.ID = bson.NewObjectID()
 	}
 
 	currentTime := int(time.Now().Unix())
@@ -74,7 +73,7 @@ func (r *UserRoleRepository) Update(ctx context.Context, userRole *models.UserRo
 	return nil
 }
 
-func (r *UserRoleRepository) Delete(ctx context.Context, id primitive.ObjectID) error {
+func (r *UserRoleRepository) Delete(ctx context.Context, id bson.ObjectID) error {
 	filter := bson.M{"_id": id}
 	_, err := r.collection.DeleteOne(ctx, filter)
 	if err != nil {
@@ -83,7 +82,7 @@ func (r *UserRoleRepository) Delete(ctx context.Context, id primitive.ObjectID) 
 	return nil
 }
 
-func (r *UserRoleRepository) FindByID(ctx context.Context, id primitive.ObjectID) (*models.UserRole, error) {
+func (r *UserRoleRepository) FindByID(ctx context.Context, id bson.ObjectID) (*models.UserRole, error) {
 	var userRole models.UserRole
 	err := r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&userRole)
 	if err != nil {
@@ -95,7 +94,7 @@ func (r *UserRoleRepository) FindByID(ctx context.Context, id primitive.ObjectID
 	return &userRole, nil
 }
 
-func (r *UserRoleRepository) FindByUserID(ctx context.Context, userID primitive.ObjectID) ([]*models.UserRole, error) {
+func (r *UserRoleRepository) FindByUserID(ctx context.Context, userID bson.ObjectID) ([]*models.UserRole, error) {
 	filter := bson.M{"userId": userID, "isActive": true}
 
 	currentTime := int(time.Now().Unix())
@@ -125,7 +124,7 @@ func (r *UserRoleRepository) FindByUserID(ctx context.Context, userID primitive.
 	return userRoles, nil
 }
 
-func (r *UserRoleRepository) FindByUserIDAndScope(ctx context.Context, userID primitive.ObjectID, scopeType string, scopeID primitive.ObjectID) ([]*models.UserRole, error) {
+func (r *UserRoleRepository) FindByUserIDAndScope(ctx context.Context, userID bson.ObjectID, scopeType string, scopeID bson.ObjectID) ([]*models.UserRole, error) {
 	filter := bson.M{
 		"userId":   userID,
 		"isActive": true,
@@ -156,7 +155,7 @@ func (r *UserRoleRepository) FindByUserIDAndScope(ctx context.Context, userID pr
 	return userRoles, nil
 }
 
-func (r *UserRoleRepository) FindUsersWithRole(ctx context.Context, roleID primitive.ObjectID, page, limit int) ([]primitive.ObjectID, error) {
+func (r *UserRoleRepository) FindUsersWithRole(ctx context.Context, roleID bson.ObjectID, page, limit int) ([]bson.ObjectID, error) {
 	filter := bson.M{"roleId": roleID, "isActive": true}
 
 	opts := options.Find()
@@ -174,13 +173,13 @@ func (r *UserRoleRepository) FindUsersWithRole(ctx context.Context, roleID primi
 	defer cursor.Close(ctx)
 
 	var results []struct {
-		UserID primitive.ObjectID `bson:"userId"`
+		UserID bson.ObjectID `bson:"userId"`
 	}
 	if err = cursor.All(ctx, &results); err != nil {
 		return nil, err
 	}
 
-	userIDs := make([]primitive.ObjectID, len(results))
+	userIDs := make([]bson.ObjectID, len(results))
 	for i, result := range results {
 		userIDs[i] = result.UserID
 	}
@@ -188,7 +187,7 @@ func (r *UserRoleRepository) FindUsersWithRole(ctx context.Context, roleID primi
 	return userIDs, nil
 }
 
-func (r *UserRoleRepository) Deactivate(ctx context.Context, id primitive.ObjectID) error {
+func (r *UserRoleRepository) Deactivate(ctx context.Context, id bson.ObjectID) error {
 	filter := bson.M{"_id": id}
 	update := bson.M{"$set": bson.M{"isActive": false}}
 	_, err := r.collection.UpdateOne(ctx, filter, update)
@@ -198,7 +197,7 @@ func (r *UserRoleRepository) Deactivate(ctx context.Context, id primitive.Object
 	return nil
 }
 
-func (r *UserRoleRepository) DeactivateUserRoles(ctx context.Context, userID primitive.ObjectID) error {
+func (r *UserRoleRepository) DeactivateUserRoles(ctx context.Context, userID bson.ObjectID) error {
 	filter := bson.M{"userId": userID, "isActive": true}
 	update := bson.M{"$set": bson.M{"isActive": false}}
 	_, err := r.collection.UpdateMany(ctx, filter, update)

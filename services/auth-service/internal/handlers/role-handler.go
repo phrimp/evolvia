@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type RoleHandler struct {
@@ -88,7 +88,7 @@ func (h *RoleHandler) GetAllRoles(c fiber.Ctx) error {
 func (h *RoleHandler) GetRoleByID(c fiber.Ctx) error {
 	id := c.Params("id")
 
-	roleID, err := primitive.ObjectIDFromHex(id)
+	roleID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid role ID format",
@@ -143,7 +143,7 @@ func (h *RoleHandler) CreateRole(c fiber.Ctx) error {
 func (h *RoleHandler) UpdateRole(c fiber.Ctx) error {
 	id := c.Params("id")
 
-	roleID, err := primitive.ObjectIDFromHex(id)
+	roleID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid role ID format",
@@ -185,7 +185,7 @@ func (h *RoleHandler) UpdateRole(c fiber.Ctx) error {
 func (h *RoleHandler) DeleteRole(c fiber.Ctx) error {
 	id := c.Params("id")
 
-	roleID, err := primitive.ObjectIDFromHex(id)
+	roleID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid role ID format",
@@ -207,7 +207,7 @@ func (h *RoleHandler) DeleteRole(c fiber.Ctx) error {
 func (h *RoleHandler) AddPermissionToRole(c fiber.Ctx) error {
 	id := c.Params("id")
 
-	roleID, err := primitive.ObjectIDFromHex(id)
+	roleID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid role ID format",
@@ -246,7 +246,7 @@ func (h *RoleHandler) RemovePermissionFromRole(c fiber.Ctx) error {
 	id := c.Params("id")
 	permission := c.Params("permission")
 
-	roleID, err := primitive.ObjectIDFromHex(id)
+	roleID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid role ID format",
@@ -286,7 +286,7 @@ func (h *RoleHandler) AssignRoleToUser(c fiber.Ctx) error {
 		})
 	}
 
-	userID, err := primitive.ObjectIDFromHex(request.UserID)
+	userID, err := bson.ObjectIDFromHex(request.UserID)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -300,11 +300,11 @@ func (h *RoleHandler) AssignRoleToUser(c fiber.Ctx) error {
 		})
 	}
 
-	adminID, _ := primitive.ObjectIDFromHex("000000000000000000000000")
+	adminID, _ := bson.ObjectIDFromHex("000000000000000000000000")
 
-	var scopeID primitive.ObjectID
+	var scopeID bson.ObjectID
 	if request.ScopeID != "" {
-		scopeID, err = primitive.ObjectIDFromHex(request.ScopeID)
+		scopeID, err = bson.ObjectIDFromHex(request.ScopeID)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "Invalid scope ID format",
@@ -336,7 +336,7 @@ func (h *RoleHandler) AssignRoleToUser(c fiber.Ctx) error {
 func (h *RoleHandler) RemoveRoleFromUser(c fiber.Ctx) error {
 	id := c.Params("id")
 
-	userRoleID, err := primitive.ObjectIDFromHex(id)
+	userRoleID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user role ID format",
@@ -358,7 +358,7 @@ func (h *RoleHandler) RemoveRoleFromUser(c fiber.Ctx) error {
 func (h *RoleHandler) GetUserRoles(c fiber.Ctx) error {
 	userID := c.Params("userId")
 
-	uid, err := primitive.ObjectIDFromHex(userID)
+	uid, err := bson.ObjectIDFromHex(userID)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -368,9 +368,9 @@ func (h *RoleHandler) GetUserRoles(c fiber.Ctx) error {
 	scopeType := c.Query("scopeType")
 	scopeIDStr := c.Query("scopeID")
 
-	var scopeID primitive.ObjectID
+	var scopeID bson.ObjectID
 	if scopeIDStr != "" {
-		scopeID, err = primitive.ObjectIDFromHex(scopeIDStr)
+		scopeID, err = bson.ObjectIDFromHex(scopeIDStr)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "Invalid scope ID format",

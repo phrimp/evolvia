@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type RoleService struct {
@@ -52,7 +52,7 @@ func (s *RoleService) CreateRole(ctx context.Context, name, description string, 
 	return s.roleRepo.Create(ctx, role)
 }
 
-func (s *RoleService) UpdateRole(ctx context.Context, id primitive.ObjectID, name, description string, permissions []string, isSystem bool) (*models.Role, error) {
+func (s *RoleService) UpdateRole(ctx context.Context, id bson.ObjectID, name, description string, permissions []string, isSystem bool) (*models.Role, error) {
 	role, err := s.roleRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func (s *RoleService) UpdateRole(ctx context.Context, id primitive.ObjectID, nam
 	return role, nil
 }
 
-func (s *RoleService) DeleteRole(ctx context.Context, id primitive.ObjectID) error {
+func (s *RoleService) DeleteRole(ctx context.Context, id bson.ObjectID) error {
 	role, err := s.roleRepo.FindByID(ctx, id)
 	if err != nil {
 		return err
@@ -97,7 +97,7 @@ func (s *RoleService) DeleteRole(ctx context.Context, id primitive.ObjectID) err
 	return s.roleRepo.Delete(ctx, id)
 }
 
-func (s *RoleService) GetRoleByID(ctx context.Context, id primitive.ObjectID) (*models.Role, error) {
+func (s *RoleService) GetRoleByID(ctx context.Context, id bson.ObjectID) (*models.Role, error) {
 	return s.roleRepo.FindByID(ctx, id)
 }
 
@@ -109,7 +109,7 @@ func (s *RoleService) GetAllRoles(ctx context.Context, page, limit int) ([]*mode
 	return s.roleRepo.FindAll(ctx, page, limit)
 }
 
-func (s *RoleService) AddPermissionToRole(ctx context.Context, roleID primitive.ObjectID, permissionName string) error {
+func (s *RoleService) AddPermissionToRole(ctx context.Context, roleID bson.ObjectID, permissionName string) error {
 	role, err := s.roleRepo.FindByID(ctx, roleID)
 	if err != nil {
 		return err
@@ -128,7 +128,7 @@ func (s *RoleService) AddPermissionToRole(ctx context.Context, roleID primitive.
 	return s.roleRepo.Update(ctx, role)
 }
 
-func (s *RoleService) RemovePermissionFromRole(ctx context.Context, roleID primitive.ObjectID, permissionName string) error {
+func (s *RoleService) RemovePermissionFromRole(ctx context.Context, roleID bson.ObjectID, permissionName string) error {
 	role, err := s.roleRepo.FindByID(ctx, roleID)
 	if err != nil {
 		return err

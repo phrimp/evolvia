@@ -3,13 +3,14 @@ package handlers
 import (
 	"auth_service/internal/models"
 	"auth_service/internal/service"
+	"context"
 	"log"
 	"time"
 
 	grpcServer "auth_service/internal/grpc"
 
 	"github.com/gofiber/fiber/v3"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type ResponseStruct struct {
@@ -77,7 +78,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	}
 
 	user := &models.UserAuth{
-		ID:              primitive.NewObjectID(),
+		ID:              bson.NewObjectID(),
 		Username:        registerRequest.Username,
 		Email:           registerRequest.Email,
 		PasswordHash:    registerRequest.Password,
@@ -132,9 +133,9 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 			"error": "Invalid credentials",
 		})
 	}
-	user_id := login_data["user_id"].(primitive.ObjectID)
+	user_id := login_data["user_id"].(bson.ObjectID)
 
-	permissions, err := h.userRoleService.GetUserPermissions(c.Context(), user_id, "", primitive.NilObjectID)
+	permissions, err := h.userRoleService.GetUserPermissions(c.Context(), user_id, "", bson.NilObjectID)
 	if err != nil {
 		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -151,10 +152,19 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 			})
 		}
 	}
-	err = h.gRPCService.SendSession(c.Context(), session, "middleware")
-	if err != nil {
-		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
-	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		for i := range 5 {
+			err = h.gRPCService.SendSession(ctx, session, "middleware")
+			if err != nil {
+				log.Printf("Error login with username: %s : %s -- Retry: %v", loginRequest.Username, err, i)
+			} else {
+				log.Printf("Successfully sent session to middleware")
+				return
+			}
+		}
+	}()
 
 	// Processing Basic Profile Data
 	basic_profile := login_data["basic_profile"].(models.UserProfile)

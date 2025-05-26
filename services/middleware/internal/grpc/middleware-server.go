@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"middleware/internal/models"
 	"middleware/internal/repository"
@@ -42,7 +43,8 @@ func (s *MiddlewareServer) ProcessSession(ctx context.Context, req *shared.Sessi
 	}
 	_, err := repository.Redis_repo.SaveStructCached(ctx, req.Token, session, 24)
 	if err != nil {
-		log.Printf("error saving session to cache: %s", err)
+		err = fmt.Errorf("error saving session to cache: %s", err)
+		return nil, err
 	}
 
 	log.Printf("Processing session: %v", session)

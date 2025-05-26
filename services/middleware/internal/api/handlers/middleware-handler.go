@@ -44,13 +44,12 @@ func (h *MiddlewareHandler) ValidateToken(c fiber.Ctx) error {
 		})
 	}
 
-	// Optional: verify session in Redis
-	// session, err := h.sessionService.GetSession(c.Context(), tokenString)
-	// if err != nil || !session.IsValid {
-	//     return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-	//         "error": "Session not found or invalid",
-	//     })
-	// }
+	//	session, err := h.sessionService.GetSession(c.Context(), tokenString)
+	//	if err != nil || !session.IsValid {
+	//		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+	//			"error": "Session not found or invalid",
+	//		})
+	//	}
 
 	// Set headers for downstream services
 	c.Set("X-User-ID", claims.Id)

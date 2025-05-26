@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type UserRoleService struct {
@@ -28,9 +28,9 @@ func NewUserRoleService() *UserRoleService {
 
 func (s *UserRoleService) AssignRoleToUser(
 	ctx context.Context,
-	userID, roleID, assignedBy primitive.ObjectID,
+	userID, roleID, assignedBy bson.ObjectID,
 	scopeType string,
-	scopeID primitive.ObjectID,
+	scopeID bson.ObjectID,
 	expiresInDays int,
 ) (*models.UserRole, error) {
 	user, err := s.userRepo.FindByID(ctx, userID)
@@ -64,7 +64,7 @@ func (s *UserRoleService) AssignRoleToUser(
 	return s.userRoleRepo.Create(ctx, userRole)
 }
 
-func (s *UserRoleService) RemoveRoleFromUser(ctx context.Context, userRoleID primitive.ObjectID) error {
+func (s *UserRoleService) RemoveRoleFromUser(ctx context.Context, userRoleID bson.ObjectID) error {
 	userRole, err := s.userRoleRepo.FindByID(ctx, userRoleID)
 	if err != nil {
 		return err
@@ -77,20 +77,20 @@ func (s *UserRoleService) RemoveRoleFromUser(ctx context.Context, userRoleID pri
 	return s.userRoleRepo.Deactivate(ctx, userRoleID)
 }
 
-func (s *UserRoleService) GetUserRoles(ctx context.Context, userID primitive.ObjectID) ([]*models.UserRole, error) {
+func (s *UserRoleService) GetUserRoles(ctx context.Context, userID bson.ObjectID) ([]*models.UserRole, error) {
 	return s.userRoleRepo.FindByUserID(ctx, userID)
 }
 
 func (s *UserRoleService) GetUserRolesWithScope(
 	ctx context.Context,
-	userID primitive.ObjectID,
+	userID bson.ObjectID,
 	scopeType string,
-	scopeID primitive.ObjectID,
+	scopeID bson.ObjectID,
 ) ([]*models.UserRole, error) {
 	return s.userRoleRepo.FindByUserIDAndScope(ctx, userID, scopeType, scopeID)
 }
 
-func (s *UserRoleService) HasRole(ctx context.Context, userID primitive.ObjectID, roleName string) (bool, error) {
+func (s *UserRoleService) HasRole(ctx context.Context, userID bson.ObjectID, roleName string) (bool, error) {
 	userRoles, err := s.userRoleRepo.FindByUserID(ctx, userID)
 	if err != nil {
 		return false, err
@@ -112,10 +112,10 @@ func (s *UserRoleService) HasRole(ctx context.Context, userID primitive.ObjectID
 
 func (s *UserRoleService) HasPermission(
 	ctx context.Context,
-	userID primitive.ObjectID,
+	userID bson.ObjectID,
 	permissionName string,
 	scopeType string,
-	scopeID primitive.ObjectID,
+	scopeID bson.ObjectID,
 ) (bool, error) {
 	var userRoles []*models.UserRole
 	var err error
@@ -147,27 +147,27 @@ func (s *UserRoleService) HasPermission(
 	return true, nil
 }
 
-func (s *UserRoleService) RemoveAllUserRoles(ctx context.Context, userID primitive.ObjectID) error {
+func (s *UserRoleService) RemoveAllUserRoles(ctx context.Context, userID bson.ObjectID) error {
 	return s.userRoleRepo.DeactivateUserRoles(ctx, userID)
 }
 
-func (s *UserRoleService) AssignDefaultRoleToUser(ctx context.Context, userID primitive.ObjectID) error {
+func (s *UserRoleService) AssignDefaultRoleToUser(ctx context.Context, userID bson.ObjectID) error {
 	role, err := s.roleRepo.FindByName(ctx, "user")
 	if err != nil {
 		return fmt.Errorf("default role 'user' not found: %w", err)
 	}
 
-	systemID, _ := primitive.ObjectIDFromHex("000000000000000000000000")
+	systemID, _ := bson.ObjectIDFromHex("000000000000000000000000")
 
-	_, err = s.AssignRoleToUser(ctx, userID, role.ID, systemID, "", primitive.NilObjectID, 0)
+	_, err = s.AssignRoleToUser(ctx, userID, role.ID, systemID, "", bson.NilObjectID, 0)
 	return err
 }
 
 func (s *UserRoleService) GetUserPermissions(
 	ctx context.Context,
-	userID primitive.ObjectID,
+	userID bson.ObjectID,
 	scopeType string,
-	scopeID primitive.ObjectID,
+	scopeID bson.ObjectID,
 ) ([]string, error) {
 	var userRoles []*models.UserRole
 	var err error
@@ -202,7 +202,7 @@ func (s *UserRoleService) GetUserPermissions(
 	return permissions, nil
 }
 
-func (s *UserRoleService) GetUsersWithRole(ctx context.Context, roleName string, page, limit int) ([]primitive.ObjectID, error) {
+func (s *UserRoleService) GetUsersWithRole(ctx context.Context, roleName string, page, limit int) ([]bson.ObjectID, error) {
 	role, err := s.roleRepo.FindByName(ctx, roleName)
 	if err != nil {
 		return nil, err

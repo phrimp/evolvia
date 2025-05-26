@@ -29,7 +29,6 @@ type BaseEvent struct {
 	Version   string    `json:"version"`
 }
 
-// FileEvent represents an event related to a file operation
 type FileEvent struct {
 	BaseEvent
 	FileID       string `json:"fileId"`
@@ -42,7 +41,6 @@ type FileEvent struct {
 	VersionCount int    `json:"versionCount,omitempty"`
 }
 
-// AvatarEvent represents an event related to an avatar operation
 type AvatarEvent struct {
 	BaseEvent
 	AvatarID    string `json:"avatarId"`
@@ -52,7 +50,6 @@ type AvatarEvent struct {
 	ContentType string `json:"contentType,omitempty"`
 }
 
-// NewFileUploadedEvent creates a new file uploaded event
 func NewFileUploadedEvent(fileID, ownerID, fileName string) *FileEvent {
 	return &FileEvent{
 		BaseEvent: BaseEvent{

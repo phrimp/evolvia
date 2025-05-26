@@ -26,6 +26,7 @@ type ServerConfig struct {
 
 type MinIOConfig struct {
 	Endpoint        string
+	PublicEndpoint  string // Add this field for public URL generation
 	AccessKeyID     string
 	SecretAccessKey string
 	UseSSL          bool

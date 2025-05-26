@@ -165,11 +165,13 @@ services:
       - "${MINIO_API_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MINIO_LOGGER_FILE: "/var/log/minio"
-      MINIO_BUCKET_MAKE_BUCKET: "on"
-      MINIO_BUCKET_NAME: "${MINIO_AVATAR_BUCKET:-avatars},${MINIO_FILE_BUCKET:-files}"
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_LOGGER_FILE="/var/log/minio"
+      - MINIO_BUCKET_MAKE_BUCKET="on"
+      - MINIO_BUCKET_NAME="${MINIO_AVATAR_BUCKET:-avatars},${MINIO_FILE_BUCKET:-files}"
+      - MINIO_SERVER_URL=http://localhost:9000
+      - MINIO_BROWSER_REDIRECT_URL=http://localhost/minio/console
     volumes:
       - minio_data:/data
       - ./logs/minio:/var/log/minio
@@ -190,6 +192,12 @@ services:
       - "traefik.http.middlewares.minio-console-prefix.stripprefix.prefixes=/minio-console"
       - "traefik.http.routers.minio-console.middlewares=minio-console-prefix"
       - "traefik.docker.network=microservices_template_traefik-net"
+      - "traefik.http.routers.minio-api.rule=PathPrefix(`/minio`)"
+      - "traefik.http.routers.minio-api.service=minio-api"
+      - "traefik.http.services.minio-api.loadbalancer.server.port=9000"
+      - "traefik.http.middlewares.minio-api-prefix.stripprefix.prefixes=/minio"
+      - "traefik.http.routers.minio-api.middlewares=minio-api-prefix"
+
 
   # RabbitMQ Service
   rabbitmq:
@@ -337,6 +345,7 @@ services:
       - MONGODB_POOL_SIZE=100
       - MONGODB_TIMEOUT=10
       - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio:9000}
+      - MINIO_PUBLIC_ENDPOINT=${MINIO_PUBLIC_ENDPOINT:-http://localhost}
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
       - MINIO_USE_SSL=${MINIO_USE_SSL:-false}

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -60,7 +59,7 @@ func (pr *PermissionRepository) InitDefaultPermissions(ctx context.Context) erro
 		}
 
 		if permission.ID.IsZero() {
-			permission.ID = primitive.NewObjectID()
+			permission.ID = bson.NewObjectID()
 		}
 
 		_, err := pr.collection.InsertOne(ctx, permission)
@@ -81,7 +80,7 @@ func (pr *PermissionRepository) InitDefaultPermissions(ctx context.Context) erro
 
 func (pr *PermissionRepository) New(ctx context.Context, p *models.Permission) (*models.Permission, error) {
 	if p.ID.IsZero() {
-		p.ID = primitive.NewObjectID()
+		p.ID = bson.NewObjectID()
 	}
 
 	currentTime := int(time.Now().Unix())

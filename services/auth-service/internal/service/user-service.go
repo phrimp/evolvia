@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type UserService struct {
@@ -40,7 +40,7 @@ func (us *UserService) Register(ctx context.Context, user *models.UserAuth, prof
 	currentTime := int(time.Now().Unix())
 
 	if user.ID.IsZero() {
-		user.ID = primitive.NewObjectID()
+		user.ID = bson.NewObjectID()
 	}
 
 	user.BasicProfile.DisplayName = profile["fullname"]
@@ -129,11 +129,11 @@ func (us *UserService) Login(ctx context.Context, username, password string) (ma
 	return login_return, nil
 }
 
-func (s *UserService) GetProfile(ctx context.Context, userID primitive.ObjectID) (*models.UserWithProfile, error) {
+func (s *UserService) GetProfile(ctx context.Context, userID bson.ObjectID) (*models.UserWithProfile, error) {
 	return nil, nil
 }
 
-func (s *UserService) DeactivateUser(ctx context.Context, userID primitive.ObjectID) error {
+func (s *UserService) DeactivateUser(ctx context.Context, userID bson.ObjectID) error {
 	s.invalidateUserCache(userID.String())
 	return nil
 }
