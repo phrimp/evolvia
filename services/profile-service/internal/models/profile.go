@@ -25,7 +25,6 @@ type Profile struct {
 	PersonalInfo          PersonalInfo            `json:"personalInfo" bson:"personalInfo"`
 	ContactInfo           ContactInfo             `json:"contactInfo" bson:"contactInfo"`
 	EducationalBackground []EducationalBackground `json:"educationalBackground,omitempty" bson:"educationalBackground,omitempty"`
-	AvatarURL             string                  `json:"avatarUrl,omitempty" bson:"avatarUrl,omitempty"`
 	PrivacySettings       PrivacySettings         `json:"privacySettings" bson:"privacySettings"`
 	ProfileCompleteness   float64                 `json:"profileCompleteness" bson:"profileCompleteness"`
 	Metadata              Metadata                `json:"metadata" bson:"metadata"`

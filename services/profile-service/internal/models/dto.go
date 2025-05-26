@@ -33,8 +33,8 @@ type ProfileSearchQuery struct {
 }
 
 type ProfileSearchResult struct {
-	Profiles    []Profile `json:"profiles"`
-	TotalCount  int64     `json:"totalCount"`
-	PageCount   int       `json:"pageCount"`
-	CurrentPage int       `json:"currentPage"`
+	Profiles    []*Profile `json:"profiles"`
+	TotalCount  int64      `json:"totalCount"`
+	PageCount   int        `json:"pageCount"`
+	CurrentPage int        `json:"currentPage"`
 }

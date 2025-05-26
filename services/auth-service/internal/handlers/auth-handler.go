@@ -168,14 +168,12 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 
 	// Processing Basic Profile Data
 	basic_profile := login_data["basic_profile"].(models.UserProfile)
-	avatar_url := login_data["avatar_url"].(string)
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "None",
 		"data": fiber.Map{
 			"token":        session.Token,
 			"basicProfile": basic_profile,
-			"avatarUrl":    avatar_url,
 		},
 	})
 }

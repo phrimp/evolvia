@@ -82,8 +82,7 @@ func NewEventPublisher(rabbitURI string) (*EventPublisher, error) {
 	}, nil
 }
 
-// publishEvent publishes an event to RabbitMQ
-func (p *EventPublisher) publishEvent(ctx context.Context, routingKey string, event interface{}) error {
+func (p *EventPublisher) publishEvent(ctx context.Context, routingKey string, event any) error {
 	if !p.enabled {
 		log.Printf("Event publishing is disabled, skipping event: %s", routingKey)
 		return nil
