@@ -86,6 +86,7 @@ services:
 
   # MongoDB Service
   mongodb:
+    user: "0:0"
     image: mongo:latest
     container_name: mongodb
     restart: unless-stopped
@@ -127,6 +128,7 @@ services:
 
   # Redis Service
   redis:
+    user: "0:0"
     image: redis:latest
     container_name: redis
     restart: unless-stopped
@@ -158,6 +160,7 @@ services:
 
   # RabbitMQ Service
   rabbitmq:
+    user: "0:0"
     image: rabbitmq:management
     container_name: rabbitmq
     restart: unless-stopped
@@ -195,6 +198,7 @@ services:
       - "traefik.docker.network=microservices_template_traefik-net"
 
   auth-service:
+    user: "0:0"
     build:
       context: .
       dockerfile: services/auth-service/Dockerfile
@@ -244,6 +248,7 @@ services:
     - "traefik.docker.network=microservices_template_traefik-net"
 
   middleware:
+    user: "0:0"
     build:
       context: .
       dockerfile: services/middleware/Dockerfile
