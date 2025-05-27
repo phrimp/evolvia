@@ -97,8 +97,6 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-example}
     volumes:
       - mongodb_data:/data/db
-      - ./logs/mongodb:/var/log/mongodb
-    command: mongod --logpath /var/log/mongodb/mongodb.log --logRotate reopen --logappend
     networks:
       - consul-net
       - traefik-net
