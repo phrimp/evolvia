@@ -18,6 +18,7 @@ var MinioClient *minio.Client
 
 func InitMinioClient(cfg *config.MinIOConfig) error {
 	var err error
+	log.Println("initializing Minio")
 
 	MinioClient, err = minio.New(cfg.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),

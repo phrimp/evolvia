@@ -156,49 +156,6 @@ services:
     labels:
       - "traefik.enable=false"
 
-  # MinIO Object Storage
-  minio:
-    image: minio/minio:latest
-    container_name: minio
-    restart: unless-stopped
-    ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
-      - MINIO_LOGGER_FILE="/var/log/minio"
-      - MINIO_BUCKET_MAKE_BUCKET="on"
-      - MINIO_BUCKET_NAME="${MINIO_AVATAR_BUCKET:-avatars},${MINIO_FILE_BUCKET:-files}"
-      - MINIO_SERVER_URL=http://localhost:9000
-      - MINIO_BROWSER_REDIRECT_URL=http://localhost/minio/console
-    volumes:
-      - minio_data:/data
-      - ./logs/minio:/var/log/minio
-    command: server /data --console-address ":9001" --address ":9000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-    networks:
-      - consul-net
-      - traefik-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.minio-console.rule=PathPrefix(`/minio-console`)"
-      - "traefik.http.routers.minio-console.service=minio-console"
-      - "traefik.http.services.minio-console.loadbalancer.server.port=${MINIO_CONSOLE_PORT:-9001}"
-      - "traefik.http.middlewares.minio-console-prefix.stripprefix.prefixes=/minio-console"
-      - "traefik.http.routers.minio-console.middlewares=minio-console-prefix"
-      - "traefik.docker.network=microservices_template_traefik-net"
-      - "traefik.http.routers.minio-api.rule=PathPrefix(`/minio`)"
-      - "traefik.http.routers.minio-api.service=minio-api"
-      - "traefik.http.services.minio-api.loadbalancer.server.port=9000"
-      - "traefik.http.middlewares.minio-api-prefix.stripprefix.prefixes=/minio"
-      - "traefik.http.routers.minio-api.middlewares=minio-api-prefix"
-
-
   # RabbitMQ Service
   rabbitmq:
     image: rabbitmq:management
@@ -365,7 +322,6 @@ services:
       - consul-server
       - traefik
       - mongodb
-      - minio
       - rabbitmq
     labels:
       - "traefik.enable=true"
