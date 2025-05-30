@@ -49,7 +49,6 @@ func (s *GoogleOAuthService) Exchange(ctx context.Context, code string) (*oauth2
 func (s *GoogleOAuthService) GetUserInfo(token *oauth2.Token) (*models.GoogleUserInfo, error) {
 	client := s.oauth2Config.Client(context.Background(), token)
 
-	// Make request to Google's userinfo endpoint
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)
@@ -65,7 +64,6 @@ func (s *GoogleOAuthService) GetUserInfo(token *oauth2.Token) (*models.GoogleUse
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Parse user info
 	var userInfo models.GoogleUserInfo
 	if err := json.Unmarshal(body, &userInfo); err != nil {
 		return nil, fmt.Errorf("failed to parse user info: %w", err)

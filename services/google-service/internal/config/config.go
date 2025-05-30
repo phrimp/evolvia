@@ -2,54 +2,37 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
 
-type EmailConfig struct {
-	SMTPConfig SMTPConfig
-}
-
-func NewEmailConfig() *EmailConfig {
-	return &EmailConfig{
-		SMTPConfig: loadSMTPConfig(),
-	}
-}
-
 type Config struct {
-	Server           ServerConfig
-	GoogleAuth       *GoogleOAuthConfig
-	Email            *EmailConfig
-	JWT              JWTConfig
-	ServiceAccount   *ServiceAccountConfig
-	API_KEY          string
-	USER_SERVICE_URL string
+	Server     ServerConfig
+	GoogleAuth *GoogleOAuthConfig
+	Service    ServiceConfig
+	Consul     ConsulConfig
+	Email      *EmailConfig
+	FEADDRESS  string
 }
 
 type ServerConfig struct {
 	Port         string
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
+	Host         string
 }
 
-type SMTPConfig struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-	From     string
+type ServiceConfig struct {
+	Name    string
+	Address string
+	Port    string
 }
 
-type JWTConfig struct {
-	Secret        string
-	ExpiresIn     time.Duration
-	RefreshSecret string
-}
-
-type ServiceAccountConfig struct {
-	CredentialsJSON []byte
+type ConsulConfig struct {
+	Address string
 }
 
 type GoogleOAuthConfig struct {
@@ -60,17 +43,66 @@ type GoogleOAuthConfig struct {
 	Endpoint     oauth2.Endpoint
 }
 
-func NewGoogleOAuthConfig() *GoogleOAuthConfig {
-	return &GoogleOAuthConfig{
-		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		RedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
-		Scopes: []string{
-			"https://www.googleapis.com/auth/userinfo.email",
-			"https://www.googleapis.com/auth/userinfo.profile",
-		},
-		Endpoint: google.Endpoint,
+type EmailConfig struct {
+	SMTPConfig SMTPConfig
+}
+
+type SMTPConfig struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	From     string
+}
+
+func NewEmailConfig() *EmailConfig {
+	return &EmailConfig{
+		SMTPConfig: loadSMTPConfig(),
 	}
+}
+
+func LoadConfig() *Config {
+	readTimeout, _ := strconv.Atoi(getEnv("READ_TIMEOUT", "15"))
+	writeTimeout, _ := strconv.Atoi(getEnv("WRITE_TIMEOUT", "15"))
+
+	return &Config{
+		Server: ServerConfig{
+			Port:         getEnv("PORT", "9220"),
+			ReadTimeout:  time.Duration(readTimeout) * time.Second,
+			WriteTimeout: time.Duration(writeTimeout) * time.Second,
+		},
+		GoogleAuth: &GoogleOAuthConfig{
+			ClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+			ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+			RedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:9220/public/google/auth/callback"),
+			Scopes: []string{
+				"https://www.googleapis.com/auth/userinfo.email",
+				"https://www.googleapis.com/auth/userinfo.profile",
+				"https://www.googleapis.com/auth/drive.readonly",
+				"https://www.googleapis.com/auth/classroom.courses.readonly",
+				"https://www.googleapis.com/auth/calendar.readonly",
+				"https://www.googleapis.com/auth/gmail.readonly",
+			},
+			Endpoint: google.Endpoint,
+		},
+		Service: ServiceConfig{
+			Name:    getEnv("SERVICE_NAME", "google-service"),
+			Address: getEnv("SERVICE_ADDRESS", "google-service"),
+			Port:    getEnv("PORT", "9220"),
+		},
+		Consul: ConsulConfig{
+			Address: getEnv("CONSUL_ADDRESS", "consul-server:8500"),
+		},
+		Email:     NewEmailConfig(),
+		FEADDRESS: getEnv("FE_ADDR", ""),
+	}
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 func loadSMTPConfig() SMTPConfig {
