@@ -18,6 +18,7 @@ type Config struct {
 	RabbitMQPort     string
 	JWTSecret        string
 	JWTExpired       int64
+	FEAddress        string
 }
 
 func init() {
@@ -42,6 +43,7 @@ func New() *Config {
 		ServiceAddress:   getEnv("AUTH_SERVICE_ADDRESS", "auth-service"),
 		JWTSecret:        getEnv("JWT_SECRET", ""),
 		JWTExpired:       int64(jwt_expired),
+		FEAddress:        getEnv("FE_ADDR", ""),
 	}
 }
 

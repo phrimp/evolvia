@@ -11,6 +11,7 @@ type EventType string
 const (
 	// UserRegister is triggered when a new user is registered
 	UserRegister EventType = "user.registered"
+	UserLogin    EventType = "user.login"
 	// ProfileUpdated is triggered when a user profile is updated
 	ProfileUpdated EventType = "profile.updated"
 )
@@ -43,6 +44,27 @@ func NewUserRegisterEvent(userID, username, email string, profileData map[string
 		Email:       email,
 		ProfileData: profileData,
 	}
+}
+
+type UserLoginEvent struct {
+	BaseEvent
+	UserID string `json:"user_id"`
+}
+
+func NewUserLoginEvent(userID string) *UserLoginEvent {
+	return &UserLoginEvent{
+		BaseEvent: BaseEvent{
+			ID:        generateEventID(),
+			Type:      UserLogin,
+			Timestamp: time.Now().Unix(),
+			Version:   "1.0",
+		},
+		UserID: userID,
+	}
+}
+
+func (e *UserLoginEvent) ToJSON() ([]byte, error) {
+	return json.Marshal(e)
 }
 
 func (e *UserRegisterEvent) ToJSON() ([]byte, error) {

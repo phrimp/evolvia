@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"auth_service/internal/config"
 	"auth_service/internal/models"
 	"auth_service/internal/service"
 	"context"
+	"encoding/json"
 	"log"
 	"time"
 
@@ -24,6 +26,7 @@ type AuthHandler struct {
 	userRoleService *service.UserRoleService
 	jwtService      *service.JWTService
 	gRPCService     *grpcServer.SessionSenderService
+	FeAddress       string
 }
 
 func NewAuthHandler(userService *service.UserService, jwtService *service.JWTService, sessionService *service.SessionService, userRoleService *service.UserRoleService, grpc *grpcServer.SessionSenderService) *AuthHandler {
@@ -33,6 +36,7 @@ func NewAuthHandler(userService *service.UserService, jwtService *service.JWTSer
 		sessionService:  sessionService,
 		userRoleService: userRoleService,
 		gRPCService:     grpc,
+		FeAddress:       config.ServiceConfig.FEAddress,
 	}
 }
 
@@ -169,13 +173,34 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	// Processing Basic Profile Data
 	basic_profile := login_data["basic_profile"].(models.UserProfile)
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "None",
-		"data": fiber.Map{
-			"token":        session.Token,
-			"basicProfile": basic_profile,
-		},
+	c.Cookie(&fiber.Cookie{
+		Name:     "token",
+		Value:    session.Token,
+		Path:     "/",
+		Expires:  time.Now().Add(24 * time.Hour),
+		Secure:   true,
+		SameSite: "Strict",
 	})
+
+	userDataJSON, _ := json.Marshal(basic_profile)
+
+	c.Cookie(&fiber.Cookie{
+		Name:     "user",
+		Value:    string(userDataJSON),
+		Path:     "/",
+		Expires:  time.Now().Add(24 * time.Hour),
+		Secure:   true,
+		SameSite: "Strict",
+	})
+
+	//	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+	//		"message": "User Login Successfully",
+	//		"data": fiber.Map{
+	//			"token":        session.Token,
+	//			"basicProfile": basic_profile,
+	//		},
+	//	})
+	return c.Redirect().To(h.FeAddress)
 }
 
 func (h *AuthHandler) Logout(c fiber.Ctx) error {

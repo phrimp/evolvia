@@ -29,6 +29,7 @@ type EventConsumer struct {
 	queueName        string
 	fileRepository   *repository.FileRepository
 	avatarRepository *repository.AvatarRepository
+	redisRepository  *repository.RedisRepo
 	shutdown         chan struct{}
 	wg               sync.WaitGroup
 	enabled          bool
@@ -56,12 +57,14 @@ func NewEventConsumer(
 	rabbitURI string,
 	fileRepo *repository.FileRepository,
 	avatarRepo *repository.AvatarRepository,
+	redisRepo *repository.RedisRepo,
 ) (*EventConsumer, error) {
 	if rabbitURI == "" {
 		log.Println("Warning: RabbitMQ URI is empty, event consumption is disabled")
 		return &EventConsumer{
 			fileRepository:   fileRepo,
 			avatarRepository: avatarRepo,
+			redisRepository:  redisRepo,
 			shutdown:         make(chan struct{}),
 			enabled:          false,
 		}, nil
@@ -122,6 +125,14 @@ func (c *EventConsumer) Start() error {
 		},
 		{
 			Name:       "user-events",
+			Type:       "topic",
+			Durable:    true,
+			AutoDelete: false,
+			Internal:   false,
+			NoWait:     false,
+		},
+		{
+			Name:       "user.google.events",
 			Type:       "topic",
 			Durable:    true,
 			AutoDelete: false,
@@ -281,9 +292,10 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 		return c.handleAvatarDeleted(msg.Body)
 
 	// User events
-	case "user.registered":
+	case string(EventTypeUserRegistered):
 		return c.handleUserRegistered(msg.Body)
-
+	case string(EventTypeUserLogin):
+		return c.handleUserLogin(msg.Body)
 	// Profile events
 	//	case "profile.created":
 	//		return c.handleProfileCreated(msg.Body)
@@ -296,6 +308,30 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 		log.Printf("Unknown routing key: %s from exchange: %s", routingKey, exchange)
 		return nil // Acknowledge the message to avoid requeuing
 	}
+}
+
+func (c *EventConsumer) handleUserLogin(body []byte) error {
+	var event UserLoginEvent
+	if err := json.Unmarshal(body, &event); err != nil {
+		return fmt.Errorf("failed to unmarshal user registered event: %w", err)
+	}
+	avatars, err := c.avatarRepository.GetByUserID(context.Background(), event.UserID)
+	if err != nil {
+		return fmt.Errorf("error retrieving avatar: %w", err)
+	}
+	if len(avatars) == 0 {
+		log.Printf("no avatar (even default avatar) found by user: %s", event.UserID)
+		return errors.New("avatar not found")
+	}
+	avatar := avatars[0]
+
+	// Generate presigned URL
+	url, err := minio.GetPresignedURL(context.Background(), avatar.BucketName, avatar.StoragePath, 24)
+	if err != nil {
+		return fmt.Errorf("error generating presigned URL: %w", err)
+	}
+	c.redisRepository.SaveStructCached(context.Background(), event.UserID, "avatar-cached:", url, 24)
+	return nil
 }
 
 // Add the handler method

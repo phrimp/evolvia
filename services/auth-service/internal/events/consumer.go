@@ -78,6 +78,11 @@ func (c *EventConsumer) setupProfileEventConsumer() error {
 		return fmt.Errorf("failed to declare exchange: %w", err)
 	}
 
+	err = c.rabbitMQ.channel.ExchangeDeclare("google-events", "topic", true, false, false, false, nil)
+	if err != nil {
+		return fmt.Errorf("failed to declare exchange: %w", err)
+	}
+
 	// Declare the queue
 	q, err := c.rabbitMQ.channel.QueueDeclare(
 		"auth.cache.invalidation", // name

@@ -205,6 +205,7 @@ services:
       - "${AUTH_SERVICE_PORT}:${AUTH_SERVICE_PORT}"
       - "${AUTH_SERVICE_GRPC_PORT}:${AUTH_SERVICE_GRPC_PORT}"
     environment:
+      - FE_ADDR=${FE_ADDR}
       - SERVICE_NAME=${AUTH_SERVICE_NAME}
       - PORT=${AUTH_SERVICE_PORT}
       - GRPC_PORT=${AUTH_SERVICE_GRPC_PORT}
@@ -338,6 +339,63 @@ services:
       - "traefik.http.routers.object-storage-service-secure.middlewares=auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
     user: "0:0"
+
+  google-service:
+    user: "0:0"
+    build:
+      context: .
+      dockerfile: services/google-service/Dockerfile
+    container_name: google-service
+    restart: unless-stopped
+    ports:
+      - "${GOOGLE_SERVICE_PORT:-9220}:${GOOGLE_SERVICE_PORT:-9220}"
+    environment:
+      - FE_ADDR=${FE_ADDR}
+      # Server Configuration
+      - SERVICE_NAME=${GOOGLE_SERVICE_SERVICE_NAME:-google-service}
+      - SERVICE_ADDRESS=${GOOGLE_SERVICE_SERVICE_ADDRESS:-google-service}
+      - PORT=${GOOGLE_SERVICE_PORT:-9220}
+      - READ_TIMEOUT=${GOOGLE_SERVICE_READ_TIMEOUT:-15}
+      - WRITE_TIMEOUT=${GOOGLE_SERVICE_WRITE_TIMEOUT:-15}
+      - HOST=${HOST:-0.0.0.0}
+      
+      # Consul Configuration
+      - CONSUL_ADDRESS=consul-server:${CONSUL_HTTP_PORT:-8500}
+      
+      # Google OAuth Configuration
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL:-http://localhost/public/google/auth/callback}
+      
+      # SMTP/Email Configuration
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+      
+      # JWT Configuration (if needed for token validation)
+      - JWT_SECRET=${JWT_SECRET}
+      - TOKEN_EXPIRY_TIME=${TOKEN_EXPIRY_TIME:-24}
+    networks:
+      - consul-net
+      - traefik-net
+    volumes:
+      - ./logs/google-service:/evolvia/log/google_service
+    depends_on:
+      - consul-server
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.google-service.loadbalancer.server.port=${GOOGLE_SERVICE_PORT:-9220}"
+      - "traefik.http.routers.google-service-public.service=google-service"
+      - "traefik.http.routers.google-service-secure.service=google-service"
+      # Public routes (no authentication required)
+      - "traefik.http.routers.google-service-public.rule=PathPrefix(`/public/google`)"
+      # Protected routes (authentication required)  
+      - "traefik.http.routers.google-service-secure.rule=PathPrefix(`/protected/google`)"
+      - "traefik.http.routers.google-service-secure.middlewares=auth-middleware"
+      - "traefik.docker.network=microservices_template_traefik-net"
 
 networks:
   consul-net:

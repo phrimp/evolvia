@@ -266,17 +266,27 @@ func (s *AvatarService) DeleteAvatar(ctx context.Context, id string) error {
 }
 
 func (s *AvatarService) GetAvatarURLSystem(ctx context.Context, avatar *models.Avatar, user_id string, expiry int) (string, error) {
-	url, err := minio.GetPresignedURL(ctx, avatar.BucketName, avatar.StoragePath, expiry)
+	var url string
+	err := s.redisRepository.GetStructCached(ctx, user_id, "avatar-cached:", &url)
+	if err == nil {
+		return url, nil
+	}
+
+	url, err = minio.GetPresignedURL(ctx, avatar.BucketName, avatar.StoragePath, expiry)
 	if err != nil {
 		return "", fmt.Errorf("error generating presigned URL: %w", err)
 	}
-	s.redisRepository.SaveStructCached(ctx, user_id, "avatar-cached:", url, 24)
 
 	return url, nil
 }
 
 // GetAvatarURL generates a presigned URL for avatar access
 func (s *AvatarService) GetAvatarURL(ctx context.Context, user_id string, expiry int) (string, error) {
+	var url string
+	err := s.redisRepository.GetStructCached(ctx, user_id, "avatar-cached:", &url)
+	if err == nil {
+		return url, nil
+	}
 	avatars, err := s.avatarRepository.GetByUserID(ctx, user_id)
 	if err != nil {
 		return "", fmt.Errorf("error retrieving avatar: %w", err)
@@ -288,7 +298,7 @@ func (s *AvatarService) GetAvatarURL(ctx context.Context, user_id string, expiry
 	avatar := avatars[0]
 
 	// Generate presigned URL
-	url, err := minio.GetPresignedURL(ctx, avatar.BucketName, avatar.StoragePath, expiry)
+	url, err = minio.GetPresignedURL(ctx, avatar.BucketName, avatar.StoragePath, expiry)
 	if err != nil {
 		return "", fmt.Errorf("error generating presigned URL: %w", err)
 	}

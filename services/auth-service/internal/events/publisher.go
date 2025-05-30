@@ -70,6 +70,28 @@ func (p *EventPublisher) PublishUserRegister(ctx context.Context, userID, userna
 	return nil
 }
 
+func (p *EventPublisher) PublishUserLogin(ctx context.Context, userID string) error {
+	if !p.enabled {
+		log.Println("Event publishing is disabled, skipping UserRegisterEvent")
+		return nil
+	}
+
+	event := NewUserLoginEvent(userID)
+
+	eventData, err := event.ToJSON()
+	if err != nil {
+		return err
+	}
+
+	err = p.rabbitMQ.PublishEvent("user-events", string(UserLogin), eventData)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Published UserLogin event for user ID: %s", userID)
+	return nil
+}
+
 // Close releases resources
 func (p *EventPublisher) Close() error {
 	if !p.enabled || p.rabbitMQ == nil {

@@ -127,6 +127,7 @@ func main() {
 			cfg.RabbitMQ.URI,
 			fileRepository,
 			avatarRepository,
+			redisRepository,
 		)
 		if err == nil {
 			// Successfully created consumer, now try to start it

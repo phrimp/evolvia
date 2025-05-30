@@ -19,6 +19,7 @@ const (
 	EventTypeAvatarDeleted  EventType = "avatar.deleted"
 
 	EventTypeUserRegistered EventType = "user.registered"
+	EventTypeUserLogin      EventType = "user.login"
 )
 
 // BaseEvent represents the common fields for all events
@@ -184,5 +185,22 @@ func NewUserRegisteredEvent(userID, username, email string, profileData map[stri
 		Username:    username,
 		Email:       email,
 		ProfileData: profileData,
+	}
+}
+
+type UserLoginEvent struct {
+	BaseEvent
+	UserID string `json:"user_id"`
+}
+
+func NewUserLoginEvent(userID string) *UserLoginEvent {
+	return &UserLoginEvent{
+		BaseEvent: BaseEvent{
+			ID:        generateEventID(),
+			Type:      EventTypeUserLogin,
+			Timestamp: time.Now().Unix(),
+			Version:   "1.0",
+		},
+		UserID: userID,
 	}
 }
