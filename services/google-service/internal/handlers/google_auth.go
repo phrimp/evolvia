@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"google-service/internal/config"
+	"google-service/internal/repository"
 	"google-service/internal/services"
 	"log"
 	"time"
@@ -16,13 +17,15 @@ var is_state map[string]string = make(map[string]string)
 
 type AuthHandler struct {
 	oauthService *services.GoogleOAuthService
+	redisRepo    *repository.RedisRepo
 	FE_Address   string
 }
 
-func NewAuthHandler(google_config *config.GoogleOAuthConfig, address string) *AuthHandler {
+func NewAuthHandler(google_config *config.GoogleOAuthConfig, address string, redisRepo *repository.RedisRepo) *AuthHandler {
 	return &AuthHandler{
 		oauthService: services.NewGoogleOAuthService(google_config),
 		FE_Address:   address,
+		redisRepo:    redisRepo,
 	}
 }
 
@@ -44,6 +47,12 @@ func (h *AuthHandler) HandleGoogleLogin(c fiber.Ctx) error {
 	}
 
 	is_state[state] = state
+	_, err := h.redisRepo.SaveStructCached(c.Context(), "", "google-auth-state:", state, 1)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to cached state",
+		})
+	}
 
 	log.Println("Set state:", state)
 

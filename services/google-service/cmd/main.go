@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"google-service/internal/config"
 	"google-service/internal/handlers"
+	"google-service/internal/repository"
 	"google-service/pkg/discovery"
 	"log"
 	"os"
@@ -60,7 +61,7 @@ func main() {
 		return c.Status(fiber.StatusOK).SendString("Google Service is healthy")
 	})
 
-	handlers.NewAuthHandler(cfg.GoogleAuth, cfg.FEADDRESS).RegisterRoutes(app)
+	handlers.NewAuthHandler(cfg.GoogleAuth, cfg.FEADDRESS, repository.NewRedisRepo()).RegisterRoutes(app)
 
 	shutdownChan := make(chan os.Signal, 1)
 	doneChan := make(chan bool, 1)
