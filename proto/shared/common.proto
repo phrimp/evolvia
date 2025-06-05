@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package common;
 
-option go_package = "evolvia/proto/shared";
+option go_package = "proto-gen/shared";
 
 message Timestamp {
   int64 seconds = 1;

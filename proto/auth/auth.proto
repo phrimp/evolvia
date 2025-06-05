@@ -4,8 +4,9 @@ package auth;
 
 import "proto/shared/session_types.proto";
 
-option go_package = "evolvia/proto/auth";
+option go_package = "proto-gen/auth";
 
 service AuthService {
   rpc SendSessionToMiddleware (shared.SessionData) returns (shared.SessionResponse);
+  rpc AuthenGoogle (shared.GoogleLoginData) returns (shared.GoogleLoginResponse);
 }

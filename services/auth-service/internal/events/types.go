@@ -23,6 +23,14 @@ type BaseEvent struct {
 	Version   string    `json:"version"`
 }
 
+type GoogleLoginEvent struct {
+	BaseEvent
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+	Avatar string `json:"avatar"`
+	Locale string `json:"locale"`
+}
+
 type UserRegisterEvent struct {
 	BaseEvent
 	UserID      string            `json:"user_id"`

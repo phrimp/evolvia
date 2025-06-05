@@ -4,7 +4,7 @@ package middleware;
 
 import "proto/shared/session_types.proto";
 
-option go_package = "evolvia/proto/middleware";
+option go_package = "proto-gen/middleware";
 
 service MiddlewareService {
   rpc ProcessSession (shared.SessionData) returns (shared.SessionResponse);

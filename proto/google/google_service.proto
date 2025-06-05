@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package google_service;
+
+import "proto/shared/session_types.proto";
+
+option go_package = "proto-gen/google_service";
+
+service GoogleService {
+  rpc ProcessGoogleAuth (shared.GoogleLoginData) returns (shared.GoogleLoginResponse);
+}

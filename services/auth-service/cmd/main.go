@@ -54,13 +54,14 @@ func setupLogging() (*os.File, error) {
 }
 
 type ServerServices struct {
-	JwtService        *service.JWTService
-	UserService       *service.UserService
-	UserRoleService   *service.UserRoleService
-	RoleService       *service.RoleService
-	PermissionService *service.PermissionService
-	SessionService    *service.SessionService
-	gRPCService       *grpcServer.SessionSenderService
+	JwtService         *service.JWTService
+	UserService        *service.UserService
+	UserRoleService    *service.UserRoleService
+	RoleService        *service.RoleService
+	PermissionService  *service.PermissionService
+	SessionService     *service.SessionService
+	gRPCSessionService *grpcServer.SessionSenderService
+	gRPCGoogleService  *grpcServer.GoogleAuthService
 }
 
 func main() {
@@ -84,7 +85,7 @@ func main() {
 		defer eventPublisher.Close()
 	}
 
-	eventConsumer, err := events.NewEventConsumer(rabbitmqURI, repository.Repositories_instance.RedisRepository)
+	eventConsumer, err := events.NewEventConsumer(rabbitmqURI, repository.Repositories_instance.RedisRepository, repository.Repositories_instance.UserAuthRepository)
 	if err != nil {
 		log.Printf("Warning: Failed to initialize event consumer: %v", err)
 	} else {
@@ -100,13 +101,14 @@ func main() {
 	}
 
 	services_init := &ServerServices{
-		JwtService:        service.NewJWTService(),
-		UserService:       service.NewUserService(eventPublisher),
-		UserRoleService:   service.NewUserRoleService(),
-		RoleService:       service.NewRoleService(),
-		PermissionService: service.NewPermissionService(),
-		SessionService:    service.NewSessionService(),
-		gRPCService:       grpcServer.NewSessionSenderService(discovery.ServiceDiscovery),
+		JwtService:         service.NewJWTService(),
+		UserService:        service.NewUserService(eventPublisher),
+		UserRoleService:    service.NewUserRoleService(),
+		RoleService:        service.NewRoleService(),
+		PermissionService:  service.NewPermissionService(),
+		SessionService:     service.NewSessionService(),
+		gRPCSessionService: grpcServer.NewSessionSenderService(discovery.ServiceDiscovery),
+		gRPCGoogleService:  grpcServer.NewGoogleAuthService(discovery.ServiceDiscovery),
 	}
 
 	_grpcServer := setupGRPCServer()
@@ -119,7 +121,7 @@ func main() {
 	})
 
 	// Init Handlers
-	auth_handler := handlers.NewAuthHandler(services_init.UserService, services_init.JwtService, services_init.SessionService, services_init.UserRoleService, services_init.gRPCService)
+	auth_handler := handlers.NewAuthHandler(services_init.UserService, services_init.JwtService, services_init.SessionService, services_init.UserRoleService, services_init.gRPCSessionService, services_init.gRPCGoogleService)
 	role_handler := handlers.NewRoleHandler(services_init.RoleService, services_init.UserRoleService)
 
 	// Register Routes

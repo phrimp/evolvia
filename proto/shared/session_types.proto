@@ -4,7 +4,7 @@ package shared;
 
 import "proto/shared/common.proto";
 
-option go_package = "evolvia/proto/shared";
+option go_package = "proto-gen/shared";
 
 message SessionData {
   string session_id = 1;
@@ -22,4 +22,13 @@ message SessionData {
 message SessionResponse {
   bool success = 1;
   string message = 2;
+}
+
+message GoogleLoginData {
+  string code = 1;
+}
+
+message GoogleLoginResponse {
+  string display_name = 1;
+  string avatar_url = 2;
 }

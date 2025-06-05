@@ -3,6 +3,7 @@ package handlers
 import (
 	"auth_service/internal/config"
 	"auth_service/internal/models"
+	"auth_service/internal/repository"
 	"auth_service/internal/service"
 	"context"
 	"encoding/json"
@@ -21,23 +22,64 @@ type ResponseStruct struct {
 }
 
 type AuthHandler struct {
-	userService     *service.UserService
-	sessionService  *service.SessionService
-	userRoleService *service.UserRoleService
-	jwtService      *service.JWTService
-	gRPCService     *grpcServer.SessionSenderService
-	FeAddress       string
+	userService        *service.UserService
+	sessionService     *service.SessionService
+	userRoleService    *service.UserRoleService
+	jwtService         *service.JWTService
+	gRPCSessionService *grpcServer.SessionSenderService
+	gRPCGoogleService  *grpcServer.GoogleAuthService
+	FeAddress          string
 }
 
-func NewAuthHandler(userService *service.UserService, jwtService *service.JWTService, sessionService *service.SessionService, userRoleService *service.UserRoleService, grpc *grpcServer.SessionSenderService) *AuthHandler {
+func NewAuthHandler(userService *service.UserService, jwtService *service.JWTService, sessionService *service.SessionService, userRoleService *service.UserRoleService, grpcSession *grpcServer.SessionSenderService, grpcGoogle *grpcServer.GoogleAuthService) *AuthHandler {
 	return &AuthHandler{
-		userService:     userService,
-		jwtService:      jwtService,
-		sessionService:  sessionService,
-		userRoleService: userRoleService,
-		gRPCService:     grpc,
-		FeAddress:       config.ServiceConfig.FEAddress,
+		userService:        userService,
+		jwtService:         jwtService,
+		sessionService:     sessionService,
+		userRoleService:    userRoleService,
+		gRPCSessionService: grpcSession,
+		gRPCGoogleService:  grpcGoogle,
+		FeAddress:          config.ServiceConfig.FEAddress,
 	}
+}
+
+func (h *AuthHandler) GoogleLoginCallBack(c fiber.Ctx) error {
+	var internal_state string
+	state_key := "google-auth-state:" + c.Query("state")
+	err := repository.Repositories_instance.RedisRepository.GetStructCached(c.Context(), state_key, "", &internal_state)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "No State Found",
+		})
+	}
+
+	log.Printf("check state: %s with state %s", internal_state, c.Query("state"))
+	if internal_state != c.Query("state") {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid state",
+		})
+	}
+
+	code := c.Query("code")
+	if code == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Authorization code is missing",
+		})
+	}
+	var user_profile *models.UserProfile
+	var avatar_url string
+
+	for i := range 5 {
+		user_profile, avatar_url, err = h.gRPCGoogleService.SendGoogleCallBackCode(c.Context(), "google-service", code)
+		if err != nil {
+			log.Printf("Error google auth: %s -- Retry: %v", err, i)
+		} else {
+			log.Printf("Successfully sent session to middleware")
+			break
+		}
+	}
+	log.Println(user_profile, avatar_url)
+	return nil
 }
 
 func (h *AuthHandler) RegisterRoutes(app *fiber.App) {
@@ -160,7 +202,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		for i := range 5 {
-			err = h.gRPCService.SendSession(ctx, session, "middleware")
+			err = h.gRPCSessionService.SendSession(ctx, session, "middleware")
 			if err != nil {
 				log.Printf("Error login with username: %s : %s -- Retry: %v", loginRequest.Username, err, i)
 			} else {
