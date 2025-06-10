@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"google-service/internal/config"
+	"google-service/internal/event"
 	"google-service/internal/repository"
 	"google-service/internal/services"
 	"log"
@@ -16,16 +17,18 @@ import (
 var is_state map[string]string = make(map[string]string)
 
 type AuthHandler struct {
-	oauthService *services.GoogleOAuthService
-	redisRepo    *repository.RedisRepo
-	FE_Address   string
+	oauthService   *services.GoogleOAuthService
+	redisRepo      *repository.RedisRepo
+	eventPublisher *event.EventPublisher
+	FE_Address     string
 }
 
-func NewAuthHandler(google_config *config.GoogleOAuthConfig, address string, redisRepo *repository.RedisRepo) *AuthHandler {
+func NewAuthHandler(google_config *config.GoogleOAuthConfig, address string, redisRepo *repository.RedisRepo, eventPublisher *event.EventPublisher) *AuthHandler {
 	return &AuthHandler{
-		oauthService: services.NewGoogleOAuthService(google_config),
-		FE_Address:   address,
-		redisRepo:    redisRepo,
+		oauthService:   services.NewGoogleOAuthService(google_config),
+		FE_Address:     address,
+		redisRepo:      redisRepo,
+		eventPublisher: eventPublisher,
 	}
 }
 
@@ -108,6 +111,11 @@ func (h *AuthHandler) HandleGoogleCallback(c fiber.Ctx) error {
 	//	},
 	//})
 	userDataJSON, _ := json.Marshal(basic_profile)
+
+	err = h.eventPublisher.PublishGoogleLogin(c.Context(), userInfo.Email, userInfo.Name, userInfo.Picture, userInfo.Locale)
+	if err != nil {
+		log.Printf("Error publishing event `google.login`: %v	", err)
+	}
 
 	c.Cookie(&fiber.Cookie{
 		Name:     "user",

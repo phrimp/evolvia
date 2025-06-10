@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"google-service/internal/config"
+	"google-service/internal/event"
 	"google-service/internal/handlers"
 	"google-service/internal/repository"
 	"google-service/pkg/discovery"
@@ -61,7 +62,13 @@ func main() {
 		return c.Status(fiber.StatusOK).SendString("Google Service is healthy")
 	})
 
-	handlers.NewAuthHandler(cfg.GoogleAuth, cfg.FEADDRESS, repository.NewRedisRepo()).RegisterRoutes(app)
+	eventPublisher, err := event.NewEventPublisher(cfg.RabbitMQ.URI)
+	if err != nil {
+		log.Fatalf("Error initializing Message Queue: %v", err)
+	}
+	redisRepo := repository.NewRedisRepo()
+
+	handlers.NewAuthHandler(cfg.GoogleAuth, cfg.FEADDRESS, redisRepo, eventPublisher).RegisterRoutes(app)
 
 	shutdownChan := make(chan os.Signal, 1)
 	doneChan := make(chan bool, 1)

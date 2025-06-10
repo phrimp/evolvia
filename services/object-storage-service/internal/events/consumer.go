@@ -343,7 +343,21 @@ func (c *EventConsumer) handleUserRegistered(body []byte) error {
 
 	log.Printf("User registered: ID=%s, Username=%s, Email=%s", event.UserID, event.Username, event.Email)
 
-	// Create default avatar record for the new user (pointing to universal default)
+	if url, ok := event.ProfileData["avatar"]; ok && url != "" {
+		avatar := &models.Avatar{
+			UserID:       event.UserID,
+			FileName:     "external File",
+			ExternalPath: event.ProfileData["avatar"],
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		}
+		newAvatar, err := c.avatarRepository.Create(context.Background(), avatar)
+		if err != nil {
+			log.Printf("error creating avatar with external link: %v", err)
+			return nil
+		}
+		log.Printf("New Avatar created with external link: %v", newAvatar)
+	}
 	err := c.createDefaultAvatarForUser(context.Background(), event.UserID)
 	if err != nil {
 		log.Printf("Error creating default avatar for user %s: %v", event.UserID, err)

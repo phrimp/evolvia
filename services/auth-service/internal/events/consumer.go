@@ -1,15 +1,18 @@
 package events
 
 import (
+	"auth_service/internal/models"
 	"auth_service/internal/repository"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"proto-gen/utils"
 	"sync"
 	"time"
 
 	"github.com/rabbitmq/amqp091-go"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // Consumer defines the interface for event consumption
@@ -20,14 +23,15 @@ type Consumer interface {
 
 // EventConsumer implements the Consumer interface using RabbitMQ
 type EventConsumer struct {
-	conn      *amqp091.Connection
-	channel   *amqp091.Channel
-	queueName string
-	redisRepo *repository.RedisRepo
-	userRepo  *repository.UserAuthRepository
-	shutdown  chan struct{}
-	wg        sync.WaitGroup
-	enabled   bool
+	conn           *amqp091.Connection
+	channel        *amqp091.Channel
+	queueName      string
+	redisRepo      *repository.RedisRepo
+	userRepo       *repository.UserAuthRepository
+	eventPublisher *EventPublisher
+	shutdown       chan struct{}
+	wg             sync.WaitGroup
+	enabled        bool
 }
 
 // Exchange configuration
@@ -48,14 +52,15 @@ type BindingConfig struct {
 }
 
 // NewEventConsumer creates a new event consumer
-func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRepo *repository.UserAuthRepository) (*EventConsumer, error) {
+func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRepo *repository.UserAuthRepository, eventPublisher *EventPublisher) (*EventConsumer, error) {
 	if rabbitURI == "" {
 		log.Println("Warning: RabbitMQ URI is empty, event consumption is disabled")
 		return &EventConsumer{
-			redisRepo: redisRepo,
-			userRepo:  userRepo,
-			shutdown:  make(chan struct{}),
-			enabled:   false,
+			redisRepo:      redisRepo,
+			userRepo:       userRepo,
+			eventPublisher: eventPublisher,
+			shutdown:       make(chan struct{}),
+			enabled:        false,
 		}, nil
 	}
 
@@ -292,10 +297,50 @@ func (c *EventConsumer) handleGoogleLogin(body []byte) error {
 		return fmt.Errorf("failed to unmarsal google login event: %w", err)
 	}
 
-	log.Printf("Google logn: Email=%s", event.Email)
+	log.Printf("Google login event received: Email=%s", event.Email)
 
-	//	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	//	defer cancel()
+	user, err := c.userRepo.FindByEmail(context.Background(), event.Email)
+	log.Println(err)
+	if user != nil || err != nil {
+		log.Printf("user Google login exist: no new user created; detail: %v", err)
+		return fmt.Errorf("user Google login exist: no new user created; detail: %v", err)
+	}
+
+	user = &models.UserAuth{
+		ID:              bson.NewObjectID(),
+		Username:        event.Email,
+		Email:           event.Email,
+		PasswordHash:    event.Email + utils.GenerateRandomStringWithLength(10),
+		IsActive:        true,
+		IsEmailVerified: false,
+		CreatedAt:       int(time.Now().Unix()),
+		UpdatedAt:       int(time.Now().Unix()),
+	}
+	log.Printf("New user init: %v", user)
+
+	_, err = c.userRepo.NewUser(context.Background(), user)
+	if err != nil {
+		log.Printf("error create new auth user: %v", err)
+		return fmt.Errorf("error create new auth user: %v", err)
+	}
+	profile := map[string]string{"fullname": event.Name, "locale": event.Locale, "avatar": event.Avatar}
+	log.Printf("new user created with profile: %v", profile)
+
+	if c.eventPublisher != nil {
+		err := c.eventPublisher.PublishUserRegister(
+			context.Background(),
+			user.ID.Hex(),
+			user.Username,
+			user.Email,
+			profile,
+		)
+		if err != nil {
+			// Log the error but don't fail the registration
+			log.Printf("Warning: Failed to publish user created event: %v", err)
+		} else {
+			log.Printf("Published user created event for user: %s", user.Username)
+		}
+	}
 
 	return nil
 }

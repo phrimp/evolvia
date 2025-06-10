@@ -349,12 +349,18 @@ services:
     restart: unless-stopped
     ports:
       - "${GOOGLE_SERVICE_PORT:-9220}:${GOOGLE_SERVICE_PORT:-9220}"
+      - "${GOOGLE_SERVICE_GRPC_PORT:-9221}:${GOOGLE_SERVICE_GRPC_PORT:-9221}"
     environment:
+      # Frontend Configuration
       - FE_ADDR=${FE_ADDR}
+      
       # Server Configuration
       - SERVICE_NAME=${GOOGLE_SERVICE_SERVICE_NAME:-google-service}
       - SERVICE_ADDRESS=${GOOGLE_SERVICE_SERVICE_ADDRESS:-google-service}
+      - SERVICE_VERSION=${GOOGLE_SERVICE_VERSION:-1.0.0}
       - PORT=${GOOGLE_SERVICE_PORT:-9220}
+      - GRPC_PORT=${GOOGLE_SERVICE_GRPC_PORT:-9221}
+        - HOSTNAME=${GOOGLE_SERVICE_HOSTNAME:-1}
       - READ_TIMEOUT=${GOOGLE_SERVICE_READ_TIMEOUT:-15}
       - WRITE_TIMEOUT=${GOOGLE_SERVICE_WRITE_TIMEOUT:-15}
       - HOST=${HOST:-0.0.0.0}
@@ -374,8 +380,26 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_FROM=${SMTP_FROM}
       
-      # JWT Configuration (if needed for token validation)
+      # Redis Configuration
+      - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
+      - REDIS_PWD=${REDIS_PWD:-example}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_PROTOCAL=${REDIS_PROTOCAL:-3}
+      
+      # RabbitMQ Configuration
+      - RABBITMQ_URI=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/}
+      - RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE:-google.events}
+      - RABBITMQ_QUEUE=${RABBITMQ_QUEUE:-google-service-queue}
+      - RABBITMQ_ROUTING_KEY=${RABBITMQ_ROUTING_KEY:-google.login}
+      
+      # JWT Configuration
       - JWT_SECRET=${JWT_SECRET}
+      - JWT_ISSUER=${JWT_ISSUER:-google-service}
       - TOKEN_EXPIRY_TIME=${TOKEN_EXPIRY_TIME:-24}
     networks:
       - consul-net
@@ -385,6 +409,8 @@ services:
     depends_on:
       - consul-server
       - traefik
+      - redis
+      - rabbitmq
     labels:
       - "traefik.enable=true"
       - "traefik.http.services.google-service.loadbalancer.server.port=${GOOGLE_SERVICE_PORT:-9220}"
