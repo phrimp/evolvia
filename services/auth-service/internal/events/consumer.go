@@ -90,12 +90,14 @@ func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRep
 	}
 
 	return &EventConsumer{
-		conn:      conn,
-		channel:   channel,
-		queueName: "auth-service-events",
-		redisRepo: redisRepo,
-		shutdown:  make(chan struct{}),
-		enabled:   true,
+		conn:           conn,
+		channel:        channel,
+		queueName:      "auth-service-events",
+		redisRepo:      redisRepo,
+		userRepo:       userRepo,
+		eventPublisher: eventPublisher,
+		shutdown:       make(chan struct{}),
+		enabled:        true,
 	}, nil
 }
 
@@ -312,7 +314,7 @@ func (c *EventConsumer) handleGoogleLogin(body []byte) error {
 		Email:           event.Email,
 		PasswordHash:    event.Email + utils.GenerateRandomStringWithLength(10),
 		IsActive:        true,
-		IsEmailVerified: false,
+		IsEmailVerified: true,
 		CreatedAt:       int(time.Now().Unix()),
 		UpdatedAt:       int(time.Now().Unix()),
 	}
