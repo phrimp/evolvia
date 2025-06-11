@@ -1,4 +1,4 @@
-package service
+package services
 
 import (
 	"billing-management-service/internal/event"
@@ -345,7 +345,7 @@ func (s *PlanService) isValidCurrency(currency string) bool {
 		"CAD": true, "AUD": true, "CHF": true, "CNY": true,
 		"SEK": true, "NZD": true, "MXN": true, "SGD": true,
 		"HKD": true, "NOK": true, "TRY": true, "RUB": true,
-		"INR": true, "BRL": true, "ZAR": true, "KRW": true,
+		"INR": true, "VND": true, "ZAR": true, "KRW": true,
 	}
 	return validCurrencies[strings.ToUpper(currency)]
 }
@@ -420,8 +420,7 @@ func (s *PlanService) compareFeaturesSlice(old, new []models.Feature) bool {
 		n := new[i]
 		if o.Name != n.Name ||
 			o.Description != n.Description ||
-			o.Enabled != n.Enabled ||
-			o.Limit != n.Limit {
+			o.Enabled != n.Enabled {
 			return false
 		}
 	}

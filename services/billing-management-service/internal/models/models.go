@@ -51,7 +51,6 @@ type Feature struct {
 	Name        string `json:"name" bson:"name"`
 	Description string `json:"description,omitempty" bson:"description,omitempty"`
 	Enabled     bool   `json:"enabled" bson:"enabled"`
-	Limit       int    `json:"limit,omitempty" bson:"limit,omitempty"` // -1 for unlimited
 }
 
 type PlanStats struct {

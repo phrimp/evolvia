@@ -4,7 +4,9 @@ import (
 	"billing-management-service/internal/config"
 	"billing-management-service/internal/database/mongo"
 	"billing-management-service/internal/event"
+	"billing-management-service/internal/handlers"
 	"billing-management-service/internal/repository"
+	"billing-management-service/internal/services"
 	"billing-management-service/utils/discovery"
 	"context"
 	"fmt"
@@ -94,10 +96,16 @@ func main() {
 
 	// Initialize services
 	// billingService := services.NewBillingService(subscriptionRepo, planRepo, invoiceRepo, eventPublisher)
+	planService := services.NewPlanService(planRepo, eventPublisher)
+	subscriptionService := services.NewSubscriptionService(subscriptionRepo, planRepo, eventPublisher)
 
 	// Initialize and register handlers
 	// billingHandler := handlers.NewBillingHandler(billingService)
 	// billingHandler.RegisterRoutes(app)
+	planHandler := handlers.NewPlanHandler(planService)
+	planHandler.RegisterRoutes(app)
+	subscriptionHandler := handlers.NewSubscriptionHandler(subscriptionService)
+	subscriptionHandler.RegisterRoutes(app)
 
 	shutdownChan := make(chan os.Signal, 1)
 	doneChan := make(chan bool, 1)
