@@ -1,0 +1,503 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+		"name": "Profile Service API",
+		"description": "Comprehensive API collection for Profile Service with all endpoints and test data",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "12345678"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"health"
+					]
+				},
+				"description": "Check if the profile service is healthy and running"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Profile by ID",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{auth_token}}",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"protected",
+						"profiles",
+						"{{profile_id}}"
+					]
+				},
+				"description": "Retrieve a specific profile by its MongoDB ObjectID"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Profile by User ID",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{auth_token}}",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/protected/profiles/user/{{user_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"protected",
+						"profiles",
+						"user",
+						"{{user_id}}"
+					]
+				},
+				"description": "Retrieve a profile by the associated user ID"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Profile",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{auth_token}}",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"profile\": {\n    \"personalInfo\": {\n      \"firstName\": \"John\",\n      \"lastName\": \"Doe\",\n      \"displayName\": \"johndoe\",\n      \"dateOfBirth\": 946684800,\n      \"gender\": \"male\",\n      \"biography\": \"Software engineer passionate about technology and innovation.\",\n      \"interests\": [\"programming\", \"AI\", \"machine learning\"]\n    },\n    \"contactInfo\": {\n      \"email\": \"john.doe@example.com\",\n      \"phone\": \"+1234567890\",\n      \"alternativeEmail\": \"john.doe.alt@example.com\",\n      \"address\": {\n        \"street\": \"123 Tech Street\",\n        \"city\": \"San Francisco\",\n        \"state\": \"CA\",\n        \"country\": \"USA\",\n        \"postalCode\": \"94105\"\n      },\n      \"socialMediaHandles\": {\n        \"linkedin\": \"johndoe\",\n        \"twitter\": \"@johndoe\",\n        \"github\": \"johndoe\"\n      }\n    },\n    \"educationalBackground\": [\n      {\n        \"institution\": \"Stanford University\",\n        \"degree\": \"Bachelor of Science\",\n        \"field\": \"Computer Science\",\n        \"startDate\": 1567296000,\n        \"endDate\": 1654041600,\n        \"inProgress\": false,\n        \"description\": \"Focused on artificial intelligence and machine learning\"\n      },\n      {\n        \"institution\": \"MIT\",\n        \"degree\": \"Master of Science\",\n        \"field\": \"Computer Science\",\n        \"startDate\": 1654041600,\n        \"endDate\": 0,\n        \"inProgress\": true,\n        \"description\": \"Currently pursuing advanced studies in AI\"\n      }\n    ],\n    \"privacySettings\": {\n      \"profileVisibility\": \"public\",\n      \"contactInfoVisibility\": \"private\",\n      \"educationVisibility\": \"public\",\n      \"activityVisibility\": \"connections\"\n    }\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"protected",
+						"profiles",
+						"{{profile_id}}"
+					]
+				},
+				"description": "Update an existing profile with new information"
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Profile",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{auth_token}}",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"protected",
+						"profiles",
+						"{{profile_id}}"
+					]
+				},
+				"description": "Delete a profile by its ID"
+			},
+			"response": []
+		},
+		{
+			"name": "List Profiles",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{auth_token}}",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/protected/profiles?page=1&limit=20",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"protected",
+						"profiles"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "1",
+							"description": "Page number (default: 1)"
+						},
+						{
+							"key": "limit",
+							"value": "20",
+							"description": "Number of profiles per page (default: 20, max: 100)"
+						}
+					]
+				},
+				"description": "Get a paginated list of all profiles"
+			},
+			"response": []
+		},
+		{
+			"name": "Search Profiles",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{auth_token}}",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/protected/profiles/search?name=John&institution=Stanford&field=Computer Science&country=USA&page=1&pageSize=20",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"protected",
+						"profiles",
+						"search"
+					],
+					"query": [
+						{
+							"key": "name",
+							"value": "John",
+							"description": "Search by first name, last name, or display name"
+						},
+						{
+							"key": "institution",
+							"value": "Stanford",
+							"description": "Search by educational institution"
+						},
+						{
+							"key": "field",
+							"value": "Computer Science",
+							"description": "Search by field of study"
+						},
+						{
+							"key": "country",
+							"value": "USA",
+							"description": "Search by country"
+						},
+						{
+							"key": "page",
+							"value": "1",
+							"description": "Page number (default: 1)"
+						},
+						{
+							"key": "pageSize",
+							"value": "20",
+							"description": "Number of results per page (default: 20, max: 100)"
+						}
+					]
+				},
+				"description": "Search profiles by various criteria including name, institution, field, and country"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Profile Completeness",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{auth_token}}",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/protected/profiles/{{profile_id}}/completeness",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"protected",
+						"profiles",
+						"{{profile_id}}",
+						"completeness"
+					]
+				},
+				"description": "Get the completeness percentage and recommendations for a profile"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Profile - Personal Info Only",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{auth_token}}",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"profile\": {\n    \"personalInfo\": {\n      \"firstName\": \"Jane\",\n      \"lastName\": \"Smith\",\n      \"displayName\": \"janesmith\",\n      \"dateOfBirth\": 915148800,\n      \"gender\": \"female\",\n      \"biography\": \"Data scientist with expertise in machine learning and analytics.\"\n    }\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"protected",
+						"profiles",
+						"{{profile_id}}"
+					]
+				},
+				"description": "Update only the personal information of a profile"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Profile - Contact Info Only",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{auth_token}}",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"profile\": {\n    \"contactInfo\": {\n      \"email\": \"jane.smith@example.com\",\n      \"phone\": \"+1987654321\",\n      \"address\": {\n        \"street\": \"456 Data Lane\",\n        \"city\": \"New York\",\n        \"state\": \"NY\",\n        \"country\": \"USA\",\n        \"postalCode\": \"10001\"\n      }\n    }\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"protected",
+						"profiles",
+						"{{profile_id}}"
+					]
+				},
+				"description": "Update only the contact information of a profile"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Profile - Education Only",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{auth_token}}",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"profile\": {\n    \"educationalBackground\": [\n      {\n        \"institution\": \"Harvard University\",\n        \"degree\": \"PhD\",\n        \"field\": \"Data Science\",\n        \"startDate\": 1630454400,\n        \"endDate\": 0,\n        \"inProgress\": true,\n        \"description\": \"Research focus on machine learning algorithms\"\n      }\n    ]\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"protected",
+						"profiles",
+						"{{profile_id}}"
+					]
+				},
+				"description": "Update only the educational background of a profile"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Profile - Privacy Settings Only",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{auth_token}}",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"profile\": {\n    \"privacySettings\": {\n      \"profileVisibility\": \"private\",\n      \"contactInfoVisibility\": \"private\",\n      \"educationVisibility\": \"connections\",\n      \"activityVisibility\": \"private\"\n    }\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"protected",
+						"profiles",
+						"{{profile_id}}"
+					]
+				},
+				"description": "Update only the privacy settings of a profile"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Pre-request script for the entire collection",
+					"// Add any common setup logic here"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Common test script for all requests",
+					"pm.test(\"Response status code is not 500\", function () {",
+					"    pm.expect(pm.response.code).to.not.equal(500);",
+					"});",
+					"",
+					"pm.test(\"Response time is less than 5000ms\", function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:9200",
+			"type": "string",
+			"description": "Base URL for the Profile Service"
+		},
+		{
+			"key": "profile_id",
+			"value": "507f1f77bcf86cd799439011",
+			"type": "string",
+			"description": "Sample MongoDB ObjectID for testing"
+		},
+		{
+			"key": "user_id",
+			"value": "user123",
+			"type": "string",
+			"description": "Sample User ID for testing"
+		},
+		{
+			"key": "auth_token",
+			"value": "your_jwt_token_here",
+			"type": "string",
+			"description": "JWT token for authentication (currently disabled in requests)"
+		}
+	]
+}
