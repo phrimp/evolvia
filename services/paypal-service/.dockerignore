@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+bun.lockb
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Build output
+dist/
+build/
+
+# Temporary files
+tmp/
+temp/
+
+# Test files
+test/
+__tests__/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# Documentation
+docs/
+README.md
+CHANGELOG.md
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
