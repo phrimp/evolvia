@@ -281,9 +281,11 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 		Name:     "token",
 		Value:    session.Token,
 		Path:     "/",
+		Domain:   ".thinology.id.vn", // Allow sharing across subdomains
 		Expires:  time.Now().Add(24 * time.Hour),
-		Secure:   true,
-		SameSite: "Strict",
+		Secure:   true,  // HTTPS required
+		SameSite: "Lax", // Allow cross-site redirects
+		HTTPOnly: true,  // Security - prevent JS access
 	})
 
 	userDataJSON, _ := json.Marshal(basic_profile)

@@ -43,7 +43,7 @@ func NewServiceRegistry(config *config.Config) (*ServiceRegistry, error) {
 
 func (sr *ServiceRegistry) Register() error {
 	httpPort, _ := strconv.Atoi(sr.config.Server.Port)
-	grpcPort, _ := strconv.Atoi(sr.config.Server.GRPCPort)
+	// grpcPort, _ := strconv.Atoi(sr.config.Server.GRPCPort)
 
 	httpRegistration := &api.AgentServiceRegistration{
 		ID:      sr.config.Server.ServiceID + "-http",
@@ -61,29 +61,29 @@ func (sr *ServiceRegistry) Register() error {
 		},
 	}
 
-	grpcRegistration := &api.AgentServiceRegistration{
-		ID:      sr.config.Server.ServiceID + "-grpc",
-		Name:    sr.config.Server.ServiceName,
-		Port:    grpcPort,
-		Address: sr.config.Server.ServiceAddress,
-		Check: &api.AgentServiceCheck{
-			TCP:      fmt.Sprintf("%s:%s", sr.config.Server.ServiceAddress, sr.config.Server.GRPCPort),
-			Interval: "10s",
-			Timeout:  "5s",
-		},
-		Tags: []string{"auth", "jwt", "grpc"},
-		Meta: map[string]string{
-			"protocol": "grpc",
-		},
-	}
+	//grpcRegistration := &api.AgentServiceRegistration{
+	//	ID:      sr.config.Server.ServiceID + "-grpc",
+	//	Name:    sr.config.Server.ServiceName,
+	//	Port:    grpcPort,
+	//	Address: sr.config.Server.ServiceAddress,
+	//	Check: &api.AgentServiceCheck{
+	//		TCP:      fmt.Sprintf("%s:%s", sr.config.Server.ServiceAddress, sr.config.Server.GRPCPort),
+	//		Interval: "10s",
+	//		Timeout:  "5s",
+	//	},
+	//	Tags: []string{"auth", "jwt", "grpc"},
+	//	Meta: map[string]string{
+	//		"protocol": "grpc",
+	//	},
+	//}
 
 	if err := sr.client.Agent().ServiceRegister(httpRegistration); err != nil {
 		return fmt.Errorf("failed to register HTTP service with Consul: %v", err)
 	}
 
-	if err := sr.client.Agent().ServiceRegister(grpcRegistration); err != nil {
-		return fmt.Errorf("failed to register gRPC service with Consul: %v", err)
-	}
+	//if err := sr.client.Agent().ServiceRegister(grpcRegistration); err != nil {
+	//	return fmt.Errorf("failed to register gRPC service with Consul: %v", err)
+	//}
 
 	log.Println("Successfully registered HTTP and gRPC services with Consul")
 	return nil

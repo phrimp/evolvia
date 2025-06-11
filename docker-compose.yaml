@@ -423,6 +423,89 @@ services:
       - "traefik.http.routers.google-service-secure.middlewares=auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
+  profile-service:
+    user: "0:0"
+    build:
+      context: .
+      dockerfile: services/profile-service/Dockerfile
+    container_name: profile-service
+    restart: unless-stopped
+    ports:
+      - "${PROFILE_SERVICE_PORT:-9230}:${PROFILE_SERVICE_PORT:-9230}"
+      - "${PROFILE_SERVICE_GRPC_PORT:-9231}:${PROFILE_SERVICE_GRPC_PORT:-9231}"
+    environment:
+      # Server Configuration
+      - SERVICE_NAME=${PROFILE_SERVICE_NAME:-profile-service}
+      - SERVICE_ADDRESS=${PROFILE_SERVICE_ADDRESS:-profile-service}
+      - SERVICE_VERSION=${PROFILE_SERVICE_VERSION:-1.0.0}
+      - PORT=${PROFILE_SERVICE_PORT:-9230}
+      - GRPC_PORT=${PROFILE_SERVICE_GRPC_PORT:-9231}
+      - HOSTNAME=${PROFILE_SERVICE_HOSTNAME:-1}
+      - READ_TIMEOUT=${PROFILE_SERVICE_READ_TIMEOUT:-15}
+      - WRITE_TIMEOUT=${PROFILE_SERVICE_WRITE_TIMEOUT:-15}
+      - HOST=${HOST:-0.0.0.0}
+      
+      # Consul Configuration
+      - CONSUL_ADDRESS=consul-server:${CONSUL_HTTP_PORT:-8500}
+      - CONSUL_PORT=${CONSUL_HTTP_PORT:-8500}
+      
+      # MongoDB Configuration
+      - MONGO_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
+      - MONGODB_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
+      - MONGODB_DATABASE=${PROFILE_SERVICE_MONGO_DB:-profile_service}
+      - PROFILE_SERVICE_MONGO_DB=${PROFILE_SERVICE_MONGO_DB:-profile_service}
+      - MONGODB_POOL_SIZE=${MONGODB_POOL_SIZE:-100}
+      - MONGODB_TIMEOUT=${MONGODB_TIMEOUT:-10}
+      
+      # Redis Configuration
+      - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
+      - REDIS_PWD=${REDIS_PWD:-example}
+      - REDIS_PASSWORD=${REDIS_PWD:-example}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_PROTOCAL=${REDIS_PROTOCAL:-3}
+      
+      # RabbitMQ Configuration
+      - RABBITMQ_URI=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/}
+      - RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE:-profile.events}
+      - RABBITMQ_QUEUE=${RABBITMQ_QUEUE:-profile-service-events}
+      
+      # JWT Configuration (for token validation)
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ISSUER=${JWT_ISSUER:-auth-service}
+      - TOKEN_EXPIRY_TIME=${TOKEN_EXPIRY_TIME:-24}
+      
+      # Service Discovery
+      - PROFILE_SERVICE_NAME=${PROFILE_SERVICE_NAME:-profile-service}
+      - PROFILE_SERVICE_ADDRESS=${PROFILE_SERVICE_ADDRESS:-profile-service}
+    networks:
+      - consul-net
+      - traefik-net
+    volumes:
+      - ./logs/profile-service:/evolvia/log/profile_service
+    depends_on:
+      - consul-server
+      - traefik
+      - mongodb
+      - redis
+      - rabbitmq
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.profile-service.loadbalancer.server.port=${PROFILE_SERVICE_PORT:-9230}"
+      - "traefik.http.routers.profile-service-public.service=profile-service"
+      - "traefik.http.routers.profile-service-secure.service=profile-service"
+      # Public routes (if any - currently none but keeping for future use)
+      - "traefik.http.routers.profile-service-public.rule=PathPrefix(`/public/profiles`)"
+      # Protected routes (authentication required)
+      - "traefik.http.routers.profile-service-secure.rule=PathPrefix(`/protected/profiles`)"
+      - "traefik.http.routers.profile-service-secure.middlewares=auth-middleware"
+      - "traefik.docker.network=microservices_template_traefik-net"
+
+
 networks:
   consul-net:
     driver: bridge

@@ -98,7 +98,7 @@ func loadMongoConfig() *MongoConfig {
 
 	return &MongoConfig{
 		URI:               os.Getenv("MONGO_URI"),
-		Database:          os.Getenv("AUTH_SERVICE_MONGO_DB"),
+		Database:          os.Getenv("PROFILE_SERVICE_MONGO_DB"),
 		ConnectTimeout:    connectTimeout,
 		MaxPoolSize:       maxPoolSize,
 		MinPoolSize:       minPoolSize,
