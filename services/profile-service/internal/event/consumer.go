@@ -1,15 +1,18 @@
 package event
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"profile-service/internal/models"
 	"profile-service/internal/reporsitory"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/rabbitmq/amqp091-go"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type Consumer interface {
@@ -265,8 +268,157 @@ func (c *EventConsumer) handleUserRegistered(body []byte) error {
 
 	log.Printf("User registered: ID=%s, Username=%s, Email=%s", event.UserID, event.Username, event.Email)
 
-	log.Printf("Successfully created default avatar record for user %s", event.UserID)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	existingProfile, err := c.profileRepository.FindByUserID(ctx, event.UserID)
+	if err != nil && err != mongo.ErrNoDocuments {
+		log.Printf("Error checking existing profile for user %s: %v", event.UserID, err)
+		return fmt.Errorf("failed to check existing profile: %w", err)
+	}
+
+	if existingProfile != nil {
+		log.Printf("Profile already exists for user %s, skipping creation", event.UserID)
+		return nil
+	}
+
+	// Extract names from profile data or use defaults
+	firstName := "Unknown"
+	lastName := "User"
+
+	if event.ProfileData != nil {
+		if fname, ok := event.ProfileData["firstName"]; ok && fname != "" {
+			firstName = fname
+		}
+		if lname, ok := event.ProfileData["lastName"]; ok && lname != "" {
+			lastName = lname
+		}
+		// Check for fullname if firstName/lastName not available
+		if fullname, ok := event.ProfileData["fullname"]; ok && fullname != "" && firstName == "Unknown" {
+			// Split fullname into first and last name
+			names := strings.Fields(fullname)
+			if len(names) >= 1 {
+				firstName = names[0]
+			}
+			if len(names) >= 2 {
+				lastName = strings.Join(names[1:], " ")
+			}
+		}
+	}
+
+	// Create new profile with default values
+	profile := &models.Profile{
+		UserID: event.UserID,
+		PersonalInfo: models.PersonalInfo{
+			FirstName:   firstName,
+			LastName:    lastName,
+			DisplayName: event.Username, // Use username as display name initially
+		},
+		ContactInfo: models.ContactInfo{
+			Email: event.Email,
+		},
+		PrivacySettings: models.PrivacySettings{
+			ProfileVisibility:     models.VisibilityPublic,
+			ContactInfoVisibility: models.VisibilityPrivate,
+			EducationVisibility:   models.VisibilityPublic,
+			ActivityVisibility:    models.VisibilityPrivate,
+		},
+		EducationalBackground: []models.EducationalBackground{}, // Empty initially
+		ProfileCompleteness:   0.0,                              // Will be calculated
+		Metadata: models.Metadata{
+			CreatedAt: int(time.Now().Unix()),
+			UpdatedAt: int(time.Now().Unix()),
+		},
+	}
+
+	// Calculate initial profile completeness
+	profile.ProfileCompleteness = c.calculateCompleteness(profile)
+
+	// Save the profile to database
+	createdProfile, err := c.profileRepository.New(ctx, profile)
+	if err != nil {
+		log.Printf("Failed to create profile for user %s: %v", event.UserID, err)
+		return fmt.Errorf("failed to create profile: %w", err)
+	}
+
+	log.Printf("Successfully created profile for user %s with ID %s (%.1f%% complete)",
+		event.UserID, createdProfile.ID.Hex(), createdProfile.ProfileCompleteness)
+
+	// if c.eventPublisher != nil {
+	//	profileEvent := &models.ProfileEvent{
+	//		EventType: models.EventTypeProfileCreated,
+	//		ProfileID: createdProfile.ID.Hex(),
+	//		UserID:    createdProfile.UserID,
+	//		Timestamp: int(time.Now().Unix()),
+	//		NewValues: map[string]any{
+	//			"firstName":           createdProfile.PersonalInfo.FirstName,
+	//			"lastName":            createdProfile.PersonalInfo.LastName,
+	//			"email":               createdProfile.ContactInfo.Email,
+	//			"profileCompleteness": createdProfile.ProfileCompleteness,
+	//		},
+	//	}
+
+	//	if err := c.eventPublisher.PublishProfileEvent(profileEvent); err != nil {
+	//		log.Printf("Warning: Failed to publish profile created event for user %s: %v", event.UserID, err)
+	//		// Don't return error here as profile creation was successful
+	//	}
+	//}
+
 	return nil
+}
+
+// Helper method to calculate profile completeness
+func (c *EventConsumer) calculateCompleteness(profile *models.Profile) float64 {
+	totalFields := 0
+	completedFields := 0
+
+	// Personal Info fields (6 total)
+	totalFields += 6
+	if profile.PersonalInfo.FirstName != "" && profile.PersonalInfo.FirstName != "Unknown" {
+		completedFields++
+	}
+	if profile.PersonalInfo.LastName != "" && profile.PersonalInfo.LastName != "User" {
+		completedFields++
+	}
+	if profile.PersonalInfo.DisplayName != "" {
+		completedFields++
+	}
+	if profile.PersonalInfo.DateOfBirth != 0 {
+		completedFields++
+	}
+	if profile.PersonalInfo.Gender != "" {
+		completedFields++
+	}
+	if profile.PersonalInfo.Biography != "" {
+		completedFields++
+	}
+
+	// Contact Info fields (4 total)
+	totalFields += 4
+	if profile.ContactInfo.Email != "" {
+		completedFields++
+	}
+	if profile.ContactInfo.Phone != "" {
+		completedFields++
+	}
+	if profile.ContactInfo.AlternativeEmail != "" {
+		completedFields++
+	}
+	if profile.ContactInfo.Address != nil && profile.ContactInfo.Address.Country != "" {
+		completedFields++
+	}
+
+	// Educational Background (1 field)
+	totalFields += 1
+	if len(profile.EducationalBackground) > 0 {
+		completedFields++
+	}
+
+	if totalFields == 0 {
+		return 0.0
+	}
+
+	return float64(completedFields) / float64(totalFields) * 100.0
 }
 
 func (c *EventConsumer) Close() error {

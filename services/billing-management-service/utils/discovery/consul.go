@@ -1,9 +1,9 @@
 package discovery
 
 import (
+	"billing-management-service/internal/config"
 	"fmt"
 	"log"
-	"profile-service/internal/config"
 	"slices"
 	"strconv"
 

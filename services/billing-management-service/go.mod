@@ -1,13 +1,15 @@
-module profile-service
+module billing-management-service
 
-go 1.24.3
+go 1.23.8
+
+toolchain go1.23.10
 
 require (
 	github.com/gofiber/fiber/v3 v3.0.0-beta.4
 	github.com/hashicorp/consul/api v1.32.1
 	github.com/rabbitmq/amqp091-go v1.10.0
-	github.com/redis/go-redis/v9 v9.8.0
-	go.mongodb.org/mongo-driver/v2 v2.2.1
+	github.com/redis/go-redis/v9 v9.10.0
+	go.mongodb.org/mongo-driver/v2 v2.2.2
 )
 
 require (

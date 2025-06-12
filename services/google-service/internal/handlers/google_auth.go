@@ -120,10 +120,10 @@ func (h *AuthHandler) HandleGoogleCallback(c fiber.Ctx) error {
 	c.Cookie(&fiber.Cookie{
 		Name:     "user",
 		Value:    string(userDataJSON),
-		Path:     "/",
 		Expires:  time.Now().Add(24 * time.Hour),
 		Secure:   true,
-		SameSite: "Strict",
+		SameSite: "None",          // Required for cross-site cookies
+		Domain:   ".phrimp.io.vn", // Parent domain with leading dot
 	})
 	return c.Redirect().To(h.FE_Address)
 }
