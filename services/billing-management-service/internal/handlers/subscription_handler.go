@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"billing-management-service/internal/middleware"
 	"billing-management-service/internal/models"
 	"billing-management-service/internal/services"
 	"context"
 	"log"
+	"proto-gen/utils"
 	"strconv"
 	"strings"
 	"time"
@@ -31,11 +33,11 @@ func (h *SubscriptionHandler) RegisterRoutes(app *fiber.App) {
 
 	protectedGroup.Post("/", h.CreateSubscription)
 	protectedGroup.Get("/search", h.SearchSubscriptions)
-	protectedGroup.Get("/dashboard", h.GetBillingDashboard)
-	protectedGroup.Get("/expiring", h.GetExpiringSubscriptions)
-	protectedGroup.Get("/user/:userId", h.GetSubscriptionByUserID)
-	protectedGroup.Get("/:id", h.GetSubscription)
-	protectedGroup.Get("/:id/with-plan", h.GetSubscriptionWithPlan)
+	protectedGroup.Get("/dashboard", h.GetBillingDashboard, utils.PermissionRequired("admin"))
+	protectedGroup.Get("/expiring", h.GetExpiringSubscriptions, utils.PermissionRequired("admin"))
+	protectedGroup.Get("/user/:userId", h.GetSubscriptionByUserID, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/:id", h.GetSubscription, utils.PermissionRequired(middleware.ReadAllSubscriptionPermission))
+	protectedGroup.Get("/:id/with-plan", h.GetSubscriptionWithPlan, utils.PermissionRequired("admin"))
 	protectedGroup.Put("/:id", h.UpdateSubscription)
 	protectedGroup.Delete("/:id", h.CancelSubscription)
 	protectedGroup.Patch("/:id/renew", h.RenewSubscription)

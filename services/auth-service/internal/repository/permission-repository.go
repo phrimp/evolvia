@@ -16,10 +16,18 @@ import (
 var available_permissions map[string]*models.Permission = make(map[string]*models.Permission)
 
 var default_permissions []*models.Permission = []*models.Permission{
-	{Name: "read", Description: "TMP Read Permission for All resources", Category: "all", IsSystem: false},
-	{Name: "write", Description: "TMP Write Permission for All resources", Category: "all", IsSystem: false},
-	{Name: "update", Description: "TMP Update Permission for All resources", Category: "all", IsSystem: false},
-	{Name: "delete", Description: "TMP Delete Permission for All resources", Category: "all", IsSystem: false},
+	{Name: "read", Description: "TMP Basic Read Permission for resources", Category: "user", IsSystem: false},
+	{Name: "write", Description: "TMP Basic Write Permission for resources", Category: "user", IsSystem: false},
+	{Name: "update", Description: "TMP Basic Update Permission for resources", Category: "user", IsSystem: false},
+	{Name: "delete", Description: "TMP Basic Delete Permission for resources", Category: "user", IsSystem: false},
+	{Name: "read:admin", Description: "TMP Read Permission for All resources", Category: "all", IsSystem: false},
+	{Name: "write:admin", Description: "TMP Write Permission for All resources", Category: "all", IsSystem: false},
+	{Name: "update:admin", Description: "TMP Update Permission for All resources", Category: "all", IsSystem: false},
+	{Name: "delete:admin", Description: "TMP Delete Permission for All resources", Category: "all", IsSystem: false},
+	{Name: "read:plan:all", Description: "TMP Read All Permission for Plan resources", Category: "plan", IsSystem: false},
+	{Name: "write:plan", Description: "TMP Write Permission for Plan resources", Category: "plan", IsSystem: false},
+	{Name: "update:plan", Description: "TMP Update Permission for Plan resources", Category: "plan", IsSystem: false},
+	{Name: "delete:plan", Description: "TMP Delete Permission for Plan resources", Category: "plan", IsSystem: false},
 }
 
 type PermissionRepository struct {

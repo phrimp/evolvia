@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"billing-management-service/internal/middleware"
 	"billing-management-service/internal/models"
 	"billing-management-service/internal/services"
 	"context"
 	"log"
+	"proto-gen/utils"
 	"strconv"
 	"strings"
 	"time"
@@ -29,16 +31,16 @@ func (h *PlanHandler) RegisterRoutes(app *fiber.App) {
 	// Protected routes group
 	protectedGroup := app.Group("/protected/plans")
 
-	protectedGroup.Post("/", h.CreatePlan)
-	protectedGroup.Get("/", h.ListPlans)
+	protectedGroup.Post("/", h.CreatePlan, utils.PermissionRequired(middleware.WritePlanPermission))
+	protectedGroup.Get("/", h.ListPlans, utils.PermissionRequired(middleware.ReadAllPlanPermission))
 	protectedGroup.Get("/active", h.ListActivePlans)
 	protectedGroup.Get("/stats", h.GetPlanStats)
 	protectedGroup.Get("/types/:planType", h.GetPlansByType)
 	protectedGroup.Get("/:id", h.GetPlan)
-	protectedGroup.Put("/:id", h.UpdatePlan)
-	protectedGroup.Delete("/:id", h.DeletePlan)
-	protectedGroup.Patch("/:id/activate", h.ActivatePlan)
-	protectedGroup.Patch("/:id/deactivate", h.DeactivatePlan)
+	protectedGroup.Put("/:id", h.UpdatePlan, utils.PermissionRequired(middleware.UpdatePlanPermission))
+	protectedGroup.Delete("/:id", h.DeletePlan, utils.PermissionRequired(middleware.DeletePlanPermission))
+	protectedGroup.Patch("/:id/activate", h.ActivatePlan, utils.PermissionRequired(middleware.UpdatePlanPermission))
+	protectedGroup.Patch("/:id/deactivate", h.DeactivatePlan, utils.PermissionRequired(middleware.UpdatePlanPermission))
 }
 
 func (h *PlanHandler) CreatePlan(c fiber.Ctx) error {

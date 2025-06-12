@@ -29,6 +29,7 @@ func (h *ProfileHandler) RegisterRoutes(app *fiber.App) {
 	// Protected routes group
 	protectedGroup := app.Group("/protected/profiles")
 
+	protectedGroup.Get("/me", h.GetMe)
 	protectedGroup.Get("/search", h.SearchProfiles)
 	protectedGroup.Get("/user/:userId", h.GetProfileByUserID)
 	protectedGroup.Get("/:id", h.GetProfile)
@@ -36,6 +37,39 @@ func (h *ProfileHandler) RegisterRoutes(app *fiber.App) {
 	protectedGroup.Delete("/:id", h.DeleteProfile)
 	protectedGroup.Get("/", h.ListProfiles)
 	protectedGroup.Get("/:id/completeness", h.GetProfileCompleteness)
+}
+
+func (h *ProfileHandler) GetMe(c fiber.Ctx) error {
+	userID := c.Get("X-User-ID")
+	if userID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "self user id not found",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	profile, err := h.profileService.GetProfileByUserID(ctx, userID)
+	if err != nil {
+		log.Printf("Failed to get profile for user %s: %v", userID, err)
+
+		if err == mongo.ErrNoDocuments || strings.Contains(err.Error(), "not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Profile not found for this user",
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve profile",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"profile": profile,
+		},
+	})
 }
 
 func (h *ProfileHandler) GetProfile(c fiber.Ctx) error {

@@ -8,7 +8,10 @@ require (
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/redis/go-redis/v9 v9.8.0
 	go.mongodb.org/mongo-driver/v2 v2.2.1
+	proto-gen v0.0.0
 )
+
+replace proto-gen => ../../proto-gen
 
 require (
 	github.com/andybalholm/brotli v1.1.1 // indirect
