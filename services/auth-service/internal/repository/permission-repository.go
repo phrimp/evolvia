@@ -16,18 +16,43 @@ import (
 var available_permissions map[string]*models.Permission = make(map[string]*models.Permission)
 
 var default_permissions []*models.Permission = []*models.Permission{
-	{Name: "read", Description: "TMP Basic Read Permission for resources", Category: "user", IsSystem: false},
-	{Name: "write", Description: "TMP Basic Write Permission for resources", Category: "user", IsSystem: false},
-	{Name: "update", Description: "TMP Basic Update Permission for resources", Category: "user", IsSystem: false},
-	{Name: "delete", Description: "TMP Basic Delete Permission for resources", Category: "user", IsSystem: false},
-	{Name: "read:admin", Description: "TMP Read Permission for All resources", Category: "all", IsSystem: false},
-	{Name: "write:admin", Description: "TMP Write Permission for All resources", Category: "all", IsSystem: false},
-	{Name: "update:admin", Description: "TMP Update Permission for All resources", Category: "all", IsSystem: false},
-	{Name: "delete:admin", Description: "TMP Delete Permission for All resources", Category: "all", IsSystem: false},
-	{Name: "read:plan:all", Description: "TMP Read All Permission for Plan resources", Category: "plan", IsSystem: false},
-	{Name: "write:plan", Description: "TMP Write Permission for Plan resources", Category: "plan", IsSystem: false},
-	{Name: "update:plan", Description: "TMP Update Permission for Plan resources", Category: "plan", IsSystem: false},
-	{Name: "delete:plan", Description: "TMP Delete Permission for Plan resources", Category: "plan", IsSystem: false},
+	// Basic CRUD permissions
+	{Name: "read", Description: "Basic Read Permission for own resources", Category: "user", IsSystem: false},
+	{Name: "write", Description: "Basic Write Permission for own resources", Category: "user", IsSystem: false},
+	{Name: "update", Description: "Basic Update Permission for own resources", Category: "user", IsSystem: false},
+	{Name: "delete", Description: "Basic Delete Permission for own resources", Category: "user", IsSystem: false},
+
+	// Admin permissions (access to all resources)
+	{Name: "read:admin", Description: "Read Permission for All resources", Category: "admin", IsSystem: false},
+	{Name: "write:admin", Description: "Write Permission for All resources", Category: "admin", IsSystem: false},
+	{Name: "update:admin", Description: "Update Permission for All resources", Category: "admin", IsSystem: false},
+	{Name: "delete:admin", Description: "Delete Permission for All resources", Category: "admin", IsSystem: false},
+
+	// Manager permissions (elevated but not full admin)
+	{Name: "read:manager", Description: "Read Permission for managed resources", Category: "manager", IsSystem: false},
+	{Name: "write:manager", Description: "Write Permission for managed resources", Category: "manager", IsSystem: false},
+	{Name: "update:manager", Description: "Update Permission for managed resources", Category: "manager", IsSystem: false},
+	{Name: "delete:manager", Description: "Delete Permission for managed resources", Category: "manager", IsSystem: false},
+
+	// Plan-specific permissions
+	{Name: "read:plan", Description: "Read Permission for Plan resources", Category: "plan", IsSystem: false},
+	{Name: "read:plan:all", Description: "Read All Permission for Plan resources", Category: "plan", IsSystem: false},
+	{Name: "write:plan", Description: "Write Permission for Plan resources", Category: "plan", IsSystem: false},
+	{Name: "update:plan", Description: "Update Permission for Plan resources", Category: "plan", IsSystem: false},
+	{Name: "delete:plan", Description: "Delete Permission for Plan resources", Category: "plan", IsSystem: false},
+
+	// Subscription-specific permissions
+	{Name: "read:subscription", Description: "Read Permission for own Subscription resources", Category: "subscription", IsSystem: false},
+	{Name: "read:subscription:all", Description: "Read All Permission for Subscription resources", Category: "subscription", IsSystem: false},
+	{Name: "write:subscription", Description: "Write Permission for Subscription resources", Category: "subscription", IsSystem: false},
+	{Name: "update:subscription", Description: "Update Permission for Subscription resources", Category: "subscription", IsSystem: false},
+	{Name: "delete:subscription", Description: "Delete Permission for Subscription resources", Category: "subscription", IsSystem: false},
+	{Name: "manage:subscription", Description: "Manage Permission for Subscription resources (suspend, reactivate, etc.)", Category: "subscription", IsSystem: false},
+
+	// Billing dashboard and analytics permissions
+	{Name: "read:billing:dashboard", Description: "Read Permission for Billing Dashboard", Category: "billing", IsSystem: false},
+	{Name: "read:billing:analytics", Description: "Read Permission for Billing Analytics", Category: "billing", IsSystem: false},
+	{Name: "process:billing:operations", Description: "Process Billing Operations (trial expirations, etc.)", Category: "billing", IsSystem: false},
 }
 
 type PermissionRepository struct {
@@ -98,7 +123,7 @@ func (pr *PermissionRepository) New(ctx context.Context, p *models.Permission) (
 
 	_, err := pr.collection.InsertOne(ctx, p)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert session: %w", err)
+		return nil, fmt.Errorf("failed to insert permission: %w", err)
 	}
 	return p, nil
 }
@@ -146,7 +171,7 @@ func (pr *PermissionRepository) AddtoAvailablePermissions(p *models.Permission) 
 	log.Printf("Adding New Available Permission: %v", p)
 	pr.mu.Lock()
 	available_permissions[p.Name] = p
-	pr.mu.Lock()
+	pr.mu.Unlock() // Fixed: was double-locking instead of unlocking
 	log.Printf("New Available Permission Added")
 }
 

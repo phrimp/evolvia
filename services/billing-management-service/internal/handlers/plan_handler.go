@@ -26,21 +26,27 @@ func NewPlanHandler(planService *services.PlanService) *PlanHandler {
 }
 
 func (h *PlanHandler) RegisterRoutes(app *fiber.App) {
-	app.Get("/health", h.HealthCheck)
-
 	// Protected routes group
+
+	publicGroup := app.Group("/public/plans")
+	publicGroup.Get("/active", h.ListActivePlans)
+	publicGroup.Get("/types/:planType", h.GetPlansByType)
+	publicGroup.Get("/:id", h.GetPlan)
+	publicGroup.Get("/stats", h.GetPlanStats)
+
 	protectedGroup := app.Group("/protected/plans")
 
+	// Plan CRUD operations - require specific permissions
 	protectedGroup.Post("/", h.CreatePlan, utils.PermissionRequired(middleware.WritePlanPermission))
 	protectedGroup.Get("/", h.ListPlans, utils.PermissionRequired(middleware.ReadAllPlanPermission))
-	protectedGroup.Get("/active", h.ListActivePlans)
-	protectedGroup.Get("/stats", h.GetPlanStats)
-	protectedGroup.Get("/types/:planType", h.GetPlansByType)
-	protectedGroup.Get("/:id", h.GetPlan)
 	protectedGroup.Put("/:id", h.UpdatePlan, utils.PermissionRequired(middleware.UpdatePlanPermission))
 	protectedGroup.Delete("/:id", h.DeletePlan, utils.PermissionRequired(middleware.DeletePlanPermission))
+
+	// Plan management operations - require update permissions
 	protectedGroup.Patch("/:id/activate", h.ActivatePlan, utils.PermissionRequired(middleware.UpdatePlanPermission))
 	protectedGroup.Patch("/:id/deactivate", h.DeactivatePlan, utils.PermissionRequired(middleware.UpdatePlanPermission))
+
+	// Plan query operations - require read permissions
 }
 
 func (h *PlanHandler) CreatePlan(c fiber.Ctx) error {

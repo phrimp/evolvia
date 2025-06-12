@@ -26,24 +26,34 @@ func NewSubscriptionHandler(subscriptionService *services.SubscriptionService) *
 }
 
 func (h *SubscriptionHandler) RegisterRoutes(app *fiber.App) {
-	app.Get("/health", h.HealthCheck)
-
 	// Protected routes group
 	protectedGroup := app.Group("/protected/subscriptions")
 
-	protectedGroup.Post("/", h.CreateSubscription)
-	protectedGroup.Get("/search", h.SearchSubscriptions)
-	protectedGroup.Get("/dashboard", h.GetBillingDashboard, utils.PermissionRequired("admin"))
-	protectedGroup.Get("/expiring", h.GetExpiringSubscriptions, utils.PermissionRequired("admin"))
+	// Subscription CRUD operations
+	protectedGroup.Post("/", h.CreateSubscription, utils.PermissionRequired(middleware.WriteSubscriptionPermission))
+	protectedGroup.Get("/:id", h.GetSubscription, utils.PermissionRequired(middleware.ReadSubscriptionPermission))
+	protectedGroup.Put("/:id", h.UpdateSubscription, utils.PermissionRequired(middleware.UpdateSubscriptionPermission))
+	protectedGroup.Delete("/:id", h.CancelSubscription, utils.PermissionRequired(middleware.DeleteSubscriptionPermission))
+
+	// User-specific subscription access (users can access their own subscriptions)
 	protectedGroup.Get("/user/:userId", h.GetSubscriptionByUserID, utils.OwnerPermissionRequired(""))
-	protectedGroup.Get("/:id", h.GetSubscription, utils.PermissionRequired(middleware.ReadAllSubscriptionPermission))
-	protectedGroup.Get("/:id/with-plan", h.GetSubscriptionWithPlan, utils.PermissionRequired("admin"))
-	protectedGroup.Put("/:id", h.UpdateSubscription)
-	protectedGroup.Delete("/:id", h.CancelSubscription)
-	protectedGroup.Patch("/:id/renew", h.RenewSubscription)
-	protectedGroup.Patch("/:id/suspend", h.SuspendSubscription)
-	protectedGroup.Patch("/:id/reactivate", h.ReactivateSubscription)
-	protectedGroup.Post("/process-trial-expirations", h.ProcessTrialExpirations)
+
+	// Subscription management operations - require manage permissions
+	protectedGroup.Patch("/:id/renew", h.RenewSubscription, utils.PermissionRequired(middleware.ManageSubscriptionPermission))
+	protectedGroup.Patch("/:id/suspend", h.SuspendSubscription, utils.PermissionRequired(middleware.ManageSubscriptionPermission))
+	protectedGroup.Patch("/:id/reactivate", h.ReactivateSubscription, utils.PermissionRequired(middleware.ManageSubscriptionPermission))
+
+	// Admin-only operations
+	protectedGroup.Get("/", h.SearchSubscriptions, utils.PermissionRequired(middleware.ReadAllSubscriptionPermission))
+	protectedGroup.Get("/search", h.SearchSubscriptions, utils.PermissionRequired(middleware.ReadAllSubscriptionPermission))
+	protectedGroup.Get("/:id/with-plan", h.GetSubscriptionWithPlan, utils.PermissionRequired(middleware.ReadAllSubscriptionPermission))
+	protectedGroup.Get("/expiring", h.GetExpiringSubscriptions, utils.PermissionRequired(middleware.ReadAllSubscriptionPermission))
+
+	// Billing dashboard and analytics - require specific billing permissions
+	protectedGroup.Get("/dashboard", h.GetBillingDashboard, utils.PermissionRequired(middleware.ReadBillingDashboardPermission))
+
+	// System operations - require billing operations permission
+	protectedGroup.Post("/process-trial-expirations", h.ProcessTrialExpirations, utils.PermissionRequired(middleware.ProcessBillingOperationsPermission))
 }
 
 func (h *SubscriptionHandler) CreateSubscription(c fiber.Ctx) error {
@@ -52,6 +62,18 @@ func (h *SubscriptionHandler) CreateSubscription(c fiber.Ctx) error {
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
+		})
+	}
+
+	// Ensure users can only create subscriptions for themselves unless they have admin/manager permissions
+	currentUserID := c.Get("X-User-ID")
+	userPermissions := c.Get("X-User-Permissions")
+
+	// Check if user has admin/manager permissions or is creating for themselves
+	hasElevatedPermissions := strings.Contains(userPermissions, "admin") || strings.Contains(userPermissions, "manager")
+	if !hasElevatedPermissions && req.UserID != currentUserID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "You can only create subscriptions for yourself",
 		})
 	}
 
@@ -99,115 +121,6 @@ func (h *SubscriptionHandler) CreateSubscription(c fiber.Ctx) error {
 	})
 }
 
-func (h *SubscriptionHandler) ReactivateSubscription(c fiber.Ctx) error {
-	subscriptionID := c.Params("id")
-	if subscriptionID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Subscription ID is required",
-		})
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	err := h.subscriptionService.ReactivateSubscription(ctx, subscriptionID)
-	if err != nil {
-		log.Printf("Failed to reactivate subscription %s: %v", subscriptionID, err)
-
-		if err == mongo.ErrNoDocuments || strings.Contains(err.Error(), "not found") {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"error": "Subscription not found",
-			})
-		}
-
-		if strings.Contains(err.Error(), "invalid") {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Invalid subscription ID format",
-			})
-		}
-
-		if strings.Contains(err.Error(), "only suspended subscriptions") {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Only suspended subscriptions can be reactivated",
-			})
-		}
-
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to reactivate subscription",
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Subscription reactivated successfully",
-	})
-}
-
-func (h *SubscriptionHandler) GetBillingDashboard(c fiber.Ctx) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	dashboard, err := h.subscriptionService.GetBillingDashboard(ctx)
-	if err != nil {
-		log.Printf("Failed to get billing dashboard: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to retrieve billing dashboard",
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"data": fiber.Map{
-			"dashboard": dashboard,
-		},
-	})
-}
-
-func (h *SubscriptionHandler) GetExpiringSubscriptions(c fiber.Ctx) error {
-	daysAhead, _ := strconv.Atoi(c.Query("daysAhead", "7"))
-	if daysAhead < 1 {
-		daysAhead = 7
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	subscriptions, err := h.subscriptionService.GetExpiringSubscriptions(ctx, daysAhead)
-	if err != nil {
-		log.Printf("Failed to get expiring subscriptions: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to retrieve expiring subscriptions",
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"data": fiber.Map{
-			"subscriptions": subscriptions,
-			"daysAhead":     daysAhead,
-			"count":         len(subscriptions),
-		},
-	})
-}
-
-func (h *SubscriptionHandler) ProcessTrialExpirations(c fiber.Ctx) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	err := h.subscriptionService.ProcessTrialExpiration(ctx)
-	if err != nil {
-		log.Printf("Failed to process trial expirations: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to process trial expirations",
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Trial expirations processed successfully",
-	})
-}
-
-func (h *SubscriptionHandler) HealthCheck(c fiber.Ctx) error {
-	return c.Status(fiber.StatusOK).SendString("Billing Management Service - Subscriptions is healthy")
-}
-
 func (h *SubscriptionHandler) GetSubscription(c fiber.Ctx) error {
 	subscriptionID := c.Params("id")
 	if subscriptionID == "" {
@@ -237,6 +150,19 @@ func (h *SubscriptionHandler) GetSubscription(c fiber.Ctx) error {
 
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to retrieve subscription",
+		})
+	}
+
+	// Check if user can access this subscription (owner or elevated permissions)
+	currentUserID := c.Get("X-User-ID")
+	userPermissions := c.Get("X-User-Permissions")
+	hasElevatedPermissions := strings.Contains(userPermissions, "admin") ||
+		strings.Contains(userPermissions, "manager") ||
+		strings.Contains(userPermissions, middleware.ReadAllSubscriptionPermission)
+
+	if !hasElevatedPermissions && subscription.UserID != currentUserID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Access denied",
 		})
 	}
 
@@ -336,6 +262,32 @@ func (h *SubscriptionHandler) UpdateSubscription(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Check ownership for non-admin users
+	currentUserID := c.Get("X-User-ID")
+	userPermissions := c.Get("X-User-Permissions")
+	hasElevatedPermissions := strings.Contains(userPermissions, "admin") || strings.Contains(userPermissions, "manager")
+
+	if !hasElevatedPermissions {
+		// Get subscription to check ownership
+		existingSubscription, err := h.subscriptionService.GetSubscription(ctx, subscriptionID)
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"error": "Subscription not found",
+				})
+			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to verify subscription ownership",
+			})
+		}
+
+		if existingSubscription.UserID != currentUserID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Access denied",
+			})
+		}
+	}
+
 	subscription, err := h.subscriptionService.UpdateSubscription(ctx, subscriptionID, &req)
 	if err != nil {
 		log.Printf("Failed to update subscription %s: %v", subscriptionID, err)
@@ -389,6 +341,32 @@ func (h *SubscriptionHandler) CancelSubscription(c fiber.Ctx) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Check ownership for non-admin users
+	currentUserID := c.Get("X-User-ID")
+	userPermissions := c.Get("X-User-Permissions")
+	hasElevatedPermissions := strings.Contains(userPermissions, "admin") || strings.Contains(userPermissions, "manager")
+
+	if !hasElevatedPermissions {
+		// Get subscription to check ownership
+		existingSubscription, err := h.subscriptionService.GetSubscription(ctx, subscriptionID)
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"error": "Subscription not found",
+				})
+			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to verify subscription ownership",
+			})
+		}
+
+		if existingSubscription.UserID != currentUserID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Access denied",
+			})
+		}
+	}
 
 	err := h.subscriptionService.CancelSubscription(ctx, subscriptionID, &req)
 	if err != nil {
@@ -552,4 +530,113 @@ func (h *SubscriptionHandler) SuspendSubscription(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Subscription suspended successfully",
 	})
+}
+
+func (h *SubscriptionHandler) ReactivateSubscription(c fiber.Ctx) error {
+	subscriptionID := c.Params("id")
+	if subscriptionID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Subscription ID is required",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := h.subscriptionService.ReactivateSubscription(ctx, subscriptionID)
+	if err != nil {
+		log.Printf("Failed to reactivate subscription %s: %v", subscriptionID, err)
+
+		if err == mongo.ErrNoDocuments || strings.Contains(err.Error(), "not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Subscription not found",
+			})
+		}
+
+		if strings.Contains(err.Error(), "invalid") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid subscription ID format",
+			})
+		}
+
+		if strings.Contains(err.Error(), "only suspended subscriptions") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Only suspended subscriptions can be reactivated",
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to reactivate subscription",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Subscription reactivated successfully",
+	})
+}
+
+func (h *SubscriptionHandler) GetBillingDashboard(c fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	dashboard, err := h.subscriptionService.GetBillingDashboard(ctx)
+	if err != nil {
+		log.Printf("Failed to get billing dashboard: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve billing dashboard",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"dashboard": dashboard,
+		},
+	})
+}
+
+func (h *SubscriptionHandler) GetExpiringSubscriptions(c fiber.Ctx) error {
+	daysAhead, _ := strconv.Atoi(c.Query("daysAhead", "7"))
+	if daysAhead < 1 {
+		daysAhead = 7
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	subscriptions, err := h.subscriptionService.GetExpiringSubscriptions(ctx, daysAhead)
+	if err != nil {
+		log.Printf("Failed to get expiring subscriptions: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve expiring subscriptions",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"subscriptions": subscriptions,
+			"daysAhead":     daysAhead,
+			"count":         len(subscriptions),
+		},
+	})
+}
+
+func (h *SubscriptionHandler) ProcessTrialExpirations(c fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := h.subscriptionService.ProcessTrialExpiration(ctx)
+	if err != nil {
+		log.Printf("Failed to process trial expirations: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to process trial expirations",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Trial expirations processed successfully",
+	})
+}
+
+func (h *SubscriptionHandler) HealthCheck(c fiber.Ctx) error {
+	return c.Status(fiber.StatusOK).SendString("Billing Management Service - Subscriptions is healthy")
 }
