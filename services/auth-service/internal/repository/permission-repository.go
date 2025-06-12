@@ -49,6 +49,15 @@ var default_permissions []*models.Permission = []*models.Permission{
 	{Name: "delete:subscription", Description: "Delete Permission for Subscription resources", Category: "subscription", IsSystem: false},
 	{Name: "manage:subscription", Description: "Manage Permission for Subscription resources (suspend, reactivate, etc.)", Category: "subscription", IsSystem: false},
 
+	// Profile-specific permissions
+	{Name: "read:profile", Description: "Read Permission for Profile resources", Category: "profile", IsSystem: false},
+	{Name: "read:profile:all", Description: "Read All Permission for Profile resources", Category: "profile", IsSystem: false},
+	{Name: "write:profile", Description: "Write Permission for Profile resources", Category: "profile", IsSystem: false},
+	{Name: "update:profile", Description: "Update Permission for Profile resources", Category: "profile", IsSystem: false},
+	{Name: "delete:profile", Description: "Delete Permission for Profile resources", Category: "profile", IsSystem: false},
+	{Name: "search:profile", Description: "Search Permission for Profile resources", Category: "profile", IsSystem: false},
+	{Name: "read:profile:analytics", Description: "Read Permission for Profile Analytics", Category: "profile", IsSystem: false},
+
 	// Billing dashboard and analytics permissions
 	{Name: "read:billing:dashboard", Description: "Read Permission for Billing Dashboard", Category: "billing", IsSystem: false},
 	{Name: "read:billing:analytics", Description: "Read Permission for Billing Analytics", Category: "billing", IsSystem: false},
