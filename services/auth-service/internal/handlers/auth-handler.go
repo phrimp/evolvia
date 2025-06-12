@@ -282,8 +282,8 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 		Value:    session.Token,
 		Path:     "/",
 		Expires:  time.Now().Add(24 * time.Hour),
-		Secure:   true,
-		SameSite: "Strict",
+		SameSite: "None",          // Required for cross-site cookies
+		Domain:   ".phrimp.io.vn", // Parent domain with leading dot
 	})
 
 	userDataJSON, _ := json.Marshal(basic_profile)
@@ -293,8 +293,8 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 		Value:    string(userDataJSON),
 		Path:     "/",
 		Expires:  time.Now().Add(24 * time.Hour),
-		Secure:   true,
-		SameSite: "Strict",
+		SameSite: "None",          // Required for cross-site cookies
+		Domain:   ".phrimp.io.vn", // Parent domain with leading dot
 	})
 
 	//	return c.Status(fiber.StatusOK).JSON(fiber.Map{
