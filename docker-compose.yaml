@@ -634,9 +634,9 @@ services:
       - "traefik.http.routers.payos-service-public.service=payos-service"
       - "traefik.http.routers.payos-service-secure.service=payos-service"
       # Public routes (for webhooks and payment callbacks)
-      - "traefik.http.routers.payos-service-public.rule=PathPrefix(`/public/payos`)"
+      - "traefik.http.routers.payos-service-public.rule=PathPrefix(`/public`)"
       # Protected routes (authentication required)
-      - "traefik.http.routers.payos-service-secure.rule=PathPrefix(`/protected/payos`)"
+      - "traefik.http.routers.payos-service-secure.rule=PathPrefix(`/protected`)"
       - "traefik.http.routers.payos-service-secure.middlewares=auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
