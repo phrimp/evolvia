@@ -4,6 +4,12 @@ import { orderController } from "./controllers/order.controller";
 import { rabbitMQService } from "./utils/rabbitmq";
 import { PaymentMessageHandler } from "./handlers/payment.handler";
 
+// Debug environment variables
+console.log("🔍 Environment check:");
+console.log("PAYOS_CLIENT_ID:", process.env.PAYOS_CLIENT_ID ? "✅ Set" : "❌ Missing");
+console.log("PAYOS_API_KEY:", process.env.PAYOS_API_KEY ? "✅ Set" : "❌ Missing");
+console.log("PAYOS_CHECKSUM_KEY:", process.env.PAYOS_CHECKSUM_KEY ? "✅ Set" : "❌ Missing");
+
 // Initialize RabbitMQ and setup consumers
 async function initializeRabbitMQ() {
   try {

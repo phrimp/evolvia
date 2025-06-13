@@ -5,6 +5,8 @@ import { PaymentMessage } from "../handlers/payment.handler";
 
 export const orderController = new Elysia({ prefix: "/order" })
   .post("/create", async ({ body }) => {
+    console.log("📦 Order creation request received:", body);
+    
     const { description, returnUrl, cancelUrl, amount } = body as {
       description: string;
       returnUrl: string;
@@ -20,8 +22,12 @@ export const orderController = new Elysia({ prefix: "/order" })
       returnUrl,
     };
 
+    console.log("📦 Order data prepared:", orderData);
+
     try {
+      console.log("💳 Creating PayOS payment link...");
       const paymentLinkRes = await payOS.createPaymentLink(orderData);
+      console.log("✅ PayOS payment link created:", paymentLinkRes);
 
       // Publish order creation event
       await rabbitMQService.publishToQueue("order.updates", {
@@ -49,9 +55,10 @@ export const orderController = new Elysia({ prefix: "/order" })
           orderCode: paymentLinkRes.orderCode,
           qrCode: paymentLinkRes.qrCode,
         },
-      };
-    } catch (error) {
-      console.log(error);
+      };    } catch (error) {
+      console.error("❌ PayOS error details:", error);
+      console.error("❌ Error message:", error instanceof Error ? error.message : String(error));
+      console.error("❌ Error stack:", error instanceof Error ? error.stack : 'No stack trace');
 
       // Publish order creation failure
       await rabbitMQService.publishToQueue("payment.failed", {
