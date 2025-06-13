@@ -1,0 +1,4168 @@
+{
+    "name": "JavaScript",
+    "description": "A high-level, interpreted programming language that is widely used for web development, both client-side and server-side applications. JavaScript is a dynamic, weakly typed language that supports multiple programming paradigms including object-oriented, imperative, and functional programming styles. It's the foundation of modern web development and powers interactive websites, web applications, mobile apps, desktop applications, and server-side services.",
+    "identification_rules": {
+      "primary_patterns": [
+        {
+          "text": "JavaScript",
+          "weight": 1.0,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JS",
+          "weight": 0.95,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Javascript",
+          "weight": 0.98,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "ECMAScript",
+          "weight": 0.9,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JS Developer",
+          "weight": 0.95,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JavaScript Developer",
+          "weight": 1.0,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JavaScript Engineer",
+          "weight": 0.98,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JavaScript Programming",
+          "weight": 0.95,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JS Programming",
+          "weight": 0.9,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        }
+      ],
+      "secondary_patterns": [
+        {
+          "text": "Node.js",
+          "weight": 0.85,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "NodeJS",
+          "weight": 0.85,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Node",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "React",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "React.js",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "ReactJS",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Vue.js",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Vue",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "VueJS",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Angular",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "AngularJS",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "jQuery",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Express.js",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Express",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "ExpressJS",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "TypeScript",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "TS",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Webpack",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Babel",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "npm",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "yarn",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "pnpm",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "ESLint",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Prettier",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Jest",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Mocha",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Jasmine",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Cypress",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Playwright",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Puppeteer",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Selenium",
+          "weight": 0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Redux",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "MobX",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Zustand",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Recoil",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "GraphQL",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Apollo",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Apollo Client",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Apollo Server",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Next.js",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "NextJS",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Nuxt.js",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "NuxtJS",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Gatsby",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Svelte",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "SvelteKit",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Solid.js",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Remix",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Astro",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Electron",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Tauri",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "React Native",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "React Native",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Expo",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Ionic",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Cordova",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "PhoneGap",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "NativeScript",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Flutter",
+          "weight": 0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "MongoDB",
+          "weight": 0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Mongoose",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Firebase",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Supabase",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Prisma",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Sequelize",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Knex.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "TypeORM",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Socket.io",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "WebSocket",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "WebRTC",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "D3.js",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Chart.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Three.js",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Babylon.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Phaser",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Pixi.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Lodash",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Underscore.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Ramda",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Moment.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Day.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "date-fns",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Axios",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Fetch API",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Superagent",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Vite",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Parcel",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Rollup",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "esbuild",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "SWC",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Turbo",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Lerna",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Rush",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Nx",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Storybook",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Chromatic",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Husky",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "lint-staged",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "commitlint",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "semantic-release",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        }
+      ],
+      "academic_patterns": [
+        {
+          "text": "client-side scripting",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "server-side scripting",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "frontend scripting",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "backend scripting",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "dynamic web programming",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "interactive web development",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "web application development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "single page application development",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "progressive web application",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "responsive web design",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "mobile-first development",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "cross-platform development",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "frontend development",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "backend development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "full-stack development",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "full stack development",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "isomorphic development",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "universal JavaScript",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "asynchronous programming",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "event-driven programming",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "reactive programming",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "functional programming paradigm",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "object-oriented programming",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "prototype-based programming",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "prototype-based inheritance",
+          "weight": 0.9,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "object-oriented scripting",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "procedural programming",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "imperative programming",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "declarative programming",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "DOM manipulation",
+          "weight": 0.9,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "DOM scripting",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "BOM programming",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "AJAX programming",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "XMLHttpRequest",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "JSON manipulation",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "REST API integration",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "RESTful API development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "GraphQL implementation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "API development",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "microservices architecture",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "serverless architecture",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "serverless computing",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "edge computing",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "cloud-native development",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "component-based architecture",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "modular programming",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "module system",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "ES6 modules",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "CommonJS modules",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "AMD modules",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "UMD modules",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "bundling and optimization",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "code splitting",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "tree shaking",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "lazy loading",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "dynamic imports",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "performance optimization",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "memory management",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "garbage collection",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "browser compatibility",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "cross-browser development",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "polyfills implementation",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "transpilation",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "source maps",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "debugging techniques",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "error handling",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "exception handling",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "testing methodologies",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "unit testing",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "integration testing",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "end-to-end testing",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "test-driven development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "behavior-driven development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "continuous integration",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "continuous deployment",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "DevOps practices",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "build automation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "deployment strategies",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "containerization",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "scalability patterns",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "load balancing",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "caching strategies",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "security best practices",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "web security",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "authentication implementation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "authorization mechanisms",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "session management",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "JWT implementation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "OAuth integration",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "CORS handling",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "XSS prevention",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "CSRF protection",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "input validation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "data sanitization",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "SEO optimization",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "accessibility implementation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "internationalization",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "localization",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "real-time communication",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "WebSocket programming",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Server-Sent Events",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "WebRTC implementation",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "PWA development",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Service Worker",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Web Worker",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Shared Array Buffer",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Atomic operations",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Web Assembly integration",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "WebGL programming",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Canvas API",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "SVG manipulation",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "animation programming",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "game development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "data visualization",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "machine learning integration",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "AI integration",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "blockchain development",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "cryptocurrency integration",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Web3 development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "DApp development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "smart contract interaction",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "IoT integration",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "embedded systems",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "robotics programming",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        }
+      ],
+      "negative_patterns": [
+        {
+          "text": "Java programming",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java development",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java developer",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java engineer",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java EE",
+          "weight": -0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Java SE",
+          "weight": -0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Spring Boot",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Spring Framework",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Hibernate",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JVM",
+          "weight": -0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JDK",
+          "weight": -0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JRE",
+          "weight": -0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Maven",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Gradle",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Kotlin",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Scala",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Android Studio",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "IntelliJ IDEA",
+          "weight": -0.2,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Eclipse IDE",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "NetBeans",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JSP",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JSF",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Struts",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Servlets",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Enterprise Java",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java Virtual Machine",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java Runtime Environment",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java Development Kit",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "object-oriented Java",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java enterprise",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java backend",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java microservices",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java web services",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java API",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java application",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java server",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java desktop",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java Swing",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java AWT",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "JavaFX",
+          "weight": -0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Android Java",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "native Java",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "pure Java",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "C# programming",
+          "weight": -0.3,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": ".NET development",
+          "weight": -0.3,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "ASP.NET",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Visual Studio",
+          "weight": -0.2,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Microsoft .NET",
+          "weight": -0.3,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Python programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Ruby programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "PHP programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Go programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Rust programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Swift programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Objective-C",
+          "weight": -0.2,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "C++ programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "C programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        }
+      ],
+      "min_primary_matches": 1,
+      "min_secondary_matches": 0,
+      "min_academic_matches": 0,
+      "min_total_score": 0.8,
+      "context_window": 10
+    },
+    "common_names": [
+      "JavaScript",
+      "JS",
+      "ECMAScript",
+      "ES6",
+      "ES2015",
+      "ES2016",
+      "ES2017",
+      "ES2018",
+      "ES2019",
+      "ES2020",
+      "ES2021",
+      "ES2022",
+      "ES2023",
+      "ES2024",
+      "Vanilla JavaScript",
+      "Modern JavaScript",
+      "Client-side JavaScript",
+      "Server-side JavaScript",
+      "Browser JavaScript",
+      "Node JavaScript",
+      "Frontend JavaScript",
+      "Backend JavaScript",
+      "Full-stack JavaScript",
+      "Universal JavaScript",
+      "Isomorphic JavaScript"
+    ],
+    "abbreviations": [
+      "JS",
+      "ES",
+      "ES6",
+      "ES7",
+      "ES8",
+      "ES9",
+      "ES10",
+      "ES11",
+      "ES12",
+      "ES13",
+      "ES14",
+      "ES15",
+      "ECMAScript",
+      "ECMA",
+      "ECMA-262"
+    ],
+    "technical_terms": [
+      "ECMAScript",
+      "JavaScript Engine",
+      "V8 Engine",
+      "SpiderMonkey",
+      "Chakra",
+      "JavaScriptCore",
+      "Node.js",
+      "Deno",
+      "Bun",
+      "npm",
+      "yarn",
+      "pnpm",
+      "Package Manager",
+      "Node Package Manager",
+      "Webpack",
+      "Babel",
+      "TypeScript",
+      "Flow",
+      "ESLint",
+      "Prettier",
+      "JSHint",
+      "JSLint",
+      "Vite",
+      "Parcel",
+      "Rollup",
+      "esbuild",
+      "SWC",
+      "Turbo",
+      "React",
+      "React.js",
+      "ReactJS",{
+    "name": "JavaScript",
+    "description": "A high-level, interpreted programming language that is widely used for web development, both client-side and server-side applications. JavaScript is a dynamic, weakly typed language that supports multiple programming paradigms including object-oriented, imperative, and functional programming styles. It's the foundation of modern web development and powers interactive websites, web applications, mobile apps, desktop applications, and server-side services.",
+    "identification_rules": {
+      "primary_patterns": [
+        {
+          "text": "JavaScript",
+          "weight": 1.0,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JS",
+          "weight": 0.95,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Javascript",
+          "weight": 0.98,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "ECMAScript",
+          "weight": 0.9,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JS Developer",
+          "weight": 0.95,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JavaScript Developer",
+          "weight": 1.0,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JavaScript Engineer",
+          "weight": 0.98,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JavaScript Programming",
+          "weight": 0.95,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JS Programming",
+          "weight": 0.9,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        }
+      ],
+      "secondary_patterns": [
+        {
+          "text": "Node.js",
+          "weight": 0.85,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "NodeJS",
+          "weight": 0.85,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Node",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "React",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "React.js",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "ReactJS",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Vue.js",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Vue",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "VueJS",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Angular",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "AngularJS",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "jQuery",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Express.js",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Express",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "ExpressJS",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "TypeScript",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "TS",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Webpack",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Babel",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "npm",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "yarn",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "pnpm",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "ESLint",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Prettier",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Jest",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Mocha",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Jasmine",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Cypress",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Playwright",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Puppeteer",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Selenium",
+          "weight": 0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Redux",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "MobX",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Zustand",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Recoil",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "GraphQL",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Apollo",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Apollo Client",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Apollo Server",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Next.js",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "NextJS",
+          "weight": 0.8,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Nuxt.js",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "NuxtJS",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Gatsby",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Svelte",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "SvelteKit",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Solid.js",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Remix",
+          "weight": 0.7,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Astro",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Electron",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Tauri",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "React Native",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "React Native",
+          "weight": 0.75,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Expo",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Ionic",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Cordova",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "PhoneGap",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "NativeScript",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Flutter",
+          "weight": 0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "MongoDB",
+          "weight": 0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Mongoose",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Firebase",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Supabase",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Prisma",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Sequelize",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Knex.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "TypeORM",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Socket.io",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "WebSocket",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "WebRTC",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "D3.js",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Chart.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Three.js",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Babylon.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Phaser",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Pixi.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Lodash",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Underscore.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Ramda",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Moment.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Day.js",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "date-fns",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Axios",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Fetch API",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Superagent",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Vite",
+          "weight": 0.65,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Parcel",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Rollup",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "esbuild",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "SWC",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Turbo",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Lerna",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Rush",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Nx",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Storybook",
+          "weight": 0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Chromatic",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Husky",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "lint-staged",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "commitlint",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "semantic-release",
+          "weight": 0.55,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        }
+      ],
+      "academic_patterns": [
+        {
+          "text": "client-side scripting",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "server-side scripting",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "frontend scripting",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "backend scripting",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "dynamic web programming",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "interactive web development",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "web application development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "single page application development",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "progressive web application",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "responsive web design",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "mobile-first development",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "cross-platform development",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "frontend development",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "backend development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "full-stack development",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "full stack development",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "isomorphic development",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "universal JavaScript",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "asynchronous programming",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "event-driven programming",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "reactive programming",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "functional programming paradigm",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "object-oriented programming",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "prototype-based programming",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "prototype-based inheritance",
+          "weight": 0.9,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "object-oriented scripting",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "procedural programming",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "imperative programming",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "declarative programming",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "DOM manipulation",
+          "weight": 0.9,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "DOM scripting",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "BOM programming",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "AJAX programming",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "XMLHttpRequest",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "JSON manipulation",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "REST API integration",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "RESTful API development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "GraphQL implementation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "API development",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "microservices architecture",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "serverless architecture",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "serverless computing",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "edge computing",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "cloud-native development",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "component-based architecture",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "modular programming",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "module system",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "ES6 modules",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "CommonJS modules",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "AMD modules",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "UMD modules",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "bundling and optimization",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "code splitting",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "tree shaking",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "lazy loading",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "dynamic imports",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "performance optimization",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "memory management",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "garbage collection",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "browser compatibility",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "cross-browser development",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "polyfills implementation",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "transpilation",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "source maps",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "debugging techniques",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "error handling",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "exception handling",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "testing methodologies",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "unit testing",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "integration testing",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "end-to-end testing",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "test-driven development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "behavior-driven development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "continuous integration",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "continuous deployment",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "DevOps practices",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "build automation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "deployment strategies",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "containerization",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "scalability patterns",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "load balancing",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "caching strategies",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "security best practices",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "web security",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "authentication implementation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "authorization mechanisms",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "session management",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "JWT implementation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "OAuth integration",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "CORS handling",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "XSS prevention",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "CSRF protection",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "input validation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "data sanitization",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "SEO optimization",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "accessibility implementation",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "internationalization",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "localization",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "real-time communication",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "WebSocket programming",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Server-Sent Events",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "WebRTC implementation",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "PWA development",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Service Worker",
+          "weight": 0.85,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Web Worker",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Shared Array Buffer",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Atomic operations",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Web Assembly integration",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "WebGL programming",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Canvas API",
+          "weight": 0.8,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "SVG manipulation",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "animation programming",
+          "weight": 0.75,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "game development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "data visualization",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "machine learning integration",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "AI integration",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "blockchain development",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "cryptocurrency integration",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Web3 development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "DApp development",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "smart contract interaction",
+          "weight": 0.7,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "IoT integration",
+          "weight": 0.65,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "embedded systems",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "robotics programming",
+          "weight": 0.6,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        }
+      ],
+      "negative_patterns": [
+        {
+          "text": "Java programming",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java development",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java developer",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java engineer",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java EE",
+          "weight": -0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Java SE",
+          "weight": -0.6,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Spring Boot",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Spring Framework",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Hibernate",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JVM",
+          "weight": -0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JDK",
+          "weight": -0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JRE",
+          "weight": -0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Maven",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Gradle",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Kotlin",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Scala",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Android Studio",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "IntelliJ IDEA",
+          "weight": -0.2,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Eclipse IDE",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "NetBeans",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JSP",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "JSF",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Struts",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Servlets",
+          "weight": -0.4,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Enterprise Java",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java Virtual Machine",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java Runtime Environment",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java Development Kit",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "object-oriented Java",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java enterprise",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java backend",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java microservices",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java web services",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java API",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java application",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java server",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java desktop",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java Swing",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Java AWT",
+          "weight": -0.5,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "JavaFX",
+          "weight": -0.5,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Android Java",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "native Java",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "pure Java",
+          "weight": -0.4,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "C# programming",
+          "weight": -0.3,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": ".NET development",
+          "weight": -0.3,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "ASP.NET",
+          "weight": -0.3,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Visual Studio",
+          "weight": -0.2,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "Microsoft .NET",
+          "weight": -0.3,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Python programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Ruby programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "PHP programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Go programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Rust programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Swift programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "Objective-C",
+          "weight": -0.2,
+          "type": "exact",
+          "case_sensitive": false,
+          "min_word_boundary": true
+        },
+        {
+          "text": "C++ programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        },
+        {
+          "text": "C programming",
+          "weight": -0.2,
+          "type": "partial",
+          "case_sensitive": false,
+          "min_word_boundary": false
+        }
+      ],
+      "min_primary_matches": 1,
+      "min_secondary_matches": 0,
+      "min..
