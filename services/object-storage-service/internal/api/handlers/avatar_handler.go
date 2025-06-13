@@ -30,9 +30,7 @@ func (h *AvatarHandler) RegisterRoutes(app *fiber.App) {
 	avatarGroup.Post("/", h.UploadAvatar)
 	avatarGroup.Get("/", h.GetUserAvatars)
 	avatarGroup.Get("/default", h.GetDefaultAvatar)
-	avatarGroup.Get("/:id", h.GetAvatar)
 	avatarGroup.Delete("/:id", h.DeleteAvatar)
-	avatarGroup.Get("/:id/download", h.DownloadAvatar)
 }
 
 func (h *AvatarHandler) UploadAvatar(c fiber.Ctx) error {
