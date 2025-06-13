@@ -1,5 +1,7 @@
 import { Elysia, t } from "elysia";
 import payOS from "../utils/payos";
+import { rabbitMQService } from "../utils/rabbitmq";
+import { PaymentMessage } from "../handlers/payment.handler";
 
 export const orderController = new Elysia({ prefix: "/order" })
   .post("/create", async ({ body }) => {
@@ -21,6 +23,19 @@ export const orderController = new Elysia({ prefix: "/order" })
     try {
       const paymentLinkRes = await payOS.createPaymentLink(orderData);
 
+      // Publish order creation event
+      await rabbitMQService.publishToQueue("order.updates", {
+        type: "ORDER_CREATED",
+        orderCode: orderData.orderCode.toString(),
+        status: "PENDING_PAYMENT",
+        timestamp: new Date().toISOString(),
+        data: {
+          amount: orderData.amount,
+          description: orderData.description,
+          checkoutUrl: paymentLinkRes.checkoutUrl,
+        },
+      });
+
       return {
         error: 0,
         message: "Success",
@@ -37,6 +52,15 @@ export const orderController = new Elysia({ prefix: "/order" })
       };
     } catch (error) {
       console.log(error);
+
+      // Publish order creation failure
+      await rabbitMQService.publishToQueue("payment.failed", {
+        type: "ORDER_CREATION_FAILED",
+        orderCode: orderData.orderCode.toString(),
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      });
+
       return {
         error: -1,
         message: "fail",
@@ -79,6 +103,19 @@ export const orderController = new Elysia({ prefix: "/order" })
           data: null,
         };
       }
+
+      // Publish payment cancellation event
+      const paymentMessage: PaymentMessage = {
+        type: "PAYMENT_CANCELLED",
+        orderCode: orderId,
+        amount: 0, // We don't have amount info here
+        description: cancellationReason,
+        timestamp: new Date().toISOString(),
+        data: order,
+      };
+
+      await rabbitMQService.publishToQueue("payment.processing", paymentMessage);
+
       return {
         error: 0,
         message: "ok",

@@ -7,9 +7,12 @@
   },
   "dependencies": {
     "@payos/node": "^1.0.10",
+    "@types/amqplib": "^0.10.7",
+    "amqplib": "^0.10.8",
     "elysia": "latest"
   },
   "devDependencies": {
+    "@types/node": "^24.0.1",
     "bun-types": "latest"
   },
   "module": "src/index.js"
