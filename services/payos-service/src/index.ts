@@ -31,8 +31,11 @@ async function initializeRabbitMQ() {
 
 const app = new Elysia()
   .get("/", () => "Hello Elysia")
-  .use(paymentController)
-  .use(orderController)
+  .group("/protected", (app) => 
+    app
+      .use(paymentController)
+      .use(orderController)
+  )
   .listen(process.env.ELYSIA_PORT ?? 3000);
 
 // Initialize RabbitMQ
