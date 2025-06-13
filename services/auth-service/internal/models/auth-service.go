@@ -87,6 +87,7 @@ type AuditLog struct {
 type Claims struct {
 	jwt.RegisteredClaims
 	Id          string
+	UserID      string
 	Username    string
 	Email       string
 	Permissions []string

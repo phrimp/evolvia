@@ -16,7 +16,7 @@ func NewJWTService() *JWTService {
 	return &JWTService{}
 }
 
-func (jwt_s *JWTService) GenerateNewToken(permissions []string, username, email string) (string, error) {
+func (jwt_s *JWTService) GenerateNewToken(permissions []string, username, email, userID string) (string, error) {
 	claim_id := "C-" + utils.GenerateRandomStringWithLength(6)
 	claim := models.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -24,6 +24,7 @@ func (jwt_s *JWTService) GenerateNewToken(permissions []string, username, email 
 			Issuer:   "auth-service",
 		},
 		Id:          claim_id,
+		UserID:      userID,
 		Username:    username,
 		Email:       email,
 		Permissions: permissions,

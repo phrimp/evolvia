@@ -3,6 +3,7 @@ package handlers
 import (
 	"log"
 	"middleware/internal/services"
+	"regexp"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
@@ -52,7 +53,15 @@ func (h *MiddlewareHandler) ValidateToken(c fiber.Ctx) error {
 	//	}
 
 	// Set headers for downstream services
-	c.Set("X-User-ID", claims.Id)
+	re := regexp.MustCompile(`"([^"]*)"`)
+	matches := re.FindStringSubmatch(claims.UserID)
+
+	userID := ""
+	if len(matches) > 1 {
+		userID = matches[1]
+	}
+
+	c.Set("X-User-ID", userID)
 	c.Set("X-User-Email", claims.Email)
 	c.Set("X-User-Name", claims.Username)
 

@@ -21,9 +21,9 @@ func NewSessionService() *SessionService {
 	}
 }
 
-func (s *SessionService) NewSession(n_session *models.Session, permissions []string, userAgent, username, email string) (*models.Session, error) {
+func (s *SessionService) NewSession(n_session *models.Session, permissions []string, userAgent, username, email, userid string) (*models.Session, error) {
 	ctx := context.Background()
-	jwt, err := s.JWTService.GenerateNewToken(permissions, username, email)
+	jwt, err := s.JWTService.GenerateNewToken(permissions, username, email, userid)
 	if err != nil {
 		return nil, fmt.Errorf("error create new Session: %s", err)
 	}
