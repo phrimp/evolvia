@@ -2,14 +2,15 @@ FROM oven/bun
 
 WORKDIR /app
 
-COPY package.json .
-COPY bun.lock .
+# Copy package files from the service directory
+COPY services/payos-service/package.json .
+COPY services/payos-service/bun.lock* .
 
 RUN bun install --production
 
-COPY src src
-COPY tsconfig.json .
-# COPY public public
+# Copy source code and config from the service directory
+COPY services/payos-service/src src
+COPY services/payos-service/tsconfig.json .
 
 ENV NODE_ENV production
 CMD ["bun", "src/index.ts"]

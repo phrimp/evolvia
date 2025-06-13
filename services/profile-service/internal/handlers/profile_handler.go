@@ -57,8 +57,8 @@ func (h *ProfileHandler) RegisterRoutes(app *fiber.App) {
 
 	// Admin-only operations
 	protectedGroup.Get("/", h.ListProfiles, utils.PermissionRequired(middleware.ReadAllProfilePermission))
-	protectedGroup.Get("/search", h.SearchProfiles, utils.PermissionRequired(middleware.SearchProfilePermission))
-	protectedGroup.Get("/analytics", h.GetProfileAnalytics, utils.PermissionRequired(middleware.ReadProfileAnalyticsPermission))
+	protectedGroup.Get("/search", h.SearchProfiles)
+	protectedGroup.Get("/analytics", h.GetProfileAnalytics)
 }
 
 // PUBLIC ENDPOINTS - No authentication required

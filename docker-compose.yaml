@@ -587,6 +587,59 @@ services:
       - "traefik.http.routers.billing-management-service-secure.middlewares=auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
+  payos-service:
+    user: "0:0"
+    build:
+      context: .
+      dockerfile: services/payos-service/Dockerfile
+    container_name: payos-service
+    restart: unless-stopped
+    ports:
+      - "${PAYOS_SERVICE_PORT:-9250}:${PAYOS_SERVICE_PORT:-9250}"
+    environment:
+      # Server Configuration
+      - ELYSIA_PORT=${PAYOS_SERVICE_PORT:-9250}
+      - SERVICE_NAME=${PAYOS_SERVICE_NAME:-payos-service}
+      - SERVICE_ADDRESS=${PAYOS_SERVICE_ADDRESS:-payos-service}
+      - SERVICE_VERSION=${PAYOS_SERVICE_VERSION:-1.0.0}
+      - PORT=${PAYOS_SERVICE_PORT:-9250}
+      - HOSTNAME=${PAYOS_SERVICE_HOSTNAME:-payos}
+      - HOST=${HOST:-0.0.0.0}
+      
+      # PayOS Configuration
+      - PAYOS_CLIENT_ID=${PAYOS_CLIENT_ID}
+      - PAYOS_API_KEY=${PAYOS_API_KEY}
+      - PAYOS_CHECKSUM_KEY=${PAYOS_CHECKSUM_KEY}
+      
+      # RabbitMQ Configuration
+      - RABBITMQ_URI=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/}
+      - RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE:-payos.events}
+      - RABBITMQ_QUEUE=${RABBITMQ_QUEUE:-payos-service-events}
+    networks:
+      - consul-net
+      - traefik-net
+    volumes:
+      - ./logs/payos-service:/app/logs
+    depends_on:
+      - rabbitmq
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.payos-service.loadbalancer.server.port=${PAYOS_SERVICE_PORT:-9250}"
+      - "traefik.http.routers.payos-service-public.service=payos-service"
+      - "traefik.http.routers.payos-service-secure.service=payos-service"
+      # Public routes (for webhooks and payment callbacks)
+      - "traefik.http.routers.payos-service-public.rule=PathPrefix(`/public/payos`)"
+      # Protected routes (authentication required)
+      - "traefik.http.routers.payos-service-secure.rule=PathPrefix(`/protected/payos`)"
+      - "traefik.http.routers.payos-service-secure.middlewares=auth-middleware"
+      - "traefik.docker.network=microservices_template_traefik-net"
+
 networks:
   consul-net:
     driver: bridge
