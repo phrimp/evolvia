@@ -58,6 +58,15 @@ var default_permissions []*models.Permission = []*models.Permission{
 	{Name: "search:profile", Description: "Search Permission for Profile resources", Category: "profile", IsSystem: false},
 	{Name: "read:profile:analytics", Description: "Read Permission for Profile Analytics", Category: "profile", IsSystem: false},
 
+	// Object service specific permission
+
+	{Name: "read:object", Description: "Read Permission for Profile resources", Category: "profile", IsSystem: false},
+	{Name: "read:object:all", Description: "Read All Permission for Profile resources", Category: "profile", IsSystem: false},
+	{Name: "write:object", Description: "Write Permission for Profile resources", Category: "profile", IsSystem: false},
+	{Name: "update:object", Description: "Update Permission for Profile resources", Category: "profile", IsSystem: false},
+	{Name: "delete:object", Description: "Delete Permission for Profile resources", Category: "profile", IsSystem: false},
+	{Name: "search:object", Description: "Search Permission for Profile resources", Category: "profile", IsSystem: false},
+
 	// Billing dashboard and analytics permissions
 	{Name: "read:billing:dashboard", Description: "Read Permission for Billing Dashboard", Category: "billing", IsSystem: false},
 	{Name: "read:billing:analytics", Description: "Read Permission for Billing Analytics", Category: "billing", IsSystem: false},

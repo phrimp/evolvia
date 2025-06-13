@@ -88,6 +88,7 @@ func (h *AuthHandler) RegisterRoutes(app *fiber.App) {
 
 	authGroup.Post("/register", h.Register)
 	authGroup.Post("/login", h.Login)
+	authGroup.Post("/login/token", h.LoginWToken)
 	authGroup.Post("/internal/login", h.InternalLogin)
 	authGroup.Post("/logout", h.Logout)
 }
@@ -191,7 +192,7 @@ func (h *AuthHandler) InternalLogin(c fiber.Ctx) error {
 	}
 	session, err := h.sessionService.GetSession(c.Context(), login_data["username"].(string))
 	if err != nil {
-		session, err = h.sessionService.NewSession(&models.Session{}, permissions, c.Get("User-Agent"), login_data["username"].(string), login_data["email"].(string))
+		session, err = h.sessionService.NewSession(&models.Session{}, permissions, c.Get("User-Agent"), login_data["username"].(string), login_data["email"].(string), user_id.String())
 		if err != nil {
 			log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -252,7 +253,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	}
 	session, err := h.sessionService.GetSession(c.Context(), login_data["username"].(string))
 	if err != nil {
-		session, err = h.sessionService.NewSession(&models.Session{}, permissions, c.Get("User-Agent"), login_data["username"].(string), login_data["email"].(string))
+		session, err = h.sessionService.NewSession(&models.Session{}, permissions, c.Get("User-Agent"), login_data["username"].(string), login_data["email"].(string), user_id.String())
 		if err != nil {
 			log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -305,6 +306,77 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	//		},
 	//	})
 	return c.Redirect().To(h.FeAddress)
+}
+
+func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
+	var loginRequest struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	if err := c.Bind().Body(&loginRequest); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if loginRequest.Username == "" || loginRequest.Password == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Username and password are required",
+		})
+	}
+
+	login_data, err := h.userService.Login(c.Context(), loginRequest.Username, loginRequest.Password)
+	if err != nil {
+		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid credentials",
+		})
+	}
+	user_id := login_data["user_id"].(bson.ObjectID)
+
+	permissions, err := h.userRoleService.GetUserPermissions(c.Context(), user_id, "", bson.NilObjectID)
+	if err != nil {
+		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Service Error",
+		})
+	}
+	log.Println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$", user_id)
+	session, err := h.sessionService.GetSession(c.Context(), login_data["username"].(string))
+	if err != nil {
+		session, err = h.sessionService.NewSession(&models.Session{}, permissions, c.Get("User-Agent"), login_data["username"].(string), login_data["email"].(string), user_id.String())
+		if err != nil {
+			log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Service Error",
+			})
+		}
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		for i := range 5 {
+			err = h.gRPCSessionService.SendSession(ctx, session, "middleware")
+			if err != nil {
+				log.Printf("Error login with username: %s : %s -- Retry: %v", loginRequest.Username, err, i)
+			} else {
+				log.Printf("Successfully sent session to middleware")
+				return
+			}
+		}
+	}()
+
+	// Processing Basic Profile Data
+	basic_profile := login_data["basic_profile"].(models.UserProfile)
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "User Login Successfully",
+		"data": fiber.Map{
+			"token":        session.Token,
+			"basicProfile": basic_profile,
+		},
+	})
 }
 
 func (h *AuthHandler) Logout(c fiber.Ctx) error {

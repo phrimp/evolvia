@@ -1,449 +1,1516 @@
 {
 	"info": {
-		"_postman_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
-		"name": "Profile Service API",
-		"description": "Comprehensive API collection for Profile Service with all endpoints and test data",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "12345678"
+		"name": "Microservices API Collection",
+		"description": "Comprehensive testing collection for Billing and Profile services with proper authentication and permissions",
+		"version": "1.0.0",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"description": "Base URL for all services"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"description": "JWT token for authentication"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"description": "Current user ID"
+		},
+		{
+			"key": "plan_id",
+			"value": "",
+			"description": "Sample plan ID for testing"
+		},
+		{
+			"key": "subscription_id",
+			"value": "",
+			"description": "Sample subscription ID for testing"
+		},
+		{
+			"key": "profile_id",
+			"value": "",
+			"description": "Sample profile ID for testing"
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{auth_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set common headers for protected routes",
+					"if (pm.request.url.path.includes('protected')) {",
+					"    pm.request.headers.add({",
+					"        key: 'Authorization',",
+					"        value: 'Bearer ' + pm.collectionVariables.get('auth_token')",
+					"    });",
+					"}"
+				]
+			}
+		}
+	],
 	"item": [
 		{
-			"name": "Health Check",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "{{base_url}}/health",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"health"
-					]
-				},
-				"description": "Check if the profile service is healthy and running"
-			},
-			"response": []
-		},
-		{
-			"name": "Get Profile by ID",
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{auth_token}}",
-						"disabled": true
-					}
-				],
-				"url": {
-					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"protected",
-						"profiles",
-						"{{profile_id}}"
-					]
-				},
-				"description": "Retrieve a specific profile by its MongoDB ObjectID"
-			},
-			"response": []
-		},
-		{
-			"name": "Get Profile by User ID",
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{auth_token}}",
-						"disabled": true
-					}
-				],
-				"url": {
-					"raw": "{{base_url}}/protected/profiles/user/{{user_id}}",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"protected",
-						"profiles",
-						"user",
-						"{{user_id}}"
-					]
-				},
-				"description": "Retrieve a profile by the associated user ID"
-			},
-			"response": []
-		},
-		{
-			"name": "Update Profile",
-			"request": {
-				"method": "PUT",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{auth_token}}",
-						"disabled": true
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"profile\": {\n    \"personalInfo\": {\n      \"firstName\": \"John\",\n      \"lastName\": \"Doe\",\n      \"displayName\": \"johndoe\",\n      \"dateOfBirth\": 946684800,\n      \"gender\": \"male\",\n      \"biography\": \"Software engineer passionate about technology and innovation.\",\n      \"interests\": [\"programming\", \"AI\", \"machine learning\"]\n    },\n    \"contactInfo\": {\n      \"email\": \"john.doe@example.com\",\n      \"phone\": \"+1234567890\",\n      \"alternativeEmail\": \"john.doe.alt@example.com\",\n      \"address\": {\n        \"street\": \"123 Tech Street\",\n        \"city\": \"San Francisco\",\n        \"state\": \"CA\",\n        \"country\": \"USA\",\n        \"postalCode\": \"94105\"\n      },\n      \"socialMediaHandles\": {\n        \"linkedin\": \"johndoe\",\n        \"twitter\": \"@johndoe\",\n        \"github\": \"johndoe\"\n      }\n    },\n    \"educationalBackground\": [\n      {\n        \"institution\": \"Stanford University\",\n        \"degree\": \"Bachelor of Science\",\n        \"field\": \"Computer Science\",\n        \"startDate\": 1567296000,\n        \"endDate\": 1654041600,\n        \"inProgress\": false,\n        \"description\": \"Focused on artificial intelligence and machine learning\"\n      },\n      {\n        \"institution\": \"MIT\",\n        \"degree\": \"Master of Science\",\n        \"field\": \"Computer Science\",\n        \"startDate\": 1654041600,\n        \"endDate\": 0,\n        \"inProgress\": true,\n        \"description\": \"Currently pursuing advanced studies in AI\"\n      }\n    ],\n    \"privacySettings\": {\n      \"profileVisibility\": \"public\",\n      \"contactInfoVisibility\": \"private\",\n      \"educationVisibility\": \"public\",\n      \"activityVisibility\": \"connections\"\n    }\n  }\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+			"name": "Authentication Service",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/health",
+							"host": [ "{{base_url}}" ],
+							"path": [ "auth", "health" ]
 						}
 					}
 				},
-				"url": {
-					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"protected",
-						"profiles",
-						"{{profile_id}}"
-					]
-				},
-				"description": "Update an existing profile with new information"
-			},
-			"response": []
-		},
-		{
-			"name": "Delete Profile",
-			"request": {
-				"method": "DELETE",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{auth_token}}",
-						"disabled": true
-					}
-				],
-				"url": {
-					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"protected",
-						"profiles",
-						"{{profile_id}}"
-					]
-				},
-				"description": "Delete a profile by its ID"
-			},
-			"response": []
-		},
-		{
-			"name": "List Profiles",
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{auth_token}}",
-						"disabled": true
-					}
-				],
-				"url": {
-					"raw": "{{base_url}}/protected/profiles?page=1&limit=20",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"protected",
-						"profiles"
-					],
-					"query": [
+				{
+					"name": "Login",
+					"event": [
 						{
-							"key": "page",
-							"value": "1",
-							"description": "Page number (default: 1)"
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    if (response.data && response.data.token) {",
+									"        pm.collectionVariables.set('auth_token', response.data.token);",
+									"        pm.collectionVariables.set('user_id', response.data.user.id);",
+									"        console.log('Token set:', response.data.token);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": [ "{{base_url}}" ],
+							"path": [ "auth", "login" ]
+						}
+					}
+				},
+				{
+					"name": "Validate Token",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/middleware/auth/validate",
+							"host": [ "{{base_url}}" ],
+							"path": [ "middleware", "auth", "validate" ]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Billing Service - Public Routes",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/billing/health",
+							"host": [ "{{base_url}}" ],
+							"path": [ "billing", "health" ]
+						}
+					}
+				},
+				{
+					"name": "List Public Plans",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    if (response.data && response.data.plans && response.data.plans.length > 0) {",
+									"        pm.collectionVariables.set('plan_id', response.data.plans[0].id);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/billing/public/plans?page=1&limit=10",
+							"host": [ "{{base_url}}" ],
+							"path": [ "billing", "public", "plans" ],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "List Active Plans",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/billing/public/plans/active",
+							"host": [ "{{base_url}}" ],
+							"path": [ "billing", "public", "plans", "active" ]
+						}
+					}
+				},
+				{
+					"name": "Get Plans by Type",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/billing/public/plans/types/premium",
+							"host": [ "{{base_url}}" ],
+							"path": [ "billing", "public", "plans", "types", "premium" ]
+						}
+					}
+				},
+				{
+					"name": "Get Public Plan Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/billing/public/plans/{{plan_id}}",
+							"host": [ "{{base_url}}" ],
+							"path": [ "billing", "public", "plans", "{{plan_id}}" ]
+						}
+					}
+				},
+				{
+					"name": "Get Public Plan Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/billing/public/plans/stats/public",
+							"host": [ "{{base_url}}" ],
+							"path": [ "billing", "public", "plans", "stats", "public" ]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Billing Service - Protected Routes",
+			"item": [
+				{
+					"name": "Plans Management",
+					"item": [
+						{
+							"name": "Create Plan (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Test Premium Plan\",\n    \"description\": \"A test premium plan for development\",\n    \"planType\": \"premium\",\n    \"price\": 29.99,\n    \"currency\": \"USD\",\n    \"duration\": 30,\n    \"features\": [\"Feature 1\", \"Feature 2\", \"Feature 3\"],\n    \"isActive\": true\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/billing/protected/plans",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "plans" ]
+								}
+							}
 						},
 						{
-							"key": "limit",
-							"value": "20",
-							"description": "Number of profiles per page (default: 20, max: 100)"
-						}
-					]
-				},
-				"description": "Get a paginated list of all profiles"
-			},
-			"response": []
-		},
-		{
-			"name": "Search Profiles",
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{auth_token}}",
-						"disabled": true
-					}
-				],
-				"url": {
-					"raw": "{{base_url}}/protected/profiles/search?name=John&institution=Stanford&field=Computer Science&country=USA&page=1&pageSize=20",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"protected",
-						"profiles",
-						"search"
-					],
-					"query": [
-						{
-							"key": "name",
-							"value": "John",
-							"description": "Search by first name, last name, or display name"
+							"name": "List All Plans (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/plans?page=1&limit=20&activeOnly=false",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "plans" ],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										},
+										{
+											"key": "activeOnly",
+											"value": "false"
+										}
+									]
+								}
+							}
 						},
 						{
-							"key": "institution",
-							"value": "Stanford",
-							"description": "Search by educational institution"
+							"name": "Get Plan (Admin View)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/plans/{{plan_id}}/admin",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "plans", "{{plan_id}}", "admin" ]
+								}
+							}
 						},
 						{
-							"key": "field",
-							"value": "Computer Science",
-							"description": "Search by field of study"
+							"name": "Update Plan",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Updated Premium Plan\",\n    \"description\": \"Updated description\",\n    \"price\": 39.99\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/billing/protected/plans/{{plan_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "plans", "{{plan_id}}" ]
+								}
+							}
 						},
 						{
-							"key": "country",
-							"value": "USA",
-							"description": "Search by country"
+							"name": "Activate Plan",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PATCH",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/plans/{{plan_id}}/activate",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "plans", "{{plan_id}}", "activate" ]
+								}
+							}
 						},
 						{
-							"key": "page",
-							"value": "1",
-							"description": "Page number (default: 1)"
+							"name": "Deactivate Plan",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PATCH",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/plans/{{plan_id}}/deactivate",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "plans", "{{plan_id}}", "deactivate" ]
+								}
+							}
 						},
 						{
-							"key": "pageSize",
-							"value": "20",
-							"description": "Number of results per page (default: 20, max: 100)"
+							"name": "Delete Plan",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/plans/{{plan_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "plans", "{{plan_id}}" ]
+								}
+							}
+						},
+						{
+							"name": "Get Plan Stats (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/plans/stats",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "plans", "stats" ]
+								}
+							}
 						}
 					]
 				},
-				"description": "Search profiles by various criteria including name, institution, field, and country"
-			},
-			"response": []
-		},
-		{
-			"name": "Get Profile Completeness",
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{auth_token}}",
-						"disabled": true
-					}
-				],
-				"url": {
-					"raw": "{{base_url}}/protected/profiles/{{profile_id}}/completeness",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"protected",
-						"profiles",
-						"{{profile_id}}",
-						"completeness"
+				{
+					"name": "Subscriptions Management",
+					"item": [
+						{
+							"name": "Create Subscription",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 201) {",
+											"    const response = pm.response.json();",
+											"    if (response.data && response.data.subscription) {",
+											"        pm.collectionVariables.set('subscription_id', response.data.subscription.id);",
+											"    }",
+											"}"
+										]
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"userId\": \"{{user_id}}\",\n    \"planId\": \"{{plan_id}}\",\n    \"paymentMethod\": \"credit_card\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions" ]
+								}
+							}
+						},
+						{
+							"name": "Get My Subscription",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/user/{{user_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "user", "{{user_id}}" ]
+								}
+							}
+						},
+						{
+							"name": "Get Subscription Details",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/{{subscription_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "{{subscription_id}}" ]
+								}
+							}
+						},
+						{
+							"name": "Update Subscription",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"planId\": \"{{plan_id}}\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/{{subscription_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "{{subscription_id}}" ]
+								}
+							}
+						},
+						{
+							"name": "Renew Subscription (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PATCH",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/{{subscription_id}}/renew",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "{{subscription_id}}", "renew" ]
+								}
+							}
+						},
+						{
+							"name": "Suspend Subscription (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"reason\": \"Administrative suspension for testing\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/{{subscription_id}}/suspend",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "{{subscription_id}}", "suspend" ]
+								}
+							}
+						},
+						{
+							"name": "Reactivate Subscription (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PATCH",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/{{subscription_id}}/reactivate",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "{{subscription_id}}", "reactivate" ]
+								}
+							}
+						},
+						{
+							"name": "Cancel Subscription",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"reason\": \"User requested cancellation\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/{{subscription_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "{{subscription_id}}" ]
+								}
+							}
+						},
+						{
+							"name": "Search Subscriptions (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/search?page=1&pageSize=20&status=active",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "search" ],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "pageSize",
+											"value": "20"
+										},
+										{
+											"key": "status",
+											"value": "active"
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Subscription with Plan (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/{{subscription_id}}/with-plan",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "{{subscription_id}}", "with-plan" ]
+								}
+							}
+						},
+						{
+							"name": "Get Billing Dashboard (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/dashboard",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "dashboard" ]
+								}
+							}
+						},
+						{
+							"name": "Get Expiring Subscriptions (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/expiring?daysAhead=7",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "expiring" ],
+									"query": [
+										{
+											"key": "daysAhead",
+											"value": "7"
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Process Trial Expirations (System)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/process-trial-expirations",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "process-trial-expirations" ]
+								}
+							}
+						}
 					]
-				},
-				"description": "Get the completeness percentage and recommendations for a profile"
-			},
-			"response": []
+				}
+			]
 		},
 		{
-			"name": "Update Profile - Personal Info Only",
-			"request": {
-				"method": "PUT",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{auth_token}}",
-						"disabled": true
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"profile\": {\n    \"personalInfo\": {\n      \"firstName\": \"Jane\",\n      \"lastName\": \"Smith\",\n      \"displayName\": \"janesmith\",\n      \"dateOfBirth\": 915148800,\n      \"gender\": \"female\",\n      \"biography\": \"Data scientist with expertise in machine learning and analytics.\"\n    }\n  }\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+			"name": "Profile Service - Public Routes",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/profile/health",
+							"host": [ "{{base_url}}" ],
+							"path": [ "profile", "health" ]
 						}
 					}
 				},
-				"url": {
-					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"protected",
-						"profiles",
-						"{{profile_id}}"
-					]
-				},
-				"description": "Update only the personal information of a profile"
-			},
-			"response": []
-		},
-		{
-			"name": "Update Profile - Contact Info Only",
-			"request": {
-				"method": "PUT",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{auth_token}}",
-						"disabled": true
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"profile\": {\n    \"contactInfo\": {\n      \"email\": \"jane.smith@example.com\",\n      \"phone\": \"+1987654321\",\n      \"address\": {\n        \"street\": \"456 Data Lane\",\n        \"city\": \"New York\",\n        \"state\": \"NY\",\n        \"country\": \"USA\",\n        \"postalCode\": \"10001\"\n      }\n    }\n  }\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+				{
+					"name": "Search Public Profiles",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/profile/public/profiles/search?name=&institution=&field=&country=&page=1&pageSize=20",
+							"host": [ "{{base_url}}" ],
+							"path": [ "profile", "public", "profiles", "search" ],
+							"query": [
+								{
+									"key": "name",
+									"value": ""
+								},
+								{
+									"key": "institution",
+									"value": ""
+								},
+								{
+									"key": "field",
+									"value": ""
+								},
+								{
+									"key": "country",
+									"value": ""
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "20"
+								}
+							]
 						}
 					}
 				},
-				"url": {
-					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"protected",
-						"profiles",
-						"{{profile_id}}"
-					]
-				},
-				"description": "Update only the contact information of a profile"
-			},
-			"response": []
-		},
-		{
-			"name": "Update Profile - Education Only",
-			"request": {
-				"method": "PUT",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{auth_token}}",
-						"disabled": true
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"profile\": {\n    \"educationalBackground\": [\n      {\n        \"institution\": \"Harvard University\",\n        \"degree\": \"PhD\",\n        \"field\": \"Data Science\",\n        \"startDate\": 1630454400,\n        \"endDate\": 0,\n        \"inProgress\": true,\n        \"description\": \"Research focus on machine learning algorithms\"\n      }\n    ]\n  }\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+				{
+					"name": "Get Public Profile by User ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/profile/public/profiles/user/{{user_id}}",
+							"host": [ "{{base_url}}" ],
+							"path": [ "profile", "public", "profiles", "user", "{{user_id}}" ]
 						}
 					}
 				},
-				"url": {
-					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"protected",
-						"profiles",
-						"{{profile_id}}"
-					]
-				},
-				"description": "Update only the educational background of a profile"
-			},
-			"response": []
+				{
+					"name": "Get Public Profile by Profile ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/profile/public/profiles/{{profile_id}}/public",
+							"host": [ "{{base_url}}" ],
+							"path": [ "profile", "public", "profiles", "{{profile_id}}", "public" ]
+						}
+					}
+				}
+			]
 		},
 		{
-			"name": "Update Profile - Privacy Settings Only",
-			"request": {
-				"method": "PUT",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{auth_token}}",
-						"disabled": true
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"profile\": {\n    \"privacySettings\": {\n      \"profileVisibility\": \"private\",\n      \"contactInfoVisibility\": \"private\",\n      \"educationVisibility\": \"connections\",\n      \"activityVisibility\": \"private\"\n    }\n  }\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+			"name": "Profile Service - Protected Routes",
+			"item": [
+				{
+					"name": "Self-Service",
+					"item": [
+						{
+							"name": "Get My Profile",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 200) {",
+											"    const response = pm.response.json();",
+											"    if (response.data && response.data.profile) {",
+											"        pm.collectionVariables.set('profile_id', response.data.profile.id);",
+											"    }",
+											"}"
+										]
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/me",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "me" ]
+								}
+							}
+						},
+						{
+							"name": "Update My Profile",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"profile\": {\n        \"name\": \"Updated Test User\",\n        \"bio\": \"Updated bio for testing\",\n        \"institution\": \"Test University\",\n        \"field\": \"Computer Science\",\n        \"country\": \"United States\",\n        \"publicEmail\": \"public@example.com\",\n        \"socialLinks\": {\n            \"linkedin\": \"https://linkedin.com/in/testuser\",\n            \"twitter\": \"@testuser\"\n        }\n    }\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/me",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "me" ]
+								}
+							}
+						},
+						{
+							"name": "Get My Profile Completeness",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/me/completeness",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "me", "completeness" ]
+								}
+							}
+						},
+						{
+							"name": "Delete My Profile",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/me",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "me" ]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Profile Management",
+					"item": [
+						{
+							"name": "Get Profile by User ID (Owner/Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/user/{{user_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "user", "{{user_id}}" ]
+								}
+							}
+						},
+						{
+							"name": "Update Profile by User ID (Owner/Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"profile\": {\n        \"name\": \"Admin Updated Profile\",\n        \"bio\": \"Updated by admin\",\n        \"institution\": \"Admin University\"\n    }\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/user/{{user_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "user", "{{user_id}}" ]
+								}
+							}
+						},
+						{
+							"name": "Get Profile by ID",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/{{profile_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "{{profile_id}}" ]
+								}
+							}
+						},
+						{
+							"name": "Update Profile by ID",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"profile\": {\n        \"name\": \"Profile Updated via ID\",\n        \"bio\": \"Updated using profile ID\"\n    }\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/{{profile_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "{{profile_id}}" ]
+								}
+							}
+						},
+						{
+							"name": "Get Profile Completeness by ID",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/{{profile_id}}/completeness",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "{{profile_id}}", "completeness" ]
+								}
+							}
+						},
+						{
+							"name": "Delete Profile by ID",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/{{profile_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "{{profile_id}}" ]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Admin Operations",
+					"item": [
+						{
+							"name": "List All Profiles (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles?page=1&limit=20",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles" ],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Search Profiles (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/search?name=&institution=&field=&country=&page=1&pageSize=20",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "search" ],
+									"query": [
+										{
+											"key": "name",
+											"value": ""
+										},
+										{
+											"key": "institution",
+											"value": ""
+										},
+										{
+											"key": "field",
+											"value": ""
+										},
+										{
+											"key": "country",
+											"value": ""
+										},
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "pageSize",
+											"value": "20"
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Profile Analytics (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/analytics",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "analytics" ]
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Permission Testing",
+			"item": [
+				{
+					"name": "Test Unauthorized Access",
+					"item": [
+						{
+							"name": "Access Admin Plans Without Token",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/plans",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "plans" ]
+								}
+							}
+						},
+						{
+							"name": "Access Admin Plans With Invalid Token",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer invalid_token_here"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/plans",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "plans" ]
+								}
+							}
+						},
+						{
+							"name": "Try to Access Another User's Profile",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/user/different_user_id_here",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "user", "different_user_id_here" ]
+								}
+							}
+						},
+						{
+							"name": "Try to Create Plan Without Admin Permission",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Unauthorized Plan\",\n    \"description\": \"This should fail\",\n    \"planType\": \"premium\",\n    \"price\": 99.99\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/billing/protected/plans",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "plans" ]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Test User Permissions",
+					"item": [
+						{
+							"name": "User Can Access Own Subscription",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/billing/protected/subscriptions/user/{{user_id}}",
+									"host": [ "{{base_url}}" ],
+									"path": [ "billing", "protected", "subscriptions", "user", "{{user_id}}" ]
+								}
+							}
+						},
+						{
+							"name": "User Can Access Own Profile",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/me",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "me" ]
+								}
+							}
+						},
+						{
+							"name": "User Can Update Own Profile",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{auth_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"profile\": {\n        \"bio\": \"User updated their own bio\"\n    }\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/profile/protected/profiles/me",
+									"host": [ "{{base_url}}" ],
+									"path": [ "profile", "protected", "profiles", "me" ]
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Environment Setup",
+			"item": [
+				{
+					"name": "Set Test Variables",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Set common test variables",
+									"pm.collectionVariables.set('base_url', 'http://localhost:8080');",
+									"pm.collectionVariables.set('test_user_email', 'test@example.com');",
+									"pm.collectionVariables.set('test_user_password', 'password123');",
+									"",
+									"console.log('Test variables set:');",
+									"console.log('base_url:', pm.collectionVariables.get('base_url'));",
+									"console.log('Ready for testing!');"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [ "{{base_url}}" ],
+							"path": [ "health" ]
 						}
 					}
 				},
-				"url": {
-					"raw": "{{base_url}}/protected/profiles/{{profile_id}}",
-					"host": [
-						"{{base_url}}"
+				{
+					"name": "Clear All Variables",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Clear all collection variables",
+									"pm.collectionVariables.clear();",
+									"console.log('All collection variables cleared');"
+								]
+							}
+						}
 					],
-					"path": [
-						"protected",
-						"profiles",
-						"{{profile_id}}"
-					]
-				},
-				"description": "Update only the privacy settings of a profile"
-			},
-			"response": []
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [ "{{base_url}}" ],
+							"path": [ "health" ]
+						}
+					}
+				}
+			]
 		}
 	],
 	"event": [
@@ -452,8 +1519,19 @@
 			"script": {
 				"type": "text/javascript",
 				"exec": [
-					"// Pre-request script for the entire collection",
-					"// Add any common setup logic here"
+					"// Global pre-request script",
+					"console.log('Request to:', pm.request.url);",
+					"",
+					"// Auto-add auth header for protected routes",
+					"if (pm.request.url.path && pm.request.url.path.includes('protected')) {",
+					"    const token = pm.collectionVariables.get('auth_token');",
+					"    if (token && !pm.request.headers.has('Authorization')) {",
+					"        pm.request.headers.add({",
+					"            key: 'Authorization',",
+					"            value: 'Bearer ' + token",
+					"        });",
+					"    }",
+					"}"
 				]
 			}
 		},
@@ -462,42 +1540,31 @@
 			"script": {
 				"type": "text/javascript",
 				"exec": [
-					"// Common test script for all requests",
-					"pm.test(\"Response status code is not 500\", function () {",
-					"    pm.expect(pm.response.code).to.not.equal(500);",
+					"// Global test script",
+					"console.log('Response status:', pm.response.code);",
+					"",
+					"// Log response for debugging",
+					"if (pm.response.code >= 400) {",
+					"    console.log('Error response:', pm.response.text());",
+					"}",
+					"",
+					"// Common tests",
+					"pm.test('Response time is less than 5000ms', function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(5000);",
 					"});",
 					"",
-					"pm.test(\"Response time is less than 5000ms\", function () {",
-					"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+					"pm.test('Response has valid JSON format', function () {",
+					"    try {",
+					"        pm.response.json();",
+					"    } catch (e) {",
+					"        // Only fail if we expect JSON (not for health checks returning plain text)",
+					"        if (pm.response.headers.get('Content-Type') && pm.response.headers.get('Content-Type').includes('application/json')) {",
+					"            pm.expect.fail('Response is not valid JSON');",
+					"        }",
+					"    }",
 					"});"
 				]
 			}
-		}
-	],
-	"variable": [
-		{
-			"key": "base_url",
-			"value": "http://localhost:9200",
-			"type": "string",
-			"description": "Base URL for the Profile Service"
-		},
-		{
-			"key": "profile_id",
-			"value": "507f1f77bcf86cd799439011",
-			"type": "string",
-			"description": "Sample MongoDB ObjectID for testing"
-		},
-		{
-			"key": "user_id",
-			"value": "user123",
-			"type": "string",
-			"description": "Sample User ID for testing"
-		},
-		{
-			"key": "auth_token",
-			"value": "your_jwt_token_here",
-			"type": "string",
-			"description": "JWT token for authentication (currently disabled in requests)"
 		}
 	]
 }
