@@ -116,7 +116,12 @@ func main() {
 	_grpcServer := setupGRPCServer()
 	app := fiber.New(fiber.Config{})
 
-	app.Use(cors.New())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowCredentials: true,
+	}))
 
 	app.Use(func(c fiber.Ctx) error {
 		if !slices.Contains(ignore_log_path, c.Path()) {
