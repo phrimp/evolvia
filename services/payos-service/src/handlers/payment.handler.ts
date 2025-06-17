@@ -8,6 +8,22 @@ export interface PaymentMessage {
   description: string;
   timestamp: string;
   data?: any;
+  // Enhanced payment data
+  paymentDetails?: {
+    id?: string;
+    bin?: string;
+    checkoutUrl?: string;
+    accountNumber?: string;
+    accountName?: string;
+    qrCode?: string;
+    amountPaid?: number;
+    amountRemaining?: number;
+    status?: string;
+    createdAt?: string;
+    canceledAt?: string;
+    cancellationReason?: string;
+    transactions?: any[];
+  };
 }
 
 export interface OrderMessage {
@@ -46,19 +62,32 @@ export class PaymentMessageHandler {
   }
 
   static async handlePaymentSuccess(message: PaymentMessage): Promise<void> {
-    // Send notification
+    // Enhanced notification with all payment data
     await rabbitMQService.publishToQueue('payment.notifications', {
       type: 'PAYMENT_SUCCESS_NOTIFICATION',
       orderCode: message.orderCode,
       amount: message.amount,
-      timestamp: new Date().toISOString()
+      amountPaid: message.paymentDetails?.amountPaid || message.amount,
+      paymentId: message.paymentDetails?.id,
+      accountName: message.paymentDetails?.accountName,
+      timestamp: new Date().toISOString(),
+      fullPaymentData: message.paymentDetails
     });
 
-    // Update order status
+    // Enhanced order update with complete payment info
     await rabbitMQService.publishToQueue('order.updates', {
       type: 'ORDER_PAYMENT_COMPLETED',
       orderCode: message.orderCode,
       status: 'PAID',
+      paymentDetails: message.paymentDetails,
+      timestamp: new Date().toISOString()
+    });
+
+    // Publish to public events with all data
+    await rabbitMQService.publishToQueue('public.payment.events', {
+      eventType: 'PAYMENT_COMPLETED',
+      orderCode: message.orderCode,
+      paymentData: message.paymentDetails,
       timestamp: new Date().toISOString()
     });
   }
@@ -82,10 +111,28 @@ export class PaymentMessageHandler {
   }
 
   static async handlePaymentCancelled(message: PaymentMessage): Promise<void> {
-    // Send notification
+    // Enhanced cancellation notification
     await rabbitMQService.publishToQueue('payment.notifications', {
       type: 'PAYMENT_CANCELLED_NOTIFICATION',
       orderCode: message.orderCode,
+      amount: message.amount,
+      amountRemaining: message.paymentDetails?.amountRemaining,
+      canceledAt: message.paymentDetails?.canceledAt,
+      cancellationReason: message.paymentDetails?.cancellationReason,
+      timestamp: new Date().toISOString(),
+      fullPaymentData: message.paymentDetails
+    });
+
+    // Update order with cancellation details
+    await rabbitMQService.publishToQueue('order.updates', {
+      type: 'ORDER_PAYMENT_CANCELLED',
+      orderCode: message.orderCode,
+      status: 'CANCELLED',
+      cancellationDetails: {
+        canceledAt: message.paymentDetails?.canceledAt,
+        reason: message.paymentDetails?.cancellationReason
+      },
+      paymentDetails: message.paymentDetails,
       timestamp: new Date().toISOString()
     });
   }

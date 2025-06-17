@@ -1,4 +1,4 @@
-import { Elysia, t } from "elysia";
+import { Elysia } from "elysia";
 import payOS from "../utils/payos";
 import { rabbitMQService } from "../utils/rabbitmq";
 import { PaymentMessage } from "../handlers/payment.handler";

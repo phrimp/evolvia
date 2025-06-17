@@ -3,6 +3,7 @@ import { paymentController } from "./controllers/payment.controller";
 import { orderController } from "./controllers/order.controller";
 import { rabbitMQService } from "./utils/rabbitmq";
 import { PaymentMessageHandler } from "./handlers/payment.handler";
+import cors from "@elysiajs/cors";
 
 // Debug environment variables
 console.log("🔍 Environment check:");
@@ -36,13 +37,14 @@ async function initializeRabbitMQ() {
 }
 
 const app = new Elysia()
+  .use(cors())
   .get("/", () => "Hello Elysia")
   .group("/protected", (app) => 
     app
       .use(paymentController)
       .use(orderController)
   )
-  .listen(process.env.ELYSIA_PORT ?? 3000);
+  .listen(process.env.PAYOS_SERVICE_PORT ?? 3000);
 
 // Initialize RabbitMQ
 initializeRabbitMQ();
