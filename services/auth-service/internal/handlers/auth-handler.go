@@ -282,6 +282,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 		Name:     "token",
 		Value:    session.Token,
 		Path:     "/",
+		Secure:   true,
 		Expires:  time.Now().Add(24 * time.Hour),
 		SameSite: "None",          // Required for cross-site cookies
 		Domain:   ".phrimp.io.vn", // Parent domain with leading dot
@@ -293,6 +294,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 		Name:     "user",
 		Value:    string(userDataJSON),
 		Path:     "/",
+		Secure:   true,
 		Expires:  time.Now().Add(24 * time.Hour),
 		SameSite: "None",          // Required for cross-site cookies
 		Domain:   ".phrimp.io.vn", // Parent domain with leading dot
