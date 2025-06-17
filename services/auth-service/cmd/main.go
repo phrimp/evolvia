@@ -117,9 +117,22 @@ func main() {
 	app := fiber.New(fiber.Config{})
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "https://evolvia.phrimp.io.vn"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowOrigins: []string{"http://localhost:3000", "https://evolvia.phrimp.io.vn"},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{
+			"Origin",
+			"Content-Type",
+			"Accept",
+			"Authorization",
+			"X-Requested-With",
+			"X-HTTP-Method-Override",
+			"X-API-Key",
+			"X-Auth-Token",
+			"X-CSRF-Token",
+			"Cache-Control",
+			"Accept-Language",
+			"Accept-Encoding",
+		},
 		AllowCredentials: true,
 	}))
 
