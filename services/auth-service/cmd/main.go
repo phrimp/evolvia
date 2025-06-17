@@ -27,6 +27,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+
+    "github.com/gofiber/fiber/v3/middleware/cors"
 )
 
 var ignore_log_path []string = []string{"/health"}
@@ -114,11 +116,7 @@ func main() {
 	_grpcServer := setupGRPCServer()
 	app := fiber.New(fiber.Config{})
 
-	app.Use(cors.New(cors.Config{
-        AllowOrigins: "*",
-        AllowMethods: "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
-        AllowHeaders: "*",
-    }))
+	app.Use(cors.New())
 
 	app.Use(func(c fiber.Ctx) error {
 		if !slices.Contains(ignore_log_path, c.Path()) {
