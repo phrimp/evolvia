@@ -27,6 +27,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/gofiber/fiber/v3/middleware/cors"
 )
 
 var ignore_log_path []string = []string{"/health"}
@@ -113,6 +115,27 @@ func main() {
 
 	_grpcServer := setupGRPCServer()
 	app := fiber.New(fiber.Config{})
+
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: []string{"http://localhost:3000", "https://evolvia.phrimp.io.vn"},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{
+			"Origin",
+			"Content-Type",
+			"Accept",
+			"Authorization",
+			"X-Requested-With",
+			"X-HTTP-Method-Override",
+			"X-API-Key",
+			"X-Auth-Token",
+			"X-CSRF-Token",
+			"Cache-Control",
+			"Accept-Language",
+			"Accept-Encoding",
+		},
+		AllowCredentials: true,
+	}))
+
 	app.Use(func(c fiber.Ctx) error {
 		if !slices.Contains(ignore_log_path, c.Path()) {
 			log.Printf("Received request for path: %s", c.Path())
