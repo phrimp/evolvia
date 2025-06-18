@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
 	grpcServer "auth_service/internal/grpc"
@@ -278,25 +279,41 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	// Processing Basic Profile Data
 	basic_profile := login_data["basic_profile"].(models.UserProfile)
 
-	c.Cookie(&fiber.Cookie{
-		Name:     "token",
-		Value:    session.Token,
-		Path:     "/",
-		Expires:  time.Now().Add(24 * time.Hour),
-		SameSite: "None",          // Required for cross-site cookies
-		Domain:   ".phrimp.io.vn", // Parent domain with leading dot
-	})
+	isProduction := strings.HasPrefix(h.FeAddress, "https://")
+
+	token := &fiber.Cookie{
+		Name:    "token",
+		Value:   session.Token,
+		Path:    "/",
+		Expires: time.Now().Add(24 * time.Hour),
+		Domain:  ".phrimp.io.vn",
+	}
 
 	userDataJSON, _ := json.Marshal(basic_profile)
 
-	c.Cookie(&fiber.Cookie{
-		Name:     "user",
-		Value:    string(userDataJSON),
-		Path:     "/",
-		Expires:  time.Now().Add(24 * time.Hour),
-		SameSite: "None",          // Required for cross-site cookies
-		Domain:   ".phrimp.io.vn", // Parent domain with leading dot
-	})
+	userCookie := &fiber.Cookie{
+		Name:    "user",
+		Value:   string(userDataJSON),
+		Path:    "/",
+		Expires: time.Now().Add(24 * time.Hour),
+		Domain:  ".phrimp.io.vn",
+	}
+
+	if isProduction {
+		token.SameSite = "None"
+		token.Secure = true
+		userCookie.SameSite = "None"
+		userCookie.Secure = true
+
+	} else {
+		token.SameSite = "Lax"
+		token.Secure = false
+		userCookie.SameSite = "Lax"
+		userCookie.Secure = false
+	}
+
+	c.Cookie(token)
+	c.Cookie(userCookie)
 
 	//	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 	//		"message": "User Login Successfully",
