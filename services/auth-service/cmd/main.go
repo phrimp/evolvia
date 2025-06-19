@@ -136,6 +136,27 @@ func main() {
 		AllowCredentials: true,
 	}))
 
+	// Add health check endpoint
+	app.Get("/health", func(c fiber.Ctx) error {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"status":  "healthy",
+			"service": "auth-service",
+		})
+	})
+
+	// Add root endpoint
+	app.Get("/", func(c fiber.Ctx) error {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message": "Auth Service API",
+			"status":  "healthy",
+		})
+	})
+
+	// Handle all OPTIONS requests
+	app.Options("/*", func(c fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusOK)
+	})
+
 	app.Use(func(c fiber.Ctx) error {
 		if !slices.Contains(ignore_log_path, c.Path()) {
 			log.Printf("Received request for path: %s", c.Path())
