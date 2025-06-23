@@ -117,29 +117,9 @@ func main() {
 	app := fiber.New(fiber.Config{})
 
 	app.Use(cors.New(cors.Config{
-		AllowOriginsFunc: func(origin string) bool {
-			allowed := []string{
-				"https://evolvia.phrimp.io.vn",
-				"http://localhost:3000",
-			}
-			return slices.Contains(allowed, origin)
-		},
-		AllowCredentials: true,
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{
-			"Origin",
-			"Content-Type",
-			"Accept",
-			"Authorization",
-			"X-Requested-With",
-			"X-HTTP-Method-Override",
-			"X-API-Key",
-			"X-Auth-Token",
-			"X-CSRF-Token",
-			"Cache-Control",
-			"Accept-Language",
-			"Accept-Encoding",
-		},
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{"*"},
 	}))
 
 	// Add health check endpoint
