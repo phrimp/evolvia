@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/cors"
 )
 
 func setupLogging() (*os.File, error) {
@@ -56,12 +55,6 @@ func main() {
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 	})
-
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"*"},
-		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{"*"},
-	}))
 
 	app.Get("/health", func(c fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).SendString("Billing Management Service is healthy")

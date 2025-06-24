@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/cors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -54,12 +53,6 @@ func main() {
 	defer logFile.Close()
 	grpcServer := setupGRPCServer()
 	app := fiber.New(fiber.Config{})
-
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"*"},
-		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{"*"},
-	}))
 
 	// Service Init
 	jwtService := services.NewJWTService(config.ServiceConfig.JWTSecret)
