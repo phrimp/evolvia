@@ -49,7 +49,6 @@ async function initializeRabbitMQ() {
 }
 
 const app = new Elysia()
-  .use(cors())
   .get("/", () => "Hello Elysia")
   .group("/protected", (app) => 
     app
