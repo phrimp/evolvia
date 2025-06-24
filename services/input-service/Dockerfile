@@ -1,6 +1,6 @@
 FROM python:3.11-alpine AS builder
 
-WORKDIR /app
+WORKDIR /build
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -9,26 +9,24 @@ RUN apk add --no-cache \
     libffi-dev \
     python3-dev
 
-# Copy requirements and install Python dependencies
+# Copy requirements and install Python dependencies to a specific directory
 COPY services/input-service/requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # Stage 2: Runtime
-FROM alpine:3.18
+FROM python:3.11-alpine
 
 WORKDIR /app
 
 # Install runtime dependencies
 RUN apk add --no-cache \
-    python3 \
-    py3-pip \
     tzdata \
     ca-certificates && \
     addgroup -g 1001 appgroup && \
     adduser -D -u 1001 -G appgroup appuser
 
-# Copy Python installation from builder
-COPY --from=builder /root/.local /home/appuser/.local
+# Copy Python packages from builder
+COPY --from=builder /install /usr/local
 
 # Copy application code from the app subdirectory
 COPY services/input-service/app/ .
@@ -37,9 +35,6 @@ COPY services/input-service/app/ .
 RUN mkdir -p /evolvia/log/input_service && \
     mkdir -p /tmp/uploads && \
     chown -R appuser:appgroup /app /evolvia /tmp/uploads
-
-# Set PATH for user-installed packages
-ENV PATH=/home/appuser/.local/bin:$PATH
 
 USER appuser
 
