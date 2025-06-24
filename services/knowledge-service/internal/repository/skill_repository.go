@@ -450,7 +450,7 @@ func (r *SkillRepository) BatchCreate(ctx context.Context, skills []*models.Skil
 	}
 
 	now := time.Now()
-	docs := make([]interface{}, len(skills))
+	docs := make([]any, len(skills))
 
 	for i, skill := range skills {
 		if skill.ID.IsZero() {
