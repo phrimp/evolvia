@@ -10,6 +10,7 @@ import (
 	"auth_service/internal/repository"
 	"auth_service/internal/service"
 	"auth_service/pkg/discovery"
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -111,6 +112,8 @@ func main() {
 		gRPCGoogleService:  grpcServer.NewGoogleAuthService(discovery.ServiceDiscovery),
 	}
 
+	createDefaultAdminAccount(services_init)
+
 	_grpcServer := setupGRPCServer()
 	app := fiber.New(fiber.Config{})
 
@@ -201,4 +204,21 @@ func setupGRPCServer() *grpc.Server {
 	reflection.Register(s)
 
 	return s
+}
+
+func createDefaultAdminAccount(services_init *ServerServices) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Create default admin user
+	err := services_init.UserService.CreateDefaultAdminUser(ctx)
+	if err != nil {
+		log.Printf("Warning: Failed to create default admin user: %v", err)
+	}
+
+	// Assign admin role to admin user
+	err = services_init.UserRoleService.AssignAdminRoleToDefaultUser(ctx)
+	if err != nil {
+		log.Printf("Warning: Failed to assign admin role to default admin user: %v", err)
+	}
 }

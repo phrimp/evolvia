@@ -147,3 +147,82 @@ func (s *UserService) invalidateUserCache(userID string) {
 	s.RedisRepo.DeleteKey(context.Background(), "auth-service-auth-user-"+userID)
 	s.RedisRepo.DeleteKey(context.Background(), "user-profile:"+userID)
 }
+
+func (us *UserService) CreateDefaultAdminUser(ctx context.Context) error {
+	// Check if admin user already exists
+	adminUser, err := us.UserRepo.FindByUsername(ctx, "admin")
+	if err != nil {
+		return fmt.Errorf("error checking for existing admin user: %w", err)
+	}
+
+	if adminUser != nil {
+		log.Println("Default admin user already exists, skipping creation")
+		return nil
+	}
+
+	// Check if admin user exists by email
+	adminUserByEmail, err := us.UserRepo.FindByEmail(ctx, "admin@evolvia.io")
+	if err != nil {
+		return fmt.Errorf("error checking for existing admin user by email: %w", err)
+	}
+
+	if adminUserByEmail != nil {
+		log.Println("Default admin user already exists (by email), skipping creation")
+		return nil
+	}
+
+	// Create default admin user
+	currentTime := int(time.Now().Unix())
+	defaultAdminPassword := "Admin123!@#" // You should change this or use env variable
+
+	adminUser = &models.UserAuth{
+		ID:                  bson.NewObjectID(),
+		Username:            "admin",
+		Email:               "admin@evolvia.io",
+		PasswordHash:        defaultAdminPassword,
+		IsActive:            true,
+		IsEmailVerified:     true, // Admin is pre-verified
+		FailedLoginAttempts: 0,
+		CreatedAt:           currentTime,
+		UpdatedAt:           currentTime,
+		BasicProfile: models.UserProfile{
+			DisplayName: "System Administrator",
+		},
+	}
+
+	// Create the admin user
+	_, err = us.UserRepo.NewUser(ctx, adminUser)
+	if err != nil {
+		return fmt.Errorf("failed to create default admin user: %w", err)
+	}
+
+	log.Printf("Created default admin user with ID: %s", adminUser.ID.Hex())
+
+	// Publish user registration event if publisher is available
+	if us.eventPublisher != nil {
+		profileData := map[string]string{
+			"fullname": "System Administrator",
+			"role":     "admin",
+		}
+
+		err := us.eventPublisher.PublishUserRegister(
+			ctx,
+			adminUser.ID.Hex(),
+			adminUser.Username,
+			adminUser.Email,
+			profileData,
+		)
+		if err != nil {
+			log.Printf("Warning: Failed to publish admin user created event: %v", err)
+		} else {
+			log.Printf("Published user created event for admin user")
+		}
+	}
+
+	log.Println("Successfully created default admin user")
+	log.Printf("Admin credentials - Username: %s, Email: %s, Password: %s",
+		adminUser.Username, adminUser.Email, defaultAdminPassword)
+	log.Println("IMPORTANT: Please change the default admin password after first login!")
+
+	return nil
+}
