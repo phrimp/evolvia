@@ -30,8 +30,8 @@ RUN apk add --no-cache \
 # Copy Python installation from builder
 COPY --from=builder /root/.local /home/appuser/.local
 
-# Copy application code
-COPY services/input-service/ .
+# Copy application code from the app subdirectory
+COPY services/input-service/app/ .
 
 # Create log directory and set permissions
 RUN mkdir -p /evolvia/log/input_service && \

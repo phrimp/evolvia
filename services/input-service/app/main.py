@@ -164,43 +164,4 @@ if __name__ == "__main__":
         host=settings.HOST, 
         port=settings.PORT,
         log_level=settings.LOG_LEVEL.lower()
-    )(status_code=500, detail="Failed to publish event to RabbitMQ")
-        
-        processing_time_ms = int((time.time() - start_time) * 1000)
-        
-        result = ProcessingResult(
-            message="PowerPoint processed successfully",
-            filename=file.filename,
-            slide_count=extracted_content["slide_count"],
-            event_published=True,
-            processing_time_ms=processing_time_ms,
-            preview={
-                "total_slides": extracted_content["slide_count"],
-                "word_count": extracted_content.get("word_count", 0),
-                "has_text_content": len(extracted_content["all_text_combined"]) > 0,
-                "first_slide_preview": (
-                    extracted_content["slides"][0]["combined_text"][:200] + "..."
-                    if extracted_content["slides"] and extracted_content["slides"][0]["combined_text"]
-                    else "No text content found"
-                )
-            }
-        )
-        
-        logger.info(f"Successfully processed {file.filename}: {extracted_content['slide_count']} slides, {processing_time_ms}ms")
-        return result
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error processing PowerPoint {file.filename}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-if __name__ == "__main__":
-    import uvicorn
-    logger.info(f"Starting {settings.SERVICE_NAME} on {settings.HOST}:{settings.PORT}")
-    uvicorn.run(
-        app, 
-        host=settings.HOST, 
-        port=settings.PORT,
-        log_level=settings.LOG_LEVEL.lower()
     )
