@@ -54,6 +54,7 @@ services:
       - TRAEFIK_PROVIDERS_CONSUL_ENDPOINTS=http://consul-server:8500
       - TRAEFIK_PROVIDERS_CONSUL_ROOTKEY=${TRAEFIK_CONSUL_ROOTKEY:-traefik}
     labels:
+      - "traefik.enabled=true"
       # Global CORS middleware
       - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
       - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*"
@@ -370,7 +371,7 @@ services:
       - SERVICE_VERSION=${GOOGLE_SERVICE_VERSION:-1.0.0}
       - PORT=${GOOGLE_SERVICE_PORT:-9220}
       - GRPC_PORT=${GOOGLE_SERVICE_GRPC_PORT:-9221}
-        - HOSTNAME=${GOOGLE_SERVICE_HOSTNAME:-1}
+      - HOSTNAME=${GOOGLE_SERVICE_HOSTNAME:-1}
       - READ_TIMEOUT=${GOOGLE_SERVICE_READ_TIMEOUT:-15}
       - WRITE_TIMEOUT=${GOOGLE_SERVICE_WRITE_TIMEOUT:-15}
       - HOST=${HOST:-0.0.0.0}
