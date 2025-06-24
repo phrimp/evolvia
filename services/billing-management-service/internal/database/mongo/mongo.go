@@ -1,6 +1,7 @@
 package mongo
 
 import (
+	"billing-management-service/internal/config"
 	"context"
 	"fmt"
 	"log"
@@ -30,27 +31,27 @@ var (
 )
 
 func init() {
-	config := loadMongoConfig()
-
+	mconfig := loadMongoConfig()
+	connection_config := config.ServiceConfig.MongoDB
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
 
 	opts := options.Client().
-		ApplyURI(config.URI).
+		ApplyURI(connection_config.URI).
 		SetServerAPIOptions(serverAPI).
-		SetMaxPoolSize(config.MaxPoolSize).
-		SetMinPoolSize(config.MinPoolSize).
-		SetMaxConnIdleTime(config.MaxConnIdleTime).
-		SetMaxConnecting(config.MaxConnecting).
+		SetMaxPoolSize(mconfig.MaxPoolSize).
+		SetMinPoolSize(mconfig.MinPoolSize).
+		SetMaxConnIdleTime(mconfig.MaxConnIdleTime).
+		SetMaxConnecting(mconfig.MaxConnecting).
 		SetCompressors([]string{"zstd", "snappy", "zlib"}).
-		SetRetryWrites(config.RetryWrites).
-		SetRetryReads(config.RetryReads)
+		SetRetryWrites(mconfig.RetryWrites).
+		SetRetryReads(mconfig.RetryReads)
 
-	if config.EnableCompression {
+	if mconfig.EnableCompression {
 		opts.SetCompressors([]string{"zstd", "snappy", "zlib"})
 	}
 
 	var err error
-	fmt.Println(config.URI)
+	fmt.Println(mconfig.URI)
 
 	Mongo_Client, err = mongo.Connect(opts)
 	if err != nil {
@@ -66,10 +67,10 @@ func init() {
 		log.Println("Successfully connected to MongoDB")
 	}
 
-	Mongo_Database = Mongo_Client.Database(config.Database)
+	Mongo_Database = Mongo_Client.Database(connection_config.Database)
 
 	log.Printf("MongoDB initialized - Database: %s, Max Pool Size: %d",
-		config.Database, config.MaxPoolSize)
+		mconfig.Database, mconfig.MaxPoolSize)
 }
 
 func DisconnectMongo() {
