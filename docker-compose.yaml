@@ -54,13 +54,13 @@ services:
       - TRAEFIK_PROVIDERS_CONSUL_ENDPOINTS=http://consul-server:8500
       - TRAEFIK_PROVIDERS_CONSUL_ROOTKEY=${TRAEFIK_CONSUL_ROOTKEY:-traefik}
     labels:
-      - "traefik.enabled=true"
-      # Global CORS middleware
-      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
-      - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*"
-      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=*"
-      - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
-      - "traefik.http.middlewares.cors.headers.addvaryheader=true"
+      - "traefik.enable=true"
+      # Define CORS middleware with proper naming
+      - "traefik.http.middlewares.global-cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
+      - "traefik.http.middlewares.global-cors.headers.accesscontrolallowheaders=*"
+      - "traefik.http.middlewares.global-cors.headers.accesscontrolalloworiginlist=*"
+      - "traefik.http.middlewares.global-cors.headers.accesscontrolmaxage=100"
+      - "traefik.http.middlewares.global-cors.headers.addvaryheader=true"
     networks:
       - consul-net
       - traefik-net
@@ -249,10 +249,10 @@ services:
       - "traefik.http.routers.auth-service-secure.service=auth-service"
       # Public routes with CORS
       - "traefik.http.routers.auth-service-public.rule=PathPrefix(`/public/auth`)"
-      - "traefik.http.routers.auth-service-public.middlewares=cors@docker"
+      - "traefik.http.routers.auth-service-public.middlewares=global-cors@docker"
       # Secure routes with CORS and auth
       - "traefik.http.routers.auth-service-secure.rule=PathPrefix(`/protected/auth`)"
-      - "traefik.http.routers.auth-service-secure.middlewares=cors@docker,auth-middleware"
+      - "traefik.http.routers.auth-service-secure.middlewares=global-cors@docker,auth-middleware@docker"
       - "traefik.docker.network=microservices_template_traefik-net"
 
   middleware:
@@ -292,7 +292,7 @@ services:
       - "traefik.http.routers.middleware.rule=PathPrefix(`/api`)"
       - "traefik.http.routers.middleware.service=middleware"
       - "traefik.http.services.middleware.loadbalancer.server.port=${MIDDLEWARE_SERVICE_PORT}"
-      - "traefik.http.routers.middleware.middlewares=cors@docker"
+      - "traefik.http.routers.middleware.middlewares=global-cors@docker"
       - "traefik.http.middlewares.auth-middleware.forwardauth.address=http://middleware:${MIDDLEWARE_SERVICE_PORT}/auth/validate"
       - "traefik.http.middlewares.auth-middleware.forwardauth.authResponseHeaders=X-User-ID,X-User-Role,X-User-Permissions"
       - "traefik.docker.network=microservices_template_traefik-net"
@@ -344,10 +344,10 @@ services:
       - "traefik.http.routers.object-storage-service-secure.service=object-storage-service"
       # Public routes with CORS
       - "traefik.http.routers.object-storage-service-public.rule=PathPrefix(`/public/storage`)"
-      - "traefik.http.routers.object-storage-service-public.middlewares=cors@docker"
+      - "traefik.http.routers.object-storage-service-public.middlewares=global-cors@docker"
       # Secure routes with CORS and auth
       - "traefik.http.routers.object-storage-service-secure.rule=PathPrefix(`/protected/storage`)"
-      - "traefik.http.routers.object-storage-service-secure.middlewares=cors@docker,auth-middleware"
+      - "traefik.http.routers.object-storage-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
     user: "0:0"
 
@@ -429,10 +429,10 @@ services:
       - "traefik.http.routers.google-service-secure.service=google-service"
       # Public routes with CORS
       - "traefik.http.routers.google-service-public.rule=PathPrefix(`/public/google`)"
-      - "traefik.http.routers.google-service-public.middlewares=cors@docker"
+      - "traefik.http.routers.google-service-public.middlewares=global-cors@docker"
       # Protected routes with CORS and auth
       - "traefik.http.routers.google-service-secure.rule=PathPrefix(`/protected/google`)"
-      - "traefik.http.routers.google-service-secure.middlewares=cors@docker,auth-middleware"
+      - "traefik.http.routers.google-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
   profile-service:
@@ -507,10 +507,10 @@ services:
       - "traefik.http.routers.profile-service-secure.service=profile-service"
       # Public routes with CORS
       - "traefik.http.routers.profile-service-public.rule=PathPrefix(`/public/profiles`)"
-      - "traefik.http.routers.profile-service-public.middlewares=cors@docker"
+      - "traefik.http.routers.profile-service-public.middlewares=global-cors@docker"
       # Protected routes with CORS and auth
       - "traefik.http.routers.profile-service-secure.rule=PathPrefix(`/protected/profiles`)"
-      - "traefik.http.routers.profile-service-secure.middlewares=cors@docker,auth-middleware"
+      - "traefik.http.routers.profile-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
   billing-management-service:
@@ -595,10 +595,10 @@ services:
       - "traefik.http.routers.billing-management-service-secure.service=billing-management-service"
       # Public routes with CORS (webhooks, callbacks)
       - "traefik.http.routers.billing-management-service-public.rule=PathPrefix(`/public/billing`)"
-      - "traefik.http.routers.billing-management-service-public.middlewares=cors@docker"
+      - "traefik.http.routers.billing-management-service-public.middlewares=global-cors@docker"
       # Protected routes with CORS and auth
       - "traefik.http.routers.billing-management-service-secure.rule=PathPrefix(`/protected/billing`)"
-      - "traefik.http.routers.billing-management-service-secure.middlewares=cors@docker,auth-middleware"
+      - "traefik.http.routers.billing-management-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
   payos-service:
@@ -649,10 +649,10 @@ services:
       - "traefik.http.routers.payos-service-secure.service=payos-service"
       # Public routes with CORS (webhooks, callbacks)
       - "traefik.http.routers.payos-service-public.rule=PathPrefix(`/public/payos`)"
-      - "traefik.http.routers.payos-service-public.middlewares=cors@docker"
+      - "traefik.http.routers.payos-service-public.middlewares=global-cors@docker"
       # Protected routes with CORS and auth
       - "traefik.http.routers.payos-service-secure.rule=PathPrefix(`/protected/payos`)"
-      - "traefik.http.routers.payos-service-secure.middlewares=cors@docker,auth-middleware"
+      - "traefik.http.routers.payos-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
 networks:
