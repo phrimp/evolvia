@@ -34,7 +34,7 @@ func (h *PlanHandler) RegisterRoutes(app *fiber.App) {
 	publicGroup.Get("/:id", h.GetPlan)
 	publicGroup.Get("/stats", h.GetPlanStats)
 
-	protectedGroup := app.Group("/protected/plans")
+	protectedGroup := app.Group("/protected/billing/plans")
 
 	// Plan CRUD operations - require specific permissions
 	protectedGroup.Post("/", h.CreatePlan, utils.PermissionRequired(middleware.WritePlanPermission))
