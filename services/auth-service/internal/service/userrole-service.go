@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"slices"
 	"time"
 
@@ -209,4 +210,56 @@ func (s *UserRoleService) GetUsersWithRole(ctx context.Context, roleName string,
 	}
 
 	return s.userRoleRepo.FindUsersWithRole(ctx, role.ID, page, limit)
+}
+
+func (s *UserRoleService) AssignAdminRoleToDefaultUser(ctx context.Context) error {
+	// Find the admin user
+	userRepo := repository.Repositories_instance.UserAuthRepository
+	adminUser, err := userRepo.FindByUsername(ctx, "admin")
+	if err != nil {
+		return fmt.Errorf("admin user not found: %w", err)
+	}
+
+	if adminUser == nil {
+		return fmt.Errorf("admin user does not exist")
+	}
+
+	// Find the admin role
+	adminRole, err := s.roleRepo.FindByName(ctx, "admin")
+	if err != nil {
+		return fmt.Errorf("admin role not found: %w", err)
+	}
+
+	// Check if admin user already has admin role
+	userRoles, err := s.userRoleRepo.FindByUserID(ctx, adminUser.ID)
+	if err != nil {
+		return fmt.Errorf("error checking existing user roles: %w", err)
+	}
+
+	// Check if admin already has admin role
+	for _, userRole := range userRoles {
+		if userRole.RoleID == adminRole.ID && userRole.IsActive {
+			log.Println("Admin user already has admin role, skipping assignment")
+			return nil
+		}
+	}
+
+	// Assign admin role to admin user
+	systemID, _ := bson.ObjectIDFromHex("000000000000000000000000")
+
+	_, err = s.AssignRoleToUser(
+		ctx,
+		adminUser.ID,
+		adminRole.ID,
+		systemID,         // assigned by system
+		"",               // no scope type
+		bson.NilObjectID, // no scope ID
+		0,                // no expiration
+	)
+	if err != nil {
+		return fmt.Errorf("failed to assign admin role to admin user: %w", err)
+	}
+
+	log.Printf("Successfully assigned admin role to admin user: %s", adminUser.Username)
+	return nil
 }
