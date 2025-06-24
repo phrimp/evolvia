@@ -27,7 +27,7 @@ func NewSubscriptionHandler(subscriptionService *services.SubscriptionService) *
 
 func (h *SubscriptionHandler) RegisterRoutes(app *fiber.App) {
 	// Protected routes group
-	protectedGroup := app.Group("/protected/subscriptions")
+	protectedGroup := app.Group("/protected/billing/subscriptions")
 
 	// Subscription CRUD operations
 	protectedGroup.Post("/", h.CreateSubscription, utils.PermissionRequired(middleware.WriteSubscriptionPermission))

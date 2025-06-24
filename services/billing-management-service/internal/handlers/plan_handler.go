@@ -28,7 +28,7 @@ func NewPlanHandler(planService *services.PlanService) *PlanHandler {
 func (h *PlanHandler) RegisterRoutes(app *fiber.App) {
 	// Protected routes group
 
-	publicGroup := app.Group("/public/plans")
+	publicGroup := app.Group("/public/billing/plans")
 	publicGroup.Get("/active", h.ListActivePlans)
 	publicGroup.Get("/types/:planType", h.GetPlansByType)
 	publicGroup.Get("/:id", h.GetPlan)
