@@ -236,7 +236,7 @@ services:
       - consul-net
       - traefik-net
     volumes:
-    - ./logs/auth-service:/evolvia/log/auth_service
+      - ./logs/auth-service:/evolvia/log/auth_service
     depends_on:
       - consul-server
       - traefik
@@ -248,10 +248,10 @@ services:
       - "traefik.http.routers.auth-service-public.service=auth-service"
       - "traefik.http.routers.auth-service-secure.service=auth-service"
       # Public routes with CORS
-      - "traefik.http.routers.auth-service-public.rule=PathPrefix(`/public/auth`)"
+      - "traefik.http.routers.auth-service-public.rule=PathPrefix(`/public`)"
       - "traefik.http.routers.auth-service-public.middlewares=global-cors@docker"
       # Secure routes with CORS and auth
-      - "traefik.http.routers.auth-service-secure.rule=PathPrefix(`/protected/auth`)"
+      - "traefik.http.routers.auth-service-secure.rule=PathPrefix(`/protected`)"
       - "traefik.http.routers.auth-service-secure.middlewares=global-cors@docker,auth-middleware@docker"
       - "traefik.docker.network=microservices_template_traefik-net"
 
@@ -343,10 +343,10 @@ services:
       - "traefik.http.routers.object-storage-service-public.service=object-storage-service"
       - "traefik.http.routers.object-storage-service-secure.service=object-storage-service"
       # Public routes with CORS
-      - "traefik.http.routers.object-storage-service-public.rule=PathPrefix(`/public/storage`)"
+      - "traefik.http.routers.object-storage-service-public.rule=PathPrefix(`/public`)"
       - "traefik.http.routers.object-storage-service-public.middlewares=global-cors@docker"
       # Secure routes with CORS and auth
-      - "traefik.http.routers.object-storage-service-secure.rule=PathPrefix(`/protected/storage`)"
+      - "traefik.http.routers.object-storage-service-secure.rule=PathPrefix(`/protected`)"
       - "traefik.http.routers.object-storage-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
     user: "0:0"
@@ -364,7 +364,7 @@ services:
     environment:
       # Frontend Configuration
       - FE_ADDR=${FE_ADDR}
-      
+
       # Server Configuration
       - SERVICE_NAME=${GOOGLE_SERVICE_SERVICE_NAME:-google-service}
       - SERVICE_ADDRESS=${GOOGLE_SERVICE_SERVICE_ADDRESS:-google-service}
@@ -375,28 +375,28 @@ services:
       - READ_TIMEOUT=${GOOGLE_SERVICE_READ_TIMEOUT:-15}
       - WRITE_TIMEOUT=${GOOGLE_SERVICE_WRITE_TIMEOUT:-15}
       - HOST=${HOST:-0.0.0.0}
-      
+
       # Consul Configuration
       - CONSUL_ADDRESS=consul-server:${CONSUL_HTTP_PORT:-8500}
-      
+
       # Google OAuth Configuration
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL:-http://localhost/public/google/auth/callback}
-      
+
       # SMTP/Email Configuration
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USERNAME=${SMTP_USERNAME}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_FROM=${SMTP_FROM}
-      
+
       # Redis Configuration
       - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
       - REDIS_PWD=${REDIS_PWD:-example}
       - REDIS_DB=${REDIS_DB:-0}
       - REDIS_PROTOCAL=${REDIS_PROTOCAL:-3}
-      
+
       # RabbitMQ Configuration
       - RABBITMQ_URI=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
       - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
@@ -407,7 +407,7 @@ services:
       - RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE:-google.events}
       - RABBITMQ_QUEUE=${RABBITMQ_QUEUE:-google-service-queue}
       - RABBITMQ_ROUTING_KEY=${RABBITMQ_ROUTING_KEY:-google.login}
-      
+
       # JWT Configuration
       - JWT_SECRET=${JWT_SECRET}
       - JWT_ISSUER=${JWT_ISSUER:-google-service}
@@ -428,10 +428,10 @@ services:
       - "traefik.http.routers.google-service-public.service=google-service"
       - "traefik.http.routers.google-service-secure.service=google-service"
       # Public routes with CORS
-      - "traefik.http.routers.google-service-public.rule=PathPrefix(`/public/google`)"
+      - "traefik.http.routers.google-service-public.rule=PathPrefix(`/public`)"
       - "traefik.http.routers.google-service-public.middlewares=global-cors@docker"
       # Protected routes with CORS and auth
-      - "traefik.http.routers.google-service-secure.rule=PathPrefix(`/protected/google`)"
+      - "traefik.http.routers.google-service-secure.rule=PathPrefix(`/protected`)"
       - "traefik.http.routers.google-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
@@ -456,11 +456,11 @@ services:
       - READ_TIMEOUT=${PROFILE_SERVICE_READ_TIMEOUT:-15}
       - WRITE_TIMEOUT=${PROFILE_SERVICE_WRITE_TIMEOUT:-15}
       - HOST=${HOST:-0.0.0.0}
-      
+
       # Consul Configuration
       - CONSUL_ADDRESS=consul-server:${CONSUL_HTTP_PORT:-8500}
       - CONSUL_PORT=${CONSUL_HTTP_PORT:-8500}
-      
+
       # MongoDB Configuration
       - MONGO_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
       - MONGODB_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
@@ -468,14 +468,14 @@ services:
       - PROFILE_SERVICE_MONGO_DB=${PROFILE_SERVICE_MONGO_DB:-profile_service}
       - MONGODB_POOL_SIZE=${MONGODB_POOL_SIZE:-100}
       - MONGODB_TIMEOUT=${MONGODB_TIMEOUT:-10}
-      
+
       # Redis Configuration
       - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
       - REDIS_PWD=${REDIS_PWD:-example}
       - REDIS_PASSWORD=${REDIS_PWD:-example}
       - REDIS_DB=${REDIS_DB:-0}
       - REDIS_PROTOCAL=${REDIS_PROTOCAL:-3}
-      
+
       # RabbitMQ Configuration
       - RABBITMQ_URI=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
       - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
@@ -485,7 +485,7 @@ services:
       - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/}
       - RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE:-profile.events}
       - RABBITMQ_QUEUE=${RABBITMQ_QUEUE:-profile-service-events}
-      
+
       # Service Discovery
       - PROFILE_SERVICE_NAME=${PROFILE_SERVICE_NAME:-profile-service}
       - PROFILE_SERVICE_ADDRESS=${PROFILE_SERVICE_ADDRESS:-profile-service}
@@ -506,10 +506,10 @@ services:
       - "traefik.http.routers.profile-service-public.service=profile-service"
       - "traefik.http.routers.profile-service-secure.service=profile-service"
       # Public routes with CORS
-      - "traefik.http.routers.profile-service-public.rule=PathPrefix(`/public/profiles`)"
+      - "traefik.http.routers.profile-service-public.rule=PathPrefix(`/public`)"
       - "traefik.http.routers.profile-service-public.middlewares=global-cors@docker"
       # Protected routes with CORS and auth
-      - "traefik.http.routers.profile-service-secure.rule=PathPrefix(`/protected/profiles`)"
+      - "traefik.http.routers.profile-service-secure.rule=PathPrefix(`/protected`)"
       - "traefik.http.routers.profile-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
@@ -534,11 +534,11 @@ services:
       - READ_TIMEOUT=${BILLING_SERVICE_READ_TIMEOUT:-15}
       - WRITE_TIMEOUT=${BILLING_SERVICE_WRITE_TIMEOUT:-15}
       - HOST=${HOST:-0.0.0.0}
-      
+
       # Consul Configuration
       - CONSUL_ADDRESS=consul-server:${CONSUL_HTTP_PORT:-8500}
       - CONSUL_PORT=${CONSUL_HTTP_PORT:-8500}
-      
+
       # MongoDB Configuration
       - MONGO_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
       - MONGODB_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
@@ -546,14 +546,14 @@ services:
       - BILLING_SERVICE_MONGO_DB=${BILLING_SERVICE_MONGO_DB:-billing_management_service}
       - MONGODB_POOL_SIZE=${MONGODB_POOL_SIZE:-100}
       - MONGODB_TIMEOUT=${MONGODB_TIMEOUT:-10}
-      
+
       # Redis Configuration
       - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
       - REDIS_PWD=${REDIS_PWD:-example}
       - REDIS_PASSWORD=${REDIS_PWD:-example}
       - REDIS_DB=${REDIS_DB:-0}
       - REDIS_PROTOCAL=${REDIS_PROTOCAL:-3}
-      
+
       # RabbitMQ Configuration
       - RABBITMQ_URI=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
       - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
@@ -563,7 +563,7 @@ services:
       - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/}
       - RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE:-billing.events}
       - RABBITMQ_QUEUE=${RABBITMQ_QUEUE:-billing-management-events}
-      
+
       # Billing Specific Configuration
       - BILLING_CURRENCY=${BILLING_CURRENCY:-USD}
       - BILLING_GRACE_PERIOD=${BILLING_GRACE_PERIOD:-168h}
@@ -573,7 +573,7 @@ services:
       - BILLING_WEBHOOK_RETRY_LIMIT=${BILLING_WEBHOOK_RETRY_LIMIT:-5}
       - BILLING_WEBHOOK_RETRY_DELAY=${BILLING_WEBHOOK_RETRY_DELAY:-1h}
       - BILLING_TRIAL_PERIOD_DAYS=${BILLING_TRIAL_PERIOD_DAYS:-14}
-      
+
       # Service Discovery
       - BILLING_SERVICE_NAME=${BILLING_SERVICE_NAME:-billing-management-service}
       - BILLING_SERVICE_ADDRESS=${BILLING_SERVICE_ADDRESS:-billing-management-service}
@@ -594,10 +594,10 @@ services:
       - "traefik.http.routers.billing-management-service-public.service=billing-management-service"
       - "traefik.http.routers.billing-management-service-secure.service=billing-management-service"
       # Public routes with CORS (webhooks, callbacks)
-      - "traefik.http.routers.billing-management-service-public.rule=PathPrefix(`/public/billing`)"
+      - "traefik.http.routers.billing-management-service-public.rule=PathPrefix(`/public`)"
       - "traefik.http.routers.billing-management-service-public.middlewares=global-cors@docker"
       # Protected routes with CORS and auth
-      - "traefik.http.routers.billing-management-service-secure.rule=PathPrefix(`/protected/billing`)"
+      - "traefik.http.routers.billing-management-service-secure.rule=PathPrefix(`/protected`)"
       - "traefik.http.routers.billing-management-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
@@ -619,12 +619,12 @@ services:
       - PORT=${PAYOS_SERVICE_PORT:-9250}
       - HOSTNAME=${PAYOS_SERVICE_HOSTNAME:-payos}
       - HOST=${HOST:-0.0.0.0}
-      
+
       # PayOS Configuration
       - PAYOS_CLIENT_ID=${PAYOS_CLIENT_ID}
       - PAYOS_API_KEY=${PAYOS_API_KEY}
       - PAYOS_CHECKSUM_KEY=${PAYOS_CHECKSUM_KEY}
-      
+
       # RabbitMQ Configuration
       - RABBITMQ_URI=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
       - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
@@ -648,10 +648,10 @@ services:
       - "traefik.http.routers.payos-service-public.service=payos-service"
       - "traefik.http.routers.payos-service-secure.service=payos-service"
       # Public routes with CORS (webhooks, callbacks)
-      - "traefik.http.routers.payos-service-public.rule=PathPrefix(`/public/payos`)"
+      - "traefik.http.routers.payos-service-public.rule=PathPrefix(`/public`)"
       - "traefik.http.routers.payos-service-public.middlewares=global-cors@docker"
       # Protected routes with CORS and auth
-      - "traefik.http.routers.payos-service-secure.rule=PathPrefix(`/protected/payos`)"
+      - "traefik.http.routers.payos-service-secure.rule=PathPrefix(`/protected`)"
       - "traefik.http.routers.payos-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
