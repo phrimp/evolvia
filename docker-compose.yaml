@@ -748,7 +748,7 @@ services:
     user: "0:0"
     build:
       context: .
-      dockerfile: services/input-service/Dockerfile
+      dockerfile: services/manual-input-service/Dockerfile
     container_name: input-service
     restart: unless-stopped
     ports:
