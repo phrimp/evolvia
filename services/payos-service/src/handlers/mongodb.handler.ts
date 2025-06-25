@@ -29,12 +29,16 @@ class MongoDBHandler {
     try {
       if (!this.isConnected) {
         await this.client.connect();
+        // Add ping to verify connection
+        await this.db.admin().ping();
         this.isConnected = true;
         console.log('✅ Connected to MongoDB');
       }
     } catch (error) {
       console.error('❌ MongoDB connection error:', error);
-      throw error;
+      this.isConnected = false;
+      // Don't throw error to prevent service crash
+      // throw error;
     }
   }
 

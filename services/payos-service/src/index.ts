@@ -20,6 +20,8 @@ async function initializeMongoDB() {
     console.log("MongoDB connected successfully");
   } catch (error) {
     console.error("Failed to connect to MongoDB:", error);
+    // Don't exit process, let service continue
+    console.log("Service will continue without MongoDB connection");
   }
 }
 
