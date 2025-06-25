@@ -49,12 +49,6 @@ async function initializeRabbitMQ() {
 }
 
 const app = new Elysia()
-  .use(cors({
-    origin: "*", // Cho phép tất cả domains
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-    credentials: false // Set false khi dùng wildcard
-  }))
   .get("/", () => "Hello Elysia")
   .group("/protected", (app) => 
     app
