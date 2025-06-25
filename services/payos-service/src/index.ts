@@ -53,6 +53,11 @@ async function initializeRabbitMQ() {
 const app = new Elysia()
   .get("/", () => "Hello Elysia")
   .get("/health", () => ({ status: "ok", timestamp: new Date().toISOString() }))
+  .group("/public", (app) => 
+    app
+      .get("/health", () => ({ status: "ok", service: "payos", timestamp: new Date().toISOString() }))
+      .get("/test", () => ({ message: "Public route works!" }))
+  )
   .group("/protected", (app) => 
     app
       .get("/test", () => ({ message: "Protected route works!" }))
