@@ -59,7 +59,10 @@ const app = new Elysia()
       .use(paymentController)
       .use(orderController)
   )
-  .listen(process.env.PAYOS_SERVICE_PORT ?? 3000);
+  .listen({
+    port: parseInt(process.env.PORT || process.env.ELYSIA_PORT || "9250"),
+    hostname: "0.0.0.0"
+  });
 
 // Initialize MongoDB and RabbitMQ
 initializeMongoDB();
@@ -73,6 +76,4 @@ process.on("SIGINT", async () => {
   process.exit(0);
 });
 
-console.log(
-  `🦊 Elysia/PayOS is running at ${app.server?.hostname}:${app.server?.port}`
-);
+console.log(`🦊 Elysia/PayOS is running at 0.0.0.0:${process.env.PORT || process.env.ELYSIA_PORT || "9250"}`);
