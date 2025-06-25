@@ -12,22 +12,27 @@ console.log("PAYOS_CLIENT_ID:", process.env.PAYOS_CLIENT_ID ? "✅ Set" : "❌ M
 console.log("PAYOS_API_KEY:", process.env.PAYOS_API_KEY ? "✅ Set" : "❌ Missing");
 console.log("PAYOS_CHECKSUM_KEY:", process.env.PAYOS_CHECKSUM_KEY ? "✅ Set" : "❌ Missing");
 console.log("MONGO_URI:", process.env.MONGO_URI ? "✅ Set" : "❌ Missing");
+console.log("PORT:", process.env.PORT || process.env.PAYOS_SERVICE_PORT || 9250);
+console.log("RABBITMQ_URI:", process.env.RABBITMQ_URI ? "✅ Set" : "❌ Missing");
+console.log("NODE_ENV:", process.env.NODE_ENV || "development");
 
 // Initialize MongoDB
 async function initializeMongoDB() {
   try {
+    console.log("🔄 Connecting to MongoDB...");
     await mongoDBHandler.connect();
-    console.log("MongoDB connected successfully");
+    console.log("✅ MongoDB connected successfully");
   } catch (error) {
-    console.error("Failed to connect to MongoDB:", error);
+    console.error("❌ Failed to connect to MongoDB:", error);
     // Don't exit process, let service continue
-    console.log("Service will continue without MongoDB connection");
+    console.log("⚠️  Service will continue without MongoDB connection");
   }
 }
 
 // Initialize RabbitMQ and setup consumers
 async function initializeRabbitMQ() {
   try {
+    console.log("🔄 Connecting to RabbitMQ...");
     await rabbitMQService.connect();
 
     // Setup message consumers
@@ -44,13 +49,24 @@ async function initializeRabbitMQ() {
       PaymentMessageHandler.handleOrderUpdates
     );
 
-    console.log("RabbitMQ consumers initialized");
+    console.log("✅ RabbitMQ consumers initialized");
   } catch (error) {
-    console.error("Failed to initialize RabbitMQ:", error);
+    console.error("❌ Failed to initialize RabbitMQ:", error);
+    console.log("⚠️  Service will continue without RabbitMQ connection");
   }
 }
 
 const app = new Elysia()
+  .use(cors({
+    origin: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+  }))
+  .onError(({ error, code }) => {
+    console.error(`❌ Elysia Error [${code}]:`, error);
+    return { error: `Server error: ${String(error)}`, code };
+  })
   .get("/", () => "Hello Elysia")
   .get("/health", () => ({ status: "ok", service: "payos", timestamp: new Date().toISOString() }))
   .get("/test", () => ({ message: "Public route works!" }))
@@ -61,7 +77,7 @@ const app = new Elysia()
       .use(orderController)
   )
   .listen({
-    port: 3000,
+    port: Number(process.env.PORT || process.env.PAYOS_SERVICE_PORT || 9250),
     hostname: "0.0.0.0"
   });
 
@@ -77,4 +93,5 @@ process.on("SIGINT", async () => {
   process.exit(0);
 });
 
-console.log(`🦊 Elysia/PayOS is running at 0.0.0.0:${process.env.PORT || process.env.ELYSIA_PORT || "9250"}`);
+const port = Number(process.env.PORT || process.env.PAYOS_SERVICE_PORT || 9250);
+console.log(`🦊 Elysia/PayOS is running at 0.0.0.0:${port}`);
