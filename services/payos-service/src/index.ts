@@ -52,12 +52,8 @@ async function initializeRabbitMQ() {
 
 const app = new Elysia()
   .get("/", () => "Hello Elysia")
-  .get("/health", () => ({ status: "ok", timestamp: new Date().toISOString() }))
-  .group("/public", (app) => 
-    app
-      .get("/health", () => ({ status: "ok", service: "payos", timestamp: new Date().toISOString() }))
-      .get("/test", () => ({ message: "Public route works!" }))
-  )
+  .get("/health", () => ({ status: "ok", service: "payos", timestamp: new Date().toISOString() }))
+  .get("/test", () => ({ message: "Public route works!" }))
   .group("/protected", (app) => 
     app
       .get("/test", () => ({ message: "Protected route works!" }))
@@ -65,7 +61,7 @@ const app = new Elysia()
       .use(orderController)
   )
   .listen({
-    port: parseInt(process.env.PORT || process.env.ELYSIA_PORT || "9250"),
+    port: 3000,
     hostname: "0.0.0.0"
   });
 
