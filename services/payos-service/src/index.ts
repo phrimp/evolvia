@@ -68,13 +68,15 @@ const app = new Elysia()
     return { error: `Server error: ${String(error)}`, code };
   })
   .get("/", () => "Hello Elysia")
-  .get("/health", () => ({ status: "ok", service: "payos", timestamp: new Date().toISOString() }))
-  .get("/test", () => ({ message: "Public route works!" }))
-  .group("/protected", (app) => 
+  .group("/public/payos", (app) => 
     app
-      .get("/test", () => ({ message: "Protected route works!" }))
-      .use(paymentController)
-      .use(orderController)
+      .get("/test", () => ({ message: "Public PayOS route works!" }))
+      .use(paymentController) // PayOS webhooks should be public
+  )
+  .group("/protected/payos", (app) => 
+    app
+      .get("/test", () => ({ message: "Protected PayOS route works!" }))
+      .use(orderController) // Order creation requires authentication
   )
   .listen({
     port: Number(process.env.PORT || process.env.PAYOS_SERVICE_PORT || 9250),
