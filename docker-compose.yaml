@@ -634,6 +634,9 @@ services:
       - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/}
       - RABBITMQ_EXCHANGE=${RABBITMQ_EXCHANGE:-payos.events}
       - RABBITMQ_QUEUE=${RABBITMQ_QUEUE:-payos-service-events}
+
+      # MongoDB Configuration
+      - MONGO_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
     networks:
       - consul-net
       - traefik-net
@@ -724,7 +727,7 @@ services:
       - traefik-net
     volumes:
       - ./logs/knowledge-service:/evolvia/log/knowledge_service
-      - ./data/skills:/data/skills:ro  # Read-only mount for skill data files
+      - ./data/skills:/data/skills:ro # Read-only mount for skill data files
     depends_on:
       - consul-server
       - traefik
