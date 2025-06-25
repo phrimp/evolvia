@@ -11,7 +11,8 @@ console.log("🔍 Environment check:");
 console.log("PAYOS_CLIENT_ID:", process.env.PAYOS_CLIENT_ID ? "✅ Set" : "❌ Missing");
 console.log("PAYOS_API_KEY:", process.env.PAYOS_API_KEY ? "✅ Set" : "❌ Missing");
 console.log("PAYOS_CHECKSUM_KEY:", process.env.PAYOS_CHECKSUM_KEY ? "✅ Set" : "❌ Missing");
-console.log("MONGODB_URL:", process.env.MONGO_URI ? "✅ Set" : "❌ Missing (using default: mongodb://localhost:27017)");
+console.log("MONGO_URI:", process.env.MONGO_URI ? "✅ Set" : "❌ Missing");
+console.log("PAYOS_SERVICE_PORT:", process.env.PAYOS_SERVICE_PORT ? "✅ Set" : "❌ Missing (using default: 3000)");
 
 // Initialize MongoDB
 async function initializeMongoDB() {
