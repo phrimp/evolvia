@@ -18,10 +18,12 @@ FROM python:3.11-alpine
 
 WORKDIR /app
 
-# Install runtime dependencies
+# Install runtime dependencies including LibreOffice
 RUN apk add --no-cache \
     tzdata \
-    ca-certificates && \
+    ca-certificates \
+    libreoffice \
+    openjdk11-jre-headless && \
     addgroup -g 1001 appgroup && \
     adduser -D -u 1001 -G appgroup appuser
 
