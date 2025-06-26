@@ -34,10 +34,11 @@ type ImprovedSkillDiscovery struct {
 	educationalPatterns []*regexp.Regexp
 }
 
-func NewImprovedSkillDiscoveryService() *ImprovedSkillDiscovery {
+func NewImprovedSkillDiscoveryService(skillService *services.SkillService) *ImprovedSkillDiscovery {
 	return &ImprovedSkillDiscovery{
-		confidenceThreshold: 0.5, // Lowered threshold
-		minFrequency:        2,   // Lowered minimum frequency
+		skillService:        skillService, // Initialize the skillService field
+		confidenceThreshold: 0.5,          // Lowered threshold
+		minFrequency:        2,            // Lowered minimum frequency
 		techKeywords: []string{
 			"programming", "framework", "library", "tool", "platform",
 			"language", "database", "api", "sdk", "ide", "version control",
@@ -484,10 +485,40 @@ func (isd *ImprovedSkillDiscovery) filterAndScore(candidates map[string]*SkillCa
 	return filtered
 }
 
-// Simplified existence check for testing
+// Fixed existence check using the actual skill service
 func (isd *ImprovedSkillDiscovery) isExistingSkill(ctx context.Context, term string) bool {
-	// For now, assume none exist so we can see what gets detected
-	// In real implementation, check against your skill database
+	if isd.skillService == nil {
+		log.Printf("Warning: skillService is nil, cannot check if skill exists: %s", term)
+		return false
+	}
+
+	// Check exact name match
+	skill, err := isd.skillService.GetSkillByName(ctx, term)
+	if err != nil {
+		log.Printf("Error checking skill by name '%s': %v", term, err)
+	}
+	if skill != nil {
+		return true
+	}
+
+	// Check common names and variations through search
+	skills, err := isd.skillService.SearchSkills(ctx, term, 10)
+	if err != nil {
+		log.Printf("Error searching for skill '%s': %v", term, err)
+		return false
+	}
+
+	for _, skill := range skills {
+		if strings.EqualFold(skill.Name, term) {
+			return true
+		}
+		for _, commonName := range skill.CommonNames {
+			if strings.EqualFold(commonName, term) {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
@@ -523,7 +554,12 @@ func (isd *ImprovedSkillDiscovery) suggestSkillLevel(candidate *SkillCandidate, 
 	return models.SkillLevelBeginner // Default for educational content
 }
 
-func (nsd *ImprovedSkillDiscovery) AutoAddNewSkills(ctx context.Context, candidates []*SkillCandidate, autoAddThreshold float64) error {
+// AutoAddNewSkills automatically creates skill entries for high-confidence candidates
+func (isd *ImprovedSkillDiscovery) AutoAddNewSkills(ctx context.Context, candidates []*SkillCandidate, autoAddThreshold float64) error {
+	if isd.skillService == nil {
+		return fmt.Errorf("skillService is nil, cannot auto-add skills")
+	}
+
 	for _, candidate := range candidates {
 		if candidate.ConfidenceScore >= autoAddThreshold {
 			skill := &models.Skill{
@@ -550,7 +586,7 @@ func (nsd *ImprovedSkillDiscovery) AutoAddNewSkills(ctx context.Context, candida
 				},
 			}
 
-			_, err := nsd.skillService.CreateSkill(ctx, skill)
+			_, err := isd.skillService.CreateSkill(ctx, skill)
 			if err != nil {
 				log.Printf("Failed to auto-add skill '%s': %v", candidate.Term, err)
 				continue

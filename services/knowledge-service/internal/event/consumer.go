@@ -166,6 +166,7 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 	}
 }
 
+// Fixed handleInputSkillEvent method for your consumer.go
 func (c *EventConsumer) handleInputSkillEvent(body []byte) error {
 	var inputEvent InputSkillEvent
 	if err := json.Unmarshal(body, &inputEvent); err != nil {
@@ -182,7 +183,9 @@ func (c *EventConsumer) handleInputSkillEvent(body []byte) error {
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
 
-	newSkillDiscovery := NewImprovedSkillDiscoveryService()
+	// STEP 1: Discover potentially new skills FIRST
+	// Pass the skillService dependency correctly
+	newSkillDiscovery := NewImprovedSkillDiscoveryService(c.skillService)
 	skillCandidates, err := newSkillDiscovery.DiscoverNewSkills(ctx, inputEvent.Data.TextForAnalysis, inputEvent.Source)
 	if err != nil {
 		log.Printf("Failed to discover new skills: %v", err)
@@ -205,6 +208,7 @@ func (c *EventConsumer) handleInputSkillEvent(body []byte) error {
 		}
 	}
 
+	// STEP 2: Detect existing skills (your current logic)
 	detectedSkills, err := c.detectSkillsFromText(ctx, inputEvent.Data.TextForAnalysis)
 	if err != nil {
 		log.Printf("Failed to detect skills from text: %v", err)
@@ -213,6 +217,7 @@ func (c *EventConsumer) handleInputSkillEvent(body []byte) error {
 
 	log.Printf("Detected %d existing skills from text for user %s", len(detectedSkills), inputEvent.UserID)
 
+	// STEP 3: Process detected skills and add to user's profile
 	addedCount := 0
 	for _, skillMatch := range detectedSkills {
 		if err := c.addSkillToUser(ctx, userObjectID, skillMatch, inputEvent.Source); err != nil {
