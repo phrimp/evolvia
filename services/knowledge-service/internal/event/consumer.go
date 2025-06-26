@@ -348,35 +348,21 @@ func (c *EventConsumer) addSkillToUser(ctx context.Context, userID bson.ObjectID
 	// Check if user already has this skill
 	existing, err := c.userSkillService.GetUserSkill(ctx, userID, skillMatch.SkillID)
 	if err == nil && existing != nil {
-		// User already has this skill, update confidence if higher
-		if skillMatch.Confidence > existing.Confidence {
-			updates := &services.UserSkillUpdate{
-				Confidence: &skillMatch.Confidence,
-			}
-			now := time.Now()
-			updates.LastUsed = &now
-
-			_, err := c.userSkillService.UpdateUserSkill(ctx, userID, skillMatch.SkillID, updates)
-			if err != nil {
-				return fmt.Errorf("failed to update existing user skill: %w", err)
-			}
-			log.Printf("Updated confidence for skill '%s' for user %s", skillMatch.SkillName, userID.Hex())
-		}
+		// User already has this skill - skip adding duplicate
+		log.Printf("User %s already has skill '%s' - skipping duplicate", userID.Hex(), skillMatch.SkillName)
 		return nil
 	}
 
-	// Determine skill level based on confidence
-	level := c.determineSkillLevel(skillMatch.Confidence)
-
-	// Create new user skill
+	// Create new user skill with default beginner level
+	// Confidence represents how well the skill matched the content, not user proficiency
 	userSkill := &models.UserSkill{
 		UserID:          userID,
 		SkillID:         skillMatch.SkillID,
-		Level:           level,
-		Confidence:      skillMatch.Confidence,
-		YearsExperience: 0, // Default, can be improved with more analysis
-		Verified:        false,
-		Endorsements:    0,
+		Level:           models.SkillLevelBeginner, // Default to beginner level
+		Confidence:      skillMatch.Confidence,     // This is content-matching confidence
+		YearsExperience: 0,                         // Default to 0 years
+		Verified:        false,                     // Not verified initially
+		Endorsements:    0,                         // No endorsements yet
 	}
 
 	_, err = c.userSkillService.AddUserSkill(ctx, userSkill)
@@ -384,23 +370,9 @@ func (c *EventConsumer) addSkillToUser(ctx context.Context, userID bson.ObjectID
 		return fmt.Errorf("failed to add user skill: %w", err)
 	}
 
-	log.Printf("Added skill '%s' (level: %s, confidence: %.2f) to user %s from source: %s",
-		skillMatch.SkillName, level, skillMatch.Confidence, userID.Hex(), source)
+	log.Printf("Added skill '%s' (level: %s, content-match confidence: %.2f) to user %s from source: %s",
+		skillMatch.SkillName, models.SkillLevelBeginner, skillMatch.Confidence, userID.Hex(), source)
 	return nil
-}
-
-// determineSkillLevel maps confidence to skill level
-func (c *EventConsumer) determineSkillLevel(confidence float64) models.SkillLevel {
-	switch {
-	case confidence >= 0.8:
-		return models.SkillLevelAdvanced
-	case confidence >= 0.6:
-		return models.SkillLevelIntermediate
-	case confidence >= 0.4:
-		return models.SkillLevelBeginner
-	default:
-		return models.SkillLevelBeginner
-	}
 }
 
 func (c *EventConsumer) Close() error {
