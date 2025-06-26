@@ -177,22 +177,45 @@ func (c *EventConsumer) handleInputSkillEvent(body []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	// Convert user ID to ObjectID
 	userObjectID, err := bson.ObjectIDFromHex(inputEvent.UserID)
 	if err != nil {
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
 
-	// Extract skills from the text content
+	// STEP 1: Discover potentially new skills FIRST
+	newSkillDiscovery := NewSkillDiscoveryService()
+	skillCandidates, err := newSkillDiscovery.DiscoverNewSkills(ctx, inputEvent.Data.TextForAnalysis, inputEvent.Source)
+	if err != nil {
+		log.Printf("Failed to discover new skills: %v", err)
+		// Continue with existing skill detection even if new skill discovery fails
+	} else {
+		log.Printf("Discovered %d potential new skills", len(skillCandidates))
+
+		// Auto-add high-confidence new skills (threshold: 0.85)
+		err = newSkillDiscovery.AutoAddNewSkills(ctx, skillCandidates, 0.85)
+		if err != nil {
+			log.Printf("Failed to auto-add new skills: %v", err)
+		}
+
+		// Log candidates for manual review (lower confidence 0.7-0.84)
+		for _, candidate := range skillCandidates {
+			if candidate.ConfidenceScore >= 0.7 && candidate.ConfidenceScore < 0.85 {
+				log.Printf("New skill candidate for review: %s (confidence: %.2f, frequency: %d)",
+					candidate.Term, candidate.ConfidenceScore, candidate.Frequency)
+			}
+		}
+	}
+
+	// STEP 2: Detect existing skills (your current logic)
 	detectedSkills, err := c.detectSkillsFromText(ctx, inputEvent.Data.TextForAnalysis)
 	if err != nil {
 		log.Printf("Failed to detect skills from text: %v", err)
 		return err
 	}
 
-	log.Printf("Detected %d skills from text for user %s", len(detectedSkills), inputEvent.UserID)
+	log.Printf("Detected %d existing skills from text for user %s", len(detectedSkills), inputEvent.UserID)
 
-	// Process each detected skill and add to user's profile
+	// STEP 3: Process detected skills and add to user's profile
 	addedCount := 0
 	for _, skillMatch := range detectedSkills {
 		if err := c.addSkillToUser(ctx, userObjectID, skillMatch, inputEvent.Source); err != nil {
