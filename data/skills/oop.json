@@ -1,0 +1,617 @@
+{
+  "name": "Object-Oriented Programming",
+  "description": "Object-Oriented Programming (OOP) is a programming paradigm based on the concept of 'objects', which can contain data (attributes) and code (methods). OOP is based on several key principles including encapsulation, inheritance, polymorphism, and abstraction. It provides a way to structure programs so that properties and behaviors are bundled into individual objects.",
+  "identification_rules": {
+    "primary_patterns": [
+      {
+        "text": "Object-Oriented Programming",
+        "weight": 0.95,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Object Oriented Programming",
+        "weight": 0.95,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "OOP",
+        "weight": 0.9,
+        "type": "exact",
+        "case_sensitive": true,
+        "min_word_boundary": true
+      },
+      {
+        "text": "OO Programming",
+        "weight": 0.85,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Object-Oriented",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Object Oriented",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      }
+    ],
+    "secondary_patterns": [
+      {
+        "text": "Encapsulation",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Inheritance",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Polymorphism",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Abstraction",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Class",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Object",
+        "weight": 0.5,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Instance",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Method",
+        "weight": 0.5,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Attribute",
+        "weight": 0.5,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Property",
+        "weight": 0.5,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Constructor",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Destructor",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Overloading",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Overriding",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Interface",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Abstract class",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Virtual method",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Access modifier",
+        "weight": 0.65,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Private",
+        "weight": 0.4,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Public",
+        "weight": 0.4,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Protected",
+        "weight": 0.5,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Static method",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "Instance method",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      }
+    ],
+    "academic_patterns": [
+      {
+        "text": "object-oriented design",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "object-oriented analysis",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "OOP principles",
+        "weight": 0.85,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "four pillars of OOP",
+        "weight": 0.9,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "class diagram",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "UML diagram",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "inheritance hierarchy",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "is-a relationship",
+        "weight": 0.75,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "has-a relationship",
+        "weight": 0.75,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "composition",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "aggregation",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "association",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "dependency",
+        "weight": 0.5,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "single inheritance",
+        "weight": 0.75,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "multiple inheritance",
+        "weight": 0.75,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "method overloading",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "method overriding",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "dynamic binding",
+        "weight": 0.75,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "late binding",
+        "weight": 0.75,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "early binding",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "static binding",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "virtual function table",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "vtable",
+        "weight": 0.75,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "data hiding",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "information hiding",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "getter method",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "setter method",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "accessor method",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "mutator method",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      }
+    ],
+    "negative_patterns": [
+      {
+        "text": "objective",
+        "weight": -0.3,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "objects in space",
+        "weight": -0.5,
+        "type": "partial",
+        "case_sensitive": false,
+        "min_word_boundary": false
+      },
+      {
+        "text": "physical object",
+        "weight": -0.4,
+        "type": "partial",
+        "case_sensitive": false,
+        "min_word_boundary": false
+      }
+    ],
+    "min_primary_matches": 1,
+    "min_secondary_matches": 2,
+    "min_academic_matches": 0,
+    "min_total_score": 0.6,
+    "context_window": 15
+  },
+  "common_names": [
+    "Object-Oriented Programming",
+    "Object Oriented Programming",
+    "OOP",
+    "OO Programming",
+    "Object-Oriented Design",
+    "OOD",
+    "Object-Oriented Analysis",
+    "OOA",
+    "Class-Based Programming"
+  ],
+  "abbreviations": [
+    "OOP",
+    "OOD",
+    "OOA",
+    "OOAD",
+    "UML",
+    "SOLID"
+  ],
+  "technical_terms": [
+    "encapsulation",
+    "inheritance",
+    "polymorphism",
+    "abstraction",
+    "class",
+    "object",
+    "instance",
+    "instantiation",
+    "method",
+    "attribute",
+    "property",
+    "field",
+    "member variable",
+    "constructor",
+    "destructor",
+    "finalizer",
+    "overloading",
+    "overriding",
+    "interface",
+    "abstract class",
+    "concrete class",
+    "virtual method",
+    "pure virtual method",
+    "access modifier",
+    "visibility",
+    "private",
+    "public",
+    "protected",
+    "package-private",
+    "internal",
+    "static",
+    "instance method",
+    "class method",
+    "static method",
+    "member function",
+    "data member",
+    "method signature",
+    "method overloading",
+    "method overriding",
+    "dynamic binding",
+    "late binding",
+    "early binding",
+    "static binding",
+    "virtual function table",
+    "vtable",
+    "virtual dispatch",
+    "multiple dispatch",
+    "single dispatch",
+    "composition",
+    "aggregation",
+    "association",
+    "dependency",
+    "inheritance hierarchy",
+    "class hierarchy",
+    "superclass",
+    "subclass",
+    "parent class",
+    "child class",
+    "base class",
+    "derived class",
+    "is-a relationship",
+    "has-a relationship",
+    "part-of relationship",
+    "single inheritance",
+    "multiple inheritance",
+    "mixin",
+    "trait",
+    "protocol",
+    "data hiding",
+    "information hiding",
+    "getter",
+    "setter",
+    "accessor",
+    "mutator",
+    "property accessor",
+    "this pointer",
+    "self reference",
+    "super keyword",
+    "instanceof",
+    "type checking",
+    "dynamic typing",
+    "static typing",
+    "duck typing",
+    "SOLID principles",
+    "single responsibility",
+    "open-closed principle",
+    "liskov substitution",
+    "interface segregation",
+    "dependency inversion",
+    "DRY principle",
+    "KISS principle",
+    "YAGNI principle",
+    "cohesion",
+    "coupling",
+    "loose coupling",
+    "tight coupling"
+  ],
+  "tags": [
+    "programming-paradigm",
+    "software-design",
+    "design-principles",
+    "code-organization",
+    "software-architecture",
+    "abstraction",
+    "modularity",
+    "reusability",
+    "maintainability"
+  ],
+  "relations": [
+  ],
+  "metadata": {
+    "industry": [
+      "Software Development",
+      "Information Technology",
+      "Computer Science",
+      "Game Development",
+      "Web Development",
+      "Mobile Development",
+      "Enterprise Software",
+      "Financial Technology",
+      "Healthcare Technology",
+      "Educational Technology"
+    ],
+    "job_roles": [
+      "Software Developer",
+      "Software Engineer",
+      "Application Developer",
+      "Systems Analyst",
+      "Software Architect",
+      "Technical Lead",
+      "Senior Developer",
+      "Principal Engineer",
+      "Full Stack Developer",
+      "Backend Developer",
+      "Game Developer",
+      "Mobile App Developer",
+      "Web Developer",
+      "Enterprise Developer",
+      "Software Designer"
+    ],
+    "difficulty": 5,
+    "time_to_learn": 80,
+    "trending": true,
+    "market_demand": 0.85
+  },
+  "category": {
+    "name": "Programming Paradigms",
+    "path": "Technology/Programming/Paradigms/Object-Oriented",
+    "level": 4
+  },
+  "is_active": true
+}
