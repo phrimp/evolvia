@@ -123,7 +123,7 @@
       "description": "Computer Science fundamentals are prerequisite for advanced algorithm study"
     },
     {
-      "skill_id": "data-structures-id", 
+      "skill_id": "685cf02d0af4be49d93a2e7f", 
       "relation_type": "prerequisite",
       "strength": 0.9,
       "description": "Computer Science fundamentals are prerequisite for data structures study"
