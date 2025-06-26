@@ -182,9 +182,6 @@ func (c *EventConsumer) handleInputSkillEvent(body []byte) error {
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
 
-	log.Println("Full data extracted:", inputEvent.Data.ExtractedContent)
-	log.Println("Full text extracted:", inputEvent.Data.TextForAnalysis)
-
 	newSkillDiscovery := NewImprovedSkillDiscoveryService()
 	skillCandidates, err := newSkillDiscovery.DiscoverNewSkills(ctx, inputEvent.Data.TextForAnalysis, inputEvent.Source)
 	if err != nil {
