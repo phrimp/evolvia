@@ -1,9 +1,10 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import time
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 
 from config import settings, setup_logging
 from services.ppt_extractor import PowerPointExtractor
@@ -77,14 +78,23 @@ async def health_check():
     }
 
 @app.post("/upload-powerpoint", response_model=ProcessingResult)
-async def upload_powerpoint(file: UploadFile = File(...)):
+async def upload_powerpoint(
+    file: UploadFile = File(...),
+    x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
+    x_user_email: Optional[str] = Header(None, alias="X-User-Email")
+):
     """
-    Upload PowerPoint file, extract content, and publish to RabbitMQ
+    Upload PowerPoint file, extract content, and publish to RabbitMQ for skill detection
     """
     start_time = time.time()
     
     try:
-        logger.info(f"Received PowerPoint upload request: {file.filename}")
+        logger.info(f"Received PowerPoint upload request: {file.filename} from user: {x_user_id}")
+        
+        # Validate user context
+        if not x_user_id:
+            logger.warning("Upload attempt without user context")
+            raise HTTPException(status_code=400, detail="User context required (X-User-ID header)")
         
         # Validate file
         if not file.filename:
@@ -110,13 +120,15 @@ async def upload_powerpoint(file: UploadFile = File(...)):
                 detail=f"File too large. Max size: {settings.MAX_FILE_SIZE} bytes"
             )
         
-        logger.info(f"Processing PowerPoint file: {file.filename} ({len(file_content)} bytes)")
+        logger.info(f"Processing PowerPoint file: {file.filename} ({len(file_content)} bytes) for user: {x_user_id}")
         
         # Extract content from PowerPoint
         extracted_content = ppt_extractor.extract_content(file_content, file.filename)
         
-        # Publish to RabbitMQ
+        # Publish to RabbitMQ with user context
         success = rabbitmq_publisher.publish_skill_event(
+            user_id=x_user_id,
+            user_email=x_user_email,
             content=extracted_content,
             file_binary=file_content,
             filename=file.filename,
@@ -130,11 +142,12 @@ async def upload_powerpoint(file: UploadFile = File(...)):
         processing_time_ms = int((time.time() - start_time) * 1000)
         
         result = ProcessingResult(
-            message="PowerPoint processed successfully",
+            message="PowerPoint processed successfully and sent for skill analysis",
             filename=file.filename,
             slide_count=extracted_content["slide_count"],
             event_published=True,
             processing_time_ms=processing_time_ms,
+            user_id=x_user_id,
             preview={
                 "total_slides": extracted_content["slide_count"],
                 "word_count": extracted_content.get("word_count", 0),
@@ -147,7 +160,7 @@ async def upload_powerpoint(file: UploadFile = File(...)):
             }
         )
         
-        logger.info(f"Successfully processed {file.filename}: {extracted_content['slide_count']} slides, {processing_time_ms}ms")
+        logger.info(f"Successfully processed {file.filename} for user {x_user_id}: {extracted_content['slide_count']} slides, {processing_time_ms}ms")
         return result
         
     except HTTPException:

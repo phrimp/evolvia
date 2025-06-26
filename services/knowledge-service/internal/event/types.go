@@ -88,14 +88,24 @@ type SkillMatchEvent struct {
 
 // InputSkillEvent represents incoming skill data for processing
 type InputSkillEvent struct {
-	EventType   string       `json:"eventType"`
-	UserID      string       `json:"userId"`
-	Source      string       `json:"source"` // resume, linkedin, manual, etc.
-	SourceID    string       `json:"sourceId,omitempty"`
-	Skills      []InputSkill `json:"skills"`
-	RawText     string       `json:"rawText,omitempty"`
-	Timestamp   int64        `json:"timestamp"`
-	ProcessMode string       `json:"processMode"` // auto, manual, review
+	EventType   string              `json:"event_type"`
+	UserID      string              `json:"user_id"`
+	UserEmail   string              `json:"user_email,omitempty"`
+	Source      string              `json:"source"` // resume, linkedin, manual, etc.
+	SourceID    string              `json:"source_id,omitempty"`
+	Timestamp   string              `json:"timestamp"`
+	ProcessMode string              `json:"process_mode,omitempty"` // auto, manual, review
+	Data        InputSkillEventData `json:"data"`
+}
+
+// InputSkillEventData represents the data payload of input skill event
+type InputSkillEventData struct {
+	Filename           string                 `json:"filename"`
+	ContentType        string                 `json:"content_type"`
+	ExtractedContent   map[string]interface{} `json:"extracted_content"`
+	FileBinary         string                 `json:"file_binary"`
+	TextForAnalysis    string                 `json:"text_for_analysis"`
+	ProcessingMetadata map[string]interface{} `json:"processing_metadata"`
 }
 
 // InputSkill represents a single skill input

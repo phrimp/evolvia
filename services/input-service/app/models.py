@@ -14,6 +14,8 @@ class SkillEvent(BaseModel):
     timestamp: datetime
     service_name: str
     service_version: str
+    user_id: str
+    user_email: Optional[str] = None
     data: Dict[str, Any]
     
     class Config:
@@ -25,4 +27,5 @@ class ProcessingResult(BaseModel):
     slide_count: int
     event_published: bool
     processing_time_ms: int
+    user_id: str
     preview: Dict[str, Any]

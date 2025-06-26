@@ -2,7 +2,7 @@ import pika
 import json
 import base64
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 from config import settings
 
@@ -35,33 +35,40 @@ class RabbitMQPublisher:
             logger.error(f"Failed to connect to RabbitMQ: {str(e)}")
             raise
     
-    def publish_skill_event(self, content: Dict[str, Any], file_binary: bytes, 
-                           filename: str, content_type: str) -> bool:
+    def publish_skill_event(self, user_id: str, content: Dict[str, Any], file_binary: bytes, 
+                           filename: str, content_type: str, user_email: Optional[str] = None) -> bool:
         """
-        Publish input.skill event to RabbitMQ
+        Publish input.skill event to RabbitMQ with user context for skill detection
         """
         try:
             if not self.connection or self.connection.is_closed:
                 self.connect()
             
-            # Prepare event payload
+            # Prepare event payload with user context
             event_payload = {
                 "event_type": "input.skill",
                 "timestamp": datetime.now().isoformat(),
                 "service_name": settings.SERVICE_NAME,
                 "service_version": settings.SERVICE_VERSION,
                 "service_address": settings.SERVICE_ADDRESS,
+                "user_id": user_id,
+                "user_email": user_email,
+                "source": "powerpoint_upload",
+                "source_id": f"{user_id}_{filename}_{int(datetime.now().timestamp())}",
                 "data": {
                     "filename": filename,
                     "content_type": content_type,
                     "extracted_content": content,
                     "file_binary": base64.b64encode(file_binary).decode('utf-8'),
+                    "text_for_analysis": content.get("all_text_combined", ""),
                     "processing_metadata": {
                         "extractor": "python-pptx",
                         "service_name": settings.SERVICE_NAME,
                         "service_version": settings.SERVICE_VERSION,
                         "file_size_bytes": len(file_binary),
-                        "processed_at": datetime.now().isoformat()
+                        "processed_at": datetime.now().isoformat(),
+                        "slide_count": content.get("slide_count", 0),
+                        "word_count": content.get("word_count", 0)
                     }
                 }
             }
@@ -77,13 +84,14 @@ class RabbitMQPublisher:
                     headers={
                         'event_type': 'input.skill',
                         'filename': filename,
+                        'user_id': user_id,
                         'service_name': settings.SERVICE_NAME,
                         'service_version': settings.SERVICE_VERSION
                     }
                 )
             )
             
-            logger.info(f"Published skill event for file: {filename} to {settings.RABBITMQ_EXCHANGE}/{settings.RABBITMQ_ROUTING_KEY}")
+            logger.info(f"Published skill event for file: {filename} from user: {user_id} to {settings.RABBITMQ_EXCHANGE}/{settings.RABBITMQ_ROUTING_KEY}")
             return True
             
         except Exception as e:

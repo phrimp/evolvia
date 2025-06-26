@@ -82,8 +82,8 @@ func main() {
 		log.Fatalf("Failed to initialize user skill service: %v", err)
 	}
 
-	// Initialize event consumer for user skills
-	eventConsumer, err := event.NewEventConsumer(cfg.RabbitMQ.URI, userSkillService)
+	// Initialize event consumer with both services for skill detection
+	eventConsumer, err := event.NewEventConsumer(cfg.RabbitMQ.URI, userSkillService, skillService)
 	if err != nil {
 		log.Printf("Warning: Failed to initialize event consumer: %v", err)
 	} else {
@@ -91,7 +91,7 @@ func main() {
 			log.Printf("Warning: Failed to start event consumer: %v", err)
 			eventConsumer.Close()
 		} else {
-			log.Println("Successfully started event consumer")
+			log.Println("Successfully started event consumer for skill detection")
 			defer eventConsumer.Close()
 		}
 	}

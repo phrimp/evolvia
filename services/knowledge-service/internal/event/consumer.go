@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"knowledge-service/internal/models"
+	"knowledge-service/internal/repository"
 	"knowledge-service/internal/services"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/rabbitmq/amqp091-go"
@@ -23,10 +25,11 @@ type EventConsumer struct {
 	channel          *amqp091.Channel
 	queueName        string
 	userSkillService *services.UserSkillService
+	skillService     *services.SkillService
 	enabled          bool
 }
 
-func NewEventConsumer(rabbitURI string, userSkillService *services.UserSkillService) (*EventConsumer, error) {
+func NewEventConsumer(rabbitURI string, userSkillService *services.UserSkillService, skillService *services.SkillService) (*EventConsumer, error) {
 	if rabbitURI == "" {
 		log.Println("Warning: RabbitMQ URI is empty, event consumption is disabled")
 		return &EventConsumer{
@@ -48,7 +51,7 @@ func NewEventConsumer(rabbitURI string, userSkillService *services.UserSkillServ
 	}
 
 	// Declare the exchange
-	exchangeName := "knowledge.events"
+	exchangeName := "skills.events"
 	err = channel.ExchangeDeclare(
 		exchangeName, // name
 		"topic",      // type
@@ -99,6 +102,7 @@ func NewEventConsumer(rabbitURI string, userSkillService *services.UserSkillServ
 		channel:          channel,
 		queueName:        queue.Name,
 		userSkillService: userSkillService,
+		skillService:     skillService,
 		enabled:          true,
 	}, nil
 }
@@ -167,9 +171,9 @@ func (c *EventConsumer) handleInputSkillEvent(body []byte) error {
 		return fmt.Errorf("failed to unmarshal input skill event: %w", err)
 	}
 
-	log.Printf("Processing input skill event for user %s with %d skills", inputEvent.UserID, len(inputEvent.Skills))
+	log.Printf("Processing input skill event for user %s from source: %s", inputEvent.UserID, inputEvent.Source)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	// Convert user ID to ObjectID
@@ -178,110 +182,193 @@ func (c *EventConsumer) handleInputSkillEvent(body []byte) error {
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
 
-	// Process each skill
-	for _, inputSkill := range inputEvent.Skills {
-		if err := c.processInputSkill(ctx, userObjectID, inputSkill, inputEvent.Source); err != nil {
-			log.Printf("Failed to process skill '%s': %v", inputSkill.Name, err)
-			// Continue processing other skills rather than failing the entire batch
+	// Extract skills from the text content
+	detectedSkills, err := c.detectSkillsFromText(ctx, inputEvent.Data.TextForAnalysis)
+	if err != nil {
+		log.Printf("Failed to detect skills from text: %v", err)
+		return err
+	}
+
+	log.Printf("Detected %d skills from text for user %s", len(detectedSkills), inputEvent.UserID)
+
+	// Process each detected skill and add to user's profile
+	addedCount := 0
+	for _, skillMatch := range detectedSkills {
+		if err := c.addSkillToUser(ctx, userObjectID, skillMatch, inputEvent.Source); err != nil {
+			log.Printf("Failed to add skill '%s' to user %s: %v", skillMatch.SkillName, inputEvent.UserID, err)
 			continue
 		}
+		addedCount++
 	}
 
-	log.Printf("Successfully processed input skill event for user %s", inputEvent.UserID)
+	log.Printf("Successfully added %d skills to user %s from %s", addedCount, inputEvent.UserID, inputEvent.Source)
 	return nil
 }
 
-func (c *EventConsumer) processInputSkill(ctx context.Context, userID bson.ObjectID, inputSkill InputSkill, source string) error {
-	log.Printf("Added skill '%s' for user %s", inputSkill.Name, userID.Hex())
-	return nil
-}
-
-func (c *EventConsumer) findSkillByName(ctx context.Context, name string) ([]*models.Skill, error) {
-	// This is a simplified implementation
-	// In a real scenario, you would inject the skill service or repository
-	// For now, we'll assume we have access to search functionality
-
-	// TODO: Implement proper skill search through injected service
-	// This is a placeholder that would need to be replaced with actual implementation
-	log.Printf("Searching for skill: %s", name)
-	return []*models.Skill{}, nil
-}
-
-func (c *EventConsumer) updateExistingUserSkill(ctx context.Context, existing *models.UserSkill, input InputSkill) error {
-	updates := &services.UserSkillUpdate{}
-	hasUpdates := false
-
-	// Update level if provided and different
-	if input.Level != "" && input.Level != existing.Level {
-		updates.Level = input.Level
-		hasUpdates = true
+// detectSkillsFromText analyzes text content and identifies skills
+func (c *EventConsumer) detectSkillsFromText(ctx context.Context, text string) ([]*SkillMatch, error) {
+	if text == "" {
+		return []*SkillMatch{}, nil
 	}
 
-	// Update confidence if higher
-	newConfidence := c.determineConfidence(input)
-	if newConfidence > existing.Confidence {
-		updates.Confidence = &newConfidence
-		hasUpdates = true
+	// Get all active skills for matching
+	skills, _, err := c.skillService.ListSkills(ctx, repository.ListOptions{
+		ActiveOnly: true,
+		Limit:      1000, // Get more skills for better matching
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get skills for matching: %w", err)
 	}
 
-	// Update years of experience if higher
-	if input.YearsExperience > existing.YearsExperience {
-		updates.YearsExperience = &input.YearsExperience
-		hasUpdates = true
-	}
+	var matches []*SkillMatch
+	textLower := strings.ToLower(text)
 
-	// Update last used
-	now := time.Now()
-	updates.LastUsed = &now
-	hasUpdates = true
-
-	if hasUpdates {
-		_, err := c.userSkillService.UpdateUserSkill(ctx, existing.UserID, existing.SkillID, updates)
-		if err != nil {
-			return fmt.Errorf("failed to update user skill: %w", err)
+	for _, skill := range skills {
+		match := c.matchSkillInText(skill, textLower)
+		if match != nil {
+			matches = append(matches, match)
 		}
-		log.Printf("Updated existing skill for user %s", existing.UserID.Hex())
+	}
+
+	return matches, nil
+}
+
+// matchSkillInText checks if a skill is mentioned in the text
+func (c *EventConsumer) matchSkillInText(skill *models.Skill, textLower string) *SkillMatch {
+	confidence := 0.0
+	var bestMatch string
+
+	// Check primary patterns
+	for _, pattern := range skill.IdentificationRules.PrimaryPatterns {
+		if c.textContainsPattern(textLower, pattern) {
+			confidence += pattern.Weight * 0.8 // Primary patterns have high weight
+			if bestMatch == "" {
+				bestMatch = pattern.Text
+			}
+		}
+	}
+
+	// Check secondary patterns
+	for _, pattern := range skill.IdentificationRules.SecondaryPatterns {
+		if c.textContainsPattern(textLower, pattern) {
+			confidence += pattern.Weight * 0.5 // Secondary patterns have medium weight
+		}
+	}
+
+	// Check skill name and common names
+	if strings.Contains(textLower, strings.ToLower(skill.Name)) {
+		confidence += 0.7
+		bestMatch = skill.Name
+	}
+
+	for _, commonName := range skill.CommonNames {
+		if strings.Contains(textLower, strings.ToLower(commonName)) {
+			confidence += 0.6
+			if bestMatch == "" {
+				bestMatch = commonName
+			}
+		}
+	}
+
+	// Check abbreviations and technical terms
+	for _, abbrev := range skill.Abbreviations {
+		if strings.Contains(textLower, strings.ToLower(abbrev)) {
+			confidence += 0.5
+		}
+	}
+
+	for _, term := range skill.TechnicalTerms {
+		if strings.Contains(textLower, strings.ToLower(term)) {
+			confidence += 0.4
+		}
+	}
+
+	// Apply minimum confidence threshold
+	minConfidence := skill.IdentificationRules.MinTotalScore
+	if minConfidence == 0 {
+		minConfidence = 0.3 // Default minimum confidence
+	}
+
+	if confidence >= minConfidence {
+		return &SkillMatch{
+			SkillID:     skill.ID,
+			SkillName:   skill.Name,
+			Confidence:  confidence,
+			MatchedText: bestMatch,
+		}
 	}
 
 	return nil
 }
 
-func (c *EventConsumer) determineSkillLevel(input InputSkill) models.SkillLevel {
-	if input.Level != "" {
-		return input.Level
+// textContainsPattern checks if text contains a specific pattern
+func (c *EventConsumer) textContainsPattern(text string, pattern models.KeywordPattern) bool {
+	patternText := strings.ToLower(pattern.Text)
+	if pattern.CaseSensitive {
+		// For case-sensitive patterns, use original case
+		return strings.Contains(text, pattern.Text)
+	}
+	return strings.Contains(text, patternText)
+}
+
+// addSkillToUser adds a detected skill to user's profile
+func (c *EventConsumer) addSkillToUser(ctx context.Context, userID bson.ObjectID, skillMatch *SkillMatch, source string) error {
+	// Check if user already has this skill
+	existing, err := c.userSkillService.GetUserSkill(ctx, userID, skillMatch.SkillID)
+	if err == nil && existing != nil {
+		// User already has this skill, update confidence if higher
+		if skillMatch.Confidence > existing.Confidence {
+			updates := &services.UserSkillUpdate{
+				Confidence: &skillMatch.Confidence,
+			}
+			now := time.Now()
+			updates.LastUsed = &now
+
+			_, err := c.userSkillService.UpdateUserSkill(ctx, userID, skillMatch.SkillID, updates)
+			if err != nil {
+				return fmt.Errorf("failed to update existing user skill: %w", err)
+			}
+			log.Printf("Updated confidence for skill '%s' for user %s", skillMatch.SkillName, userID.Hex())
+		}
+		return nil
 	}
 
-	// Determine level based on years of experience
+	// Determine skill level based on confidence
+	level := c.determineSkillLevel(skillMatch.Confidence)
+
+	// Create new user skill
+	userSkill := &models.UserSkill{
+		UserID:          userID,
+		SkillID:         skillMatch.SkillID,
+		Level:           level,
+		Confidence:      skillMatch.Confidence,
+		YearsExperience: 0, // Default, can be improved with more analysis
+		Verified:        false,
+		Endorsements:    0,
+	}
+
+	_, err = c.userSkillService.AddUserSkill(ctx, userSkill)
+	if err != nil {
+		return fmt.Errorf("failed to add user skill: %w", err)
+	}
+
+	log.Printf("Added skill '%s' (level: %s, confidence: %.2f) to user %s from source: %s",
+		skillMatch.SkillName, level, skillMatch.Confidence, userID.Hex(), source)
+	return nil
+}
+
+// determineSkillLevel maps confidence to skill level
+func (c *EventConsumer) determineSkillLevel(confidence float64) models.SkillLevel {
 	switch {
-	case input.YearsExperience >= 5:
-		return models.SkillLevelExpert
-	case input.YearsExperience >= 3:
+	case confidence >= 0.8:
 		return models.SkillLevelAdvanced
-	case input.YearsExperience >= 1:
+	case confidence >= 0.6:
 		return models.SkillLevelIntermediate
+	case confidence >= 0.4:
+		return models.SkillLevelBeginner
 	default:
 		return models.SkillLevelBeginner
 	}
-}
-
-func (c *EventConsumer) determineConfidence(input InputSkill) float64 {
-	if input.Confidence > 0 {
-		return input.Confidence
-	}
-
-	// Default confidence based on context or years of experience
-	if input.YearsExperience > 0 {
-		confidence := float64(input.YearsExperience) / 10.0
-		if confidence > 1.0 {
-			confidence = 1.0
-		}
-		if confidence < 0.3 {
-			confidence = 0.3
-		}
-		return confidence
-	}
-
-	return 0.5 // Default moderate confidence
 }
 
 func (c *EventConsumer) Close() error {
@@ -302,4 +389,12 @@ func (c *EventConsumer) Close() error {
 	}
 
 	return nil
+}
+
+// SkillMatch represents a skill detected in text
+type SkillMatch struct {
+	SkillID     bson.ObjectID `json:"skill_id"`
+	SkillName   string        `json:"skill_name"`
+	Confidence  float64       `json:"confidence"`
+	MatchedText string        `json:"matched_text"`
 }
