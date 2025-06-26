@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"knowledge-service/internal/models"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,6 +54,7 @@ func (r *SkillRepository) InitializeData(ctx context.Context, dataDir string) er
 		if err != nil {
 			return err
 		}
+		log.Println("Found:", d.Name(), "Path:", path)
 
 		// Process only JSON files
 		if d.IsDir() || !strings.HasSuffix(strings.ToLower(d.Name()), ".json") {
