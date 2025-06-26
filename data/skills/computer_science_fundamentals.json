@@ -117,7 +117,7 @@
   ],
   "relations": [
     {
-      "skill_id": "algorithms-id",
+      "skill_id": "685cf0e1e6d804866356b06e",
       "relation_type": "prerequisite",
       "strength": 0.9,
       "description": "Computer Science fundamentals are prerequisite for advanced algorithm study"

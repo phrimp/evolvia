@@ -111,7 +111,7 @@
   ],
   "relations": [
     {
-      "skill_id": "algorithms-id",
+      "skill_id": "685cf0e1e6d804866356b06e",
       "relation_type": "builds_on",
       "strength": 0.8,
       "description": "Pseudocode is a tool for designing and documenting algorithms"
