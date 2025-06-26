@@ -68,7 +68,7 @@ async def root():
         "timestamp": datetime.now().isoformat()
     }
 
-@app.get("/health")
+@app.get("/protected/input/health")
 async def health_check():
     """Enhanced health check including RabbitMQ status"""
     rabbitmq_healthy = rabbitmq_publisher.health_check()
@@ -83,7 +83,7 @@ async def health_check():
         }
     }
 
-@app.post("/upload-powerpoint", response_model=ProcessingResult)
+@app.post("/protected/input/upload-powerpoint", response_model=ProcessingResult)
 async def upload_powerpoint(
     file: UploadFile = File(...),
     x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
