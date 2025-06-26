@@ -1,0 +1,153 @@
+{
+  "name": "Computer Science Fundamentals",
+  "description": "Core knowledge of computer science principles including computational thinking, problem-solving methodologies, and fundamental concepts in computing.",
+  "identification_rules": {
+    "primary_patterns": [
+      {
+        "text": "computer science",
+        "weight": 0.9,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      }
+    ],
+    "secondary_patterns": [
+      {
+        "text": "computational thinking",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": false
+      },
+      {
+        "text": "programming languages",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": false
+      },
+      {
+        "text": "software system",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": false
+      },
+      {
+        "text": "execution time",
+        "weight": 0.5,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": false
+      },
+      {
+        "text": "memory space",
+        "weight": 0.5,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": false
+      },
+      {
+        "text": "databases",
+        "weight": 0.5,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "compiler implementations",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": false
+      }
+    ],
+    "academic_patterns": [
+      {
+        "text": "niklaus wirth",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "algorithms + data structures = programs",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": false
+      }
+    ],
+    "negative_patterns": [],
+    "min_primary_matches": 1,
+    "min_secondary_matches": 0,
+    "min_academic_matches": 0,
+    "min_total_score": 0.6,
+    "context_window": 5
+  },
+  "common_names": [
+    "Computer Science",
+    "CS Fundamentals",
+    "Computing Principles",
+    "Computational Sciences"
+  ],
+  "abbreviations": [
+    "CS",
+    "CompSci"
+  ],
+  "technical_terms": [
+    "computational complexity",
+    "software engineering",
+    "theoretical computer science",
+    "discrete mathematics",
+    "formal methods",
+    "programming paradigms",
+    "computer architecture",
+    "operating systems",
+    "distributed systems",
+    "artificial intelligence"
+  ],
+  "tags": [
+    "computer-science",
+    "fundamentals",
+    "theory",
+    "mathematics",
+    "logic",
+    "academic"
+  ],
+  "relations": [
+    {
+      "skill_id": "algorithms-id",
+      "relation_type": "prerequisite",
+      "strength": 0.9,
+      "description": "Computer Science fundamentals are prerequisite for advanced algorithm study"
+    },
+    {
+      "skill_id": "data-structures-id", 
+      "relation_type": "prerequisite",
+      "strength": 0.9,
+      "description": "Computer Science fundamentals are prerequisite for data structures study"
+    }
+  ],
+  "metadata": {
+    "industry": [
+      "Technology",
+      "Software Development",
+      "Research",
+      "Academia",
+      "Artificial Intelligence"
+    ],
+    "job_roles": [
+      "Computer Scientist",
+      "Research Scientist",
+      "Software Engineer",
+      "Data Scientist",
+      "Algorithm Engineer",
+      "Academic Researcher"
+    ],
+    "difficulty": 6,
+    "time_to_learn": 200,
+    "trending": true,
+    "market_demand": 0.80
+  }
+}
