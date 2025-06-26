@@ -185,7 +185,7 @@ func (c *EventConsumer) handleInputSkillEvent(body []byte) error {
 	log.Println("Full data extracted:", inputEvent.Data.ExtractedContent)
 	log.Println("Full text extracted:", inputEvent.Data.TextForAnalysis)
 
-	newSkillDiscovery := NewSkillDiscoveryService()
+	newSkillDiscovery := NewImprovedSkillDiscoveryService()
 	skillCandidates, err := newSkillDiscovery.DiscoverNewSkills(ctx, inputEvent.Data.TextForAnalysis, inputEvent.Source)
 	if err != nil {
 		log.Printf("Failed to discover new skills: %v", err)
