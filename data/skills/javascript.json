@@ -1,0 +1,125 @@
+{
+  "name": "JavaScript",
+  "description": "A high-level, dynamic programming language commonly used for web development, both client-side and server-side applications.",
+  "identification_rules": {
+    "primary_patterns": [
+      {
+        "text": "javascript",
+        "weight": 0.9,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "js",
+        "weight": 0.7,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      }
+    ],
+    "secondary_patterns": [
+      {
+        "text": "react",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "node.js",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "vue.js",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      },
+      {
+        "text": "angular",
+        "weight": 0.6,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      }
+    ],
+    "academic_patterns": [
+      {
+        "text": "ECMAScript",
+        "weight": 0.8,
+        "type": "exact",
+        "case_sensitive": false,
+        "min_word_boundary": true
+      }
+    ],
+    "negative_patterns": [],
+    "min_primary_matches": 1,
+    "min_secondary_matches": 0,
+    "min_academic_matches": 0,
+    "min_total_score": 0.5,
+    "context_window": 5
+  },
+  "common_names": [
+    "JS",
+    "ECMAScript",
+    "JavaScript ES6",
+    "JavaScript ES2015"
+  ],
+  "abbreviations": [
+    "JS",
+    "ES6",
+    "ES2015",
+    "ES2017",
+    "ES2018"
+  ],
+  "technical_terms": [
+    "DOM manipulation",
+    "AJAX",
+    "JSON",
+    "Promise",
+    "async/await",
+    "closure",
+    "prototype",
+    "callback"
+  ],
+  "tags": [
+    "programming",
+    "web-development",
+    "frontend",
+    "backend",
+    "scripting",
+    "object-oriented"
+  ],
+  "relations": [
+    {
+      "skill_id": "60f1b9b9b9b9b9b9b9b9b9b1",
+      "relation_type": "related",
+      "strength": 0.8,
+      "description": "Often used together for web development"
+    }
+  ],
+  "metadata": {
+    "industry": [
+      "Technology",
+      "Software Development",
+      "Web Development"
+    ],
+    "job_roles": [
+      "Frontend Developer",
+      "Backend Developer",
+      "Full Stack Developer",
+      "Web Developer",
+      "Software Engineer"
+    ],
+    "difficulty": 6,
+    "time_to_learn": 240,
+    "trending": true,
+    "market_demand": 0.95
+  }
+}
+    "
