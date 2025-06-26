@@ -68,7 +68,7 @@ async def root():
         "timestamp": datetime.now().isoformat()
     }
 
-@app.get("/health")
+@app.get("/protected/input/health")
 async def health_check():
     return {
         "status": "healthy",
