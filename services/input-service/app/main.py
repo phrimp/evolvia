@@ -77,7 +77,7 @@ async def health_check():
         "timestamp": datetime.now().isoformat()
     }
 
-@app.post("/upload-powerpoint", response_model=ProcessingResult)
+@app.post("/protected/input/upload-powerpoint", response_model=ProcessingResult)
 async def upload_powerpoint(
     file: UploadFile = File(...),
     x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
