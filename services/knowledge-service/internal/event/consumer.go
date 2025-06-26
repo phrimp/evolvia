@@ -8,6 +8,7 @@ import (
 	"knowledge-service/internal/repository"
 	"knowledge-service/internal/services"
 	"log"
+	"math"
 	"strings"
 	"time"
 
@@ -235,13 +236,13 @@ func (c *EventConsumer) detectSkillsFromText(ctx context.Context, text string) (
 
 // matchSkillInText checks if a skill is mentioned in the text
 func (c *EventConsumer) matchSkillInText(skill *models.Skill, textLower string) *SkillMatch {
-	confidence := 0.0
+	rawScore := 0.0
 	var bestMatch string
 
 	// Check primary patterns
 	for _, pattern := range skill.IdentificationRules.PrimaryPatterns {
 		if c.textContainsPattern(textLower, pattern) {
-			confidence += pattern.Weight * 0.8 // Primary patterns have high weight
+			rawScore += pattern.Weight * 0.8 // Primary patterns have high weight
 			if bestMatch == "" {
 				bestMatch = pattern.Text
 			}
@@ -251,19 +252,21 @@ func (c *EventConsumer) matchSkillInText(skill *models.Skill, textLower string) 
 	// Check secondary patterns
 	for _, pattern := range skill.IdentificationRules.SecondaryPatterns {
 		if c.textContainsPattern(textLower, pattern) {
-			confidence += pattern.Weight * 0.5 // Secondary patterns have medium weight
+			rawScore += pattern.Weight * 0.5 // Secondary patterns have medium weight
 		}
 	}
 
 	// Check skill name and common names
 	if strings.Contains(textLower, strings.ToLower(skill.Name)) {
-		confidence += 0.7
-		bestMatch = skill.Name
+		rawScore += 0.7
+		if bestMatch == "" {
+			bestMatch = skill.Name
+		}
 	}
 
 	for _, commonName := range skill.CommonNames {
 		if strings.Contains(textLower, strings.ToLower(commonName)) {
-			confidence += 0.6
+			rawScore += 0.6
 			if bestMatch == "" {
 				bestMatch = commonName
 			}
@@ -273,13 +276,13 @@ func (c *EventConsumer) matchSkillInText(skill *models.Skill, textLower string) 
 	// Check abbreviations and technical terms
 	for _, abbrev := range skill.Abbreviations {
 		if strings.Contains(textLower, strings.ToLower(abbrev)) {
-			confidence += 0.5
+			rawScore += 0.5
 		}
 	}
 
 	for _, term := range skill.TechnicalTerms {
 		if strings.Contains(textLower, strings.ToLower(term)) {
-			confidence += 0.4
+			rawScore += 0.4
 		}
 	}
 
@@ -289,16 +292,45 @@ func (c *EventConsumer) matchSkillInText(skill *models.Skill, textLower string) 
 		minConfidence = 0.3 // Default minimum confidence
 	}
 
-	if confidence >= minConfidence {
+	// Normalize confidence to be between 0 and 1
+	// Use a sigmoid-like function to map raw scores to [0, 1]
+	normalizedConfidence := c.normalizeConfidence(rawScore)
+
+	if normalizedConfidence >= minConfidence {
 		return &SkillMatch{
 			SkillID:     skill.ID,
 			SkillName:   skill.Name,
-			Confidence:  confidence,
+			Confidence:  normalizedConfidence,
 			MatchedText: bestMatch,
 		}
 	}
 
 	return nil
+}
+
+// normalizeConfidence converts raw score to a value between 0 and 1
+func (c *EventConsumer) normalizeConfidence(rawScore float64) float64 {
+	// Use a tanh-based normalization to map [0, infinity] to [0, 1]
+	// This prevents confidence from exceeding 1.0
+	if rawScore <= 0 {
+		return 0
+	}
+
+	// Scale the raw score and apply tanh normalization
+	scaledScore := rawScore / 2.0 // Adjust scaling factor as needed
+	confidence := math.Tanh(scaledScore)
+
+	// Ensure minimum confidence for any detection
+	if confidence < 0.1 {
+		confidence = 0.1
+	}
+
+	// Ensure maximum confidence doesn't exceed 0.95
+	if confidence > 0.95 {
+		confidence = 0.95
+	}
+
+	return confidence
 }
 
 // textContainsPattern checks if text contains a specific pattern

@@ -68,16 +68,22 @@ async def root():
         "timestamp": datetime.now().isoformat()
     }
 
-@app.get("/protected/input/health")
+@app.get("/health")
 async def health_check():
+    """Enhanced health check including RabbitMQ status"""
+    rabbitmq_healthy = rabbitmq_publisher.health_check()
+    
     return {
-        "status": "healthy",
+        "status": "healthy" if rabbitmq_healthy else "degraded",
         "service": settings.SERVICE_NAME,
         "version": settings.SERVICE_VERSION,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "dependencies": {
+            "rabbitmq": "healthy" if rabbitmq_healthy else "unhealthy"
+        }
     }
 
-@app.post("/protected/input/upload-powerpoint", response_model=ProcessingResult)
+@app.post("/upload-powerpoint", response_model=ProcessingResult)
 async def upload_powerpoint(
     file: UploadFile = File(...),
     x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
@@ -85,6 +91,7 @@ async def upload_powerpoint(
 ):
     """
     Upload PowerPoint file, extract content, and publish to RabbitMQ for skill detection
+    Enhanced with better error handling and retry logic
     """
     start_time = time.time()
     
@@ -123,29 +130,37 @@ async def upload_powerpoint(
         logger.info(f"Processing PowerPoint file: {file.filename} ({len(file_content)} bytes) for user: {x_user_id}")
         
         # Extract content from PowerPoint
-        extracted_content = ppt_extractor.extract_content(file_content, file.filename)
+        try:
+            extracted_content = ppt_extractor.extract_content(file_content, file.filename)
+        except Exception as extract_error:
+            logger.error(f"PowerPoint extraction failed for {file.filename}: {str(extract_error)}")
+            raise HTTPException(
+                status_code=422, 
+                detail=f"Failed to process PowerPoint file: {str(extract_error)}"
+            )
         
-        # Publish to RabbitMQ with user context
-        success = rabbitmq_publisher.publish_skill_event(
-            user_id=x_user_id,
-            user_email=x_user_email,
-            content=extracted_content,
-            file_binary=file_content,
-            filename=file.filename,
-            content_type=file.content_type or "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        )
-        
-        if not success:
-            logger.error(f"Failed to publish RabbitMQ event for {file.filename}")
-            raise HTTPException(status_code=500, detail="Failed to publish event to RabbitMQ")
+        # Publish to RabbitMQ with enhanced retry logic
+        try:
+            success = rabbitmq_publisher.publish_skill_event(
+                user_id=x_user_id,
+                user_email=x_user_email,
+                content=extracted_content,
+                file_binary=file_content,
+                filename=file.filename,
+                content_type=file.content_type or "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            )
+        except Exception as publish_error:
+            logger.error(f"RabbitMQ publish failed for {file.filename}: {str(publish_error)}")
+            # Don't fail the request completely - file was processed successfully
+            success = False
         
         processing_time_ms = int((time.time() - start_time) * 1000)
         
         result = ProcessingResult(
-            message="PowerPoint processed successfully and sent for skill analysis",
+            message="PowerPoint processed successfully" + (" and sent for skill analysis" if success else " but event publishing failed"),
             filename=file.filename,
             slide_count=extracted_content["slide_count"],
-            event_published=True,
+            event_published=success,
             processing_time_ms=processing_time_ms,
             user_id=x_user_id,
             preview={
@@ -160,13 +175,17 @@ async def upload_powerpoint(
             }
         )
         
-        logger.info(f"Successfully processed {file.filename} for user {x_user_id}: {extracted_content['slide_count']} slides, {processing_time_ms}ms")
+        if success:
+            logger.info(f"Successfully processed {file.filename} for user {x_user_id}: {extracted_content['slide_count']} slides, {processing_time_ms}ms")
+        else:
+            logger.warning(f"Processed {file.filename} for user {x_user_id} but failed to publish event: {extracted_content['slide_count']} slides, {processing_time_ms}ms")
+        
         return result
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error processing PowerPoint {file.filename}: {str(e)}")
+        logger.error(f"Unexpected error processing PowerPoint {file.filename}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 if __name__ == "__main__":
