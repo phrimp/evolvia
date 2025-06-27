@@ -21,6 +21,7 @@ export const orderController = new Elysia({ prefix: "/order" })  .post("/create"
       description,
       cancelUrl,
       returnUrl,
+      expiredAt: Math.floor((Date.now() + 30 * 1000) / 1000), // 30 seconds from now (Unix timestamp)
     };
 
     console.log("📦 Order data prepared:", orderData);
@@ -30,12 +31,32 @@ export const orderController = new Elysia({ prefix: "/order" })  .post("/create"
       const paymentLinkRes = await payOS.createPaymentLink(orderData);
       console.log("✅ PayOS payment link created:", paymentLinkRes);
 
+      // Auto-cancel after 30 seconds as backup
+      setTimeout(async () => {
+        try {
+          const linkInfo = await payOS.getPaymentLinkInformation(orderData.orderCode);
+          if (linkInfo && linkInfo.status === 'PENDING') {
+            console.log(`⏰ Auto-cancelling expired order: ${orderData.orderCode}`);
+            await payOS.cancelPaymentLink(orderData.orderCode, "Payment link expired after 30 seconds");
+            
+            // Publish timeout event
+            await rabbitMQService.publishToQueue("payment.processing", {
+              type: "PAYMENT_TIMEOUT",
+              orderCode: orderData.orderCode.toString(),
+              timestamp: new Date().toISOString(),
+              data: { reason: "30 second timeout" }
+            });
+          }
+        } catch (error) {
+          console.error(`❌ Failed to auto-cancel order ${orderData.orderCode}:`, error);
+        }
+      }, 30 * 1000); // 30 seconds
+
       // Save transaction to MongoDB (only userId, orderCode, checkoutUrl, subscriptionId)
       await mongoDBHandler.createTransaction({
         userId,
         orderCode: orderData.orderCode.toString(),
         checkoutUrl: paymentLinkRes.checkoutUrl,
-        subscriptionId: null, // Currently set to null as requested
       });
 
       // Publish order creation event
