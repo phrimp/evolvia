@@ -136,7 +136,23 @@ export const orderController = new Elysia({ prefix: "/order" })  .post("/create"
     console.log("📦 Order data prepared:", orderData);
 
     try {
-      console.log("💳 Creating PayOS payment link...");
+      // Step 1: Create subscription in billing_management_service FIRST
+      console.log("� Creating subscription first...");
+      const subscriptionId = await createSubscription(userId);
+      
+      if (!subscriptionId) {
+        console.error("❌ Failed to create subscription, aborting order creation");
+        return {
+          error: -1,
+          message: "Failed to create subscription",
+          data: null,
+        };
+      }
+      
+      console.log(`✅ Subscription created: ${subscriptionId}`);
+
+      // Step 2: Create PayOS payment link
+      console.log("�💳 Creating PayOS payment link...");
       const paymentLinkRes = await payOS.createPaymentLink(orderData);
       console.log("✅ PayOS payment link created:", paymentLinkRes);
 
@@ -144,20 +160,15 @@ export const orderController = new Elysia({ prefix: "/order" })  .post("/create"
       const orderCode = orderData.orderCode.toString();
       orderTimeoutManager.scheduleTimeout(orderCode, 30000); // 30 seconds
 
-      // Step 1: Create subscription in billing_management_service first
-      const subscriptionId = await createSubscription(userId);
-      
-      if (!subscriptionId) {
-        console.warn("⚠️  Continuing without subscription ID");
-      }
-
-      // Step 2: Save transaction to MongoDB with subscriptionId
+      // Step 3: Save transaction to MongoDB with subscriptionId
+      console.log("💾 Saving transaction to MongoDB...");
       await mongoDBHandler.createTransaction({
         userId,
         orderCode: orderData.orderCode.toString(),
         checkoutUrl: paymentLinkRes.checkoutUrl,
-        subscriptionId: subscriptionId || undefined, // Convert null to undefined
+        subscriptionId: subscriptionId, // Use the subscription ID from step 1
       });
+      console.log("✅ Transaction saved to MongoDB");
 
       // Publish order creation event
       await rabbitMQService.publishToQueue("order.updates", {
