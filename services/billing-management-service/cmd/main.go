@@ -59,7 +59,7 @@ func main() {
 	app.Get("/health", func(c fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).SendString("Billing Management Service is healthy")
 	})
-
+	var eventConsumer event.Consumer
 	// Initialize repositories
 	subscriptionRepo := repository.NewSubscriptionRepository(mongo.Mongo_Database)
 	planRepo := repository.NewPlanRepository(mongo.Mongo_Database)
@@ -99,6 +99,18 @@ func main() {
 	planService := services.NewPlanService(planRepo, eventPublisher)
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, planRepo, eventPublisher)
 
+	eventConsumer, err = event.NewEventConsumer(cfg.RabbitMQ.URI, subscriptionService)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize event consumer: %v", err)
+	} else {
+		if err := eventConsumer.Start(); err != nil {
+			log.Printf("Warning: Failed to start event consumer: %v", err)
+			eventConsumer.Close()
+		} else {
+			log.Println("Successfully started payment event consumer")
+			defer eventConsumer.Close()
+		}
+	}
 	// Initialize and register handlers
 	// billingHandler := handlers.NewBillingHandler(billingService)
 	// billingHandler.RegisterRoutes(app)
@@ -144,6 +156,12 @@ func main() {
 	if discovery.ServiceDiscovery != nil {
 		if err := discovery.ServiceDiscovery.Deregister(); err != nil {
 			log.Printf("Error deregistering from service discovery: %v", err)
+		}
+	}
+
+	if eventConsumer != nil {
+		if err := eventConsumer.Close(); err != nil {
+			log.Printf("Error closing event consumer: %v", err)
 		}
 	}
 
