@@ -67,14 +67,19 @@ class MongoDBHandler {
         updatedAt: now,
       };
 
-      console.log('💾 Creating transaction with data:', newTransaction);
+      console.log('💾 Creating transaction with data:', JSON.stringify(newTransaction, null, 2));
       
       const result = await this.transactionCollection.insertOne(newTransaction);
       
-      return {
+      const insertedTransaction = {
         ...newTransaction,
         _id: result.insertedId,
       };
+      
+      console.log('💾 Transaction inserted successfully with ID:', result.insertedId);
+      console.log('💾 Full inserted transaction:', JSON.stringify(insertedTransaction, null, 2));
+      
+      return insertedTransaction;
     } catch (error) {
       console.error('❌ Error creating transaction:', error);
       throw error;
