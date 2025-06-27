@@ -650,3 +650,165 @@ func (s *SubscriptionService) validateCreateRequest(req *models.CreateSubscripti
 	}
 	return nil
 }
+
+// HandlePaymentSuccess activates subscription when payment succeeds
+func (s *SubscriptionService) HandlePaymentSuccess(ctx context.Context, subscriptionID bson.ObjectID, orderCode string) error {
+	log.Printf("Handling payment success for subscription: %s (order: %s)", subscriptionID.Hex(), orderCode)
+
+	// Get subscription
+	subscription, err := s.subscriptionRepo.FindByID(ctx, subscriptionID)
+	if err != nil {
+		return fmt.Errorf("failed to find subscription %s: %w", subscriptionID.Hex(), err)
+	}
+
+	// Only update if not already active
+	if subscription.Status == models.SubscriptionStatusActive {
+		log.Printf("Subscription %s is already active", subscriptionID.Hex())
+		return nil
+	}
+
+	// Update subscription to active
+	oldStatus := subscription.Status
+	err = s.subscriptionRepo.UpdateStatus(ctx, subscriptionID, models.SubscriptionStatusActive)
+	if err != nil {
+		return fmt.Errorf("failed to activate subscription %s: %w", subscriptionID.Hex(), err)
+	}
+
+	// Publish subscription updated event
+	subscriptionEvent := &event.SubscriptionEvent{
+		EventType:      event.EventTypeSubscriptionUpdated,
+		SubscriptionID: subscriptionID.Hex(),
+		UserID:         subscription.UserID,
+		PlanID:         subscription.PlanID.Hex(),
+		Status:         models.SubscriptionStatusActive,
+		Timestamp:      time.Now().Unix(),
+		OldValues:      map[string]any{"status": oldStatus},
+		NewValues:      map[string]any{"status": models.SubscriptionStatusActive, "orderCode": orderCode},
+	}
+
+	if err := s.publisher.PublishSubscriptionEvent(subscriptionEvent); err != nil {
+		log.Printf("Failed to publish subscription updated event: %v", err)
+	}
+
+	log.Printf("Successfully activated subscription %s for order %s", subscriptionID.Hex(), orderCode)
+	return nil
+}
+
+// HandlePaymentFailed handles failed payment for subscription
+func (s *SubscriptionService) HandlePaymentFailed(ctx context.Context, subscriptionID bson.ObjectID, orderCode string) error {
+	log.Printf("Handling payment failed for subscription: %s (order: %s)", subscriptionID.Hex(), orderCode)
+
+	// Get subscription
+	subscription, err := s.subscriptionRepo.FindByID(ctx, subscriptionID)
+	if err != nil {
+		return fmt.Errorf("failed to find subscription %s: %w", subscriptionID.Hex(), err)
+	}
+
+	// Update subscription to past due
+	oldStatus := subscription.Status
+	err = s.subscriptionRepo.UpdateStatus(ctx, subscriptionID, models.SubscriptionStatusPastDue)
+	if err != nil {
+		return fmt.Errorf("failed to update subscription %s to past due: %w", subscriptionID.Hex(), err)
+	}
+
+	// Publish subscription updated event
+	subscriptionEvent := &event.SubscriptionEvent{
+		EventType:      event.EventTypeSubscriptionUpdated,
+		SubscriptionID: subscriptionID.Hex(),
+		UserID:         subscription.UserID,
+		PlanID:         subscription.PlanID.Hex(),
+		Status:         models.SubscriptionStatusPastDue,
+		Timestamp:      time.Now().Unix(),
+		OldValues:      map[string]any{"status": oldStatus},
+		NewValues:      map[string]any{"status": models.SubscriptionStatusPastDue, "orderCode": orderCode, "reason": "payment_failed"},
+	}
+
+	if err := s.publisher.PublishSubscriptionEvent(subscriptionEvent); err != nil {
+		log.Printf("Failed to publish subscription updated event: %v", err)
+	}
+
+	log.Printf("Successfully updated subscription %s to past due for failed order %s", subscriptionID.Hex(), orderCode)
+	return nil
+}
+
+// HandlePaymentCancelled handles cancelled payment for subscription
+func (s *SubscriptionService) HandlePaymentCancelled(ctx context.Context, subscriptionID bson.ObjectID, orderCode string) error {
+	log.Printf("Handling payment cancelled for subscription: %s (order: %s)", subscriptionID.Hex(), orderCode)
+
+	// Get subscription
+	subscription, err := s.subscriptionRepo.FindByID(ctx, subscriptionID)
+	if err != nil {
+		return fmt.Errorf("failed to find subscription %s: %w", subscriptionID.Hex(), err)
+	}
+
+	// For trial subscriptions, cancel them if payment is cancelled
+	// For active subscriptions, suspend them
+	var newStatus models.SubscriptionStatus
+	if subscription.Status == models.SubscriptionStatusTrial {
+		newStatus = models.SubscriptionStatusCanceled
+	} else {
+		newStatus = models.SubscriptionStatusSuspended
+	}
+
+	oldStatus := subscription.Status
+	err = s.subscriptionRepo.UpdateStatus(ctx, subscriptionID, newStatus)
+	if err != nil {
+		return fmt.Errorf("failed to update subscription %s status: %w", subscriptionID.Hex(), err)
+	}
+
+	// Publish subscription updated event
+	subscriptionEvent := &event.SubscriptionEvent{
+		EventType:      event.EventTypeSubscriptionUpdated,
+		SubscriptionID: subscriptionID.Hex(),
+		UserID:         subscription.UserID,
+		PlanID:         subscription.PlanID.Hex(),
+		Status:         newStatus,
+		Timestamp:      time.Now().Unix(),
+		OldValues:      map[string]any{"status": oldStatus},
+		NewValues:      map[string]any{"status": newStatus, "orderCode": orderCode, "reason": "payment_cancelled"},
+	}
+
+	if err := s.publisher.PublishSubscriptionEvent(subscriptionEvent); err != nil {
+		log.Printf("Failed to publish subscription updated event: %v", err)
+	}
+
+	log.Printf("Successfully updated subscription %s to %s for cancelled order %s", subscriptionID.Hex(), newStatus, orderCode)
+	return nil
+}
+
+// HandlePaymentTimeout handles payment timeout for subscription
+func (s *SubscriptionService) HandlePaymentTimeout(ctx context.Context, subscriptionID bson.ObjectID, orderCode string) error {
+	log.Printf("Handling payment timeout for subscription: %s (order: %s)", subscriptionID.Hex(), orderCode)
+
+	// Get subscription
+	subscription, err := s.subscriptionRepo.FindByID(ctx, subscriptionID)
+	if err != nil {
+		return fmt.Errorf("failed to find subscription %s: %w", subscriptionID.Hex(), err)
+	}
+
+	// Similar to payment failed, but with timeout reason
+	oldStatus := subscription.Status
+	err = s.subscriptionRepo.UpdateStatus(ctx, subscriptionID, models.SubscriptionStatusPastDue)
+	if err != nil {
+		return fmt.Errorf("failed to update subscription %s to past due: %w", subscriptionID.Hex(), err)
+	}
+
+	// Publish subscription updated event
+	subscriptionEvent := &event.SubscriptionEvent{
+		EventType:      event.EventTypeSubscriptionUpdated,
+		SubscriptionID: subscriptionID.Hex(),
+		UserID:         subscription.UserID,
+		PlanID:         subscription.PlanID.Hex(),
+		Status:         models.SubscriptionStatusPastDue,
+		Timestamp:      time.Now().Unix(),
+		OldValues:      map[string]any{"status": oldStatus},
+		NewValues:      map[string]any{"status": models.SubscriptionStatusPastDue, "orderCode": orderCode, "reason": "payment_timeout"},
+	}
+
+	if err := s.publisher.PublishSubscriptionEvent(subscriptionEvent); err != nil {
+		log.Printf("Failed to publish subscription updated event: %v", err)
+	}
+
+	log.Printf("Successfully updated subscription %s to past due for timeout order %s", subscriptionID.Hex(), orderCode)
+	return nil
+}
