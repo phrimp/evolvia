@@ -80,6 +80,9 @@ export const orderController = new Elysia({ prefix: "/order" })
       subscriptionId?: string;
     };
 
+    console.log("🔍 Extracted subscriptionId:", subscriptionId);
+    console.log("🔍 subscriptionId type:", typeof subscriptionId);
+
     const orderData = {
       orderCode: Number(String(new Date().getTime()).slice(-6)),
       amount,
@@ -103,14 +106,24 @@ export const orderController = new Elysia({ prefix: "/order" })
 
       // Save transaction to MongoDB
       console.log("💾 Saving transaction to MongoDB...");
-      await mongoDBHandler.createTransaction({
+      const transactionData: any = {
         userId,
         orderCode: orderData.orderCode.toString(),
         amount: orderData.amount,
         description: orderData.description,
         checkoutUrl: paymentLinkRes.checkoutUrl,
-        subscriptionID: subscriptionId,
-      });
+      };
+      
+      // Always include subscriptionID field, even if empty
+      if (subscriptionId) {
+        transactionData.subscriptionID = subscriptionId;
+      } else {
+        transactionData.subscriptionID = "";  // Empty string instead of undefined
+      }
+      
+      console.log("🔍 Transaction data being saved:", transactionData);
+      
+      await mongoDBHandler.createTransaction(transactionData);
       console.log("✅ Transaction saved to MongoDB");
 
       // Publish order creation event
