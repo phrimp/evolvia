@@ -106,6 +106,8 @@ export const orderController = new Elysia({ prefix: "/order" })
       await mongoDBHandler.createTransaction({
         userId,
         orderCode: orderData.orderCode.toString(),
+        amount: orderData.amount,
+        description: orderData.description,
         checkoutUrl: paymentLinkRes.checkoutUrl,
         subscriptionID: subscriptionId,
       });

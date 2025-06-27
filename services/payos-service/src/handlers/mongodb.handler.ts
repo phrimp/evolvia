@@ -4,8 +4,13 @@ export interface Transaction {
   _id?: ObjectId;
   userId: string;
   orderCode: string;
+  amount?: number;
+  description?: string;
+  status?: string;
   checkoutUrl?: string;
   subscriptionID?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 class MongoDBHandler {
@@ -54,10 +59,16 @@ class MongoDBHandler {
     try {
       await this.connect();
       
+      const now = new Date();
       const newTransaction: Transaction = {
         ...transaction,
+        status: transaction.status || 'PENDING_PAYMENT',
+        createdAt: now,
+        updatedAt: now,
       };
 
+      console.log('💾 Creating transaction with data:', newTransaction);
+      
       const result = await this.transactionCollection.insertOne(newTransaction);
       
       return {
