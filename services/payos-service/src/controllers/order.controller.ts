@@ -13,39 +13,52 @@ async function createSubscription(userId: string): Promise<string | null> {
     
     // Connect to billing service MongoDB
     const billingMongoUrl = process.env.BILLING_MONGO_URI || process.env.MONGO_URI || 'mongodb://root:example@mongodb:27017';
+    console.log(`🔗 Connecting to billing MongoDB: ${billingMongoUrl}`);
+    
     client = new MongoClient(billingMongoUrl);
     await client.connect();
+    console.log(`✅ Connected to billing MongoDB`);
     
     const billingDb = client.db('billing_management_service');
     const subscriptionsCollection = billingDb.collection('subscriptions');
+    console.log(`📁 Using database: billing_management_service, collection: subscriptions`);
     
     // Generate subscription ID
     const subscriptionId = `sub_${new ObjectId().toString()}`;
+    console.log(`🆔 Generated subscription ID: ${subscriptionId}`);
     
     // Insert subscription document
     const subscriptionDoc = {
       _id: new ObjectId(),
-      subscriptionId: subscriptionId,
+      subscriptionId: subscriptionId, // Đổi lại thành subscriptionId (chữ d thường)
       userId: userId,
       createdAt: new Date(),
     };
     
+    console.log(`💾 Inserting subscription document:`, subscriptionDoc);
     const result = await subscriptionsCollection.insertOne(subscriptionDoc);
+    console.log(`📝 Insert result:`, result);
     
     if (result.insertedId) {
-      console.log(`✅ Subscription created: ${subscriptionId}`);
+      console.log(`✅ Subscription created successfully: ${subscriptionId}`);
       return subscriptionId;
     } else {
-      console.error("❌ Failed to insert subscription");
+      console.error("❌ Failed to insert subscription - no insertedId returned");
       return null;
     }
     
   } catch (error) {
     console.error("❌ Error creating subscription:", error);
+    console.error("❌ Error stack:", error instanceof Error ? error.stack : 'No stack trace');
     return null;
   } finally {
     if (client) {
-      await client.close();
+      try {
+        await client.close();
+        console.log(`🔒 MongoDB connection closed`);
+      } catch (closeError) {
+        console.error("❌ Error closing MongoDB connection:", closeError);
+      }
     }
   }
 }
@@ -113,7 +126,34 @@ const orderTimeoutManager = new OrderTimeoutManager();
 // Export for use in payment handlers
 export { orderTimeoutManager };
 
-export const orderController = new Elysia({ prefix: "/order" })  .post("/create", async ({ body }) => {
+export const orderController = new Elysia({ prefix: "/order" })
+  // Test endpoint để kiểm tra subscription creation
+  .post("/test-subscription", async ({ body }) => {
+    console.log("🧪 Testing subscription creation...");
+    
+    const { userId } = body as { userId: string };
+    
+    try {
+      const subscriptionId = await createSubscription(userId);
+      
+      return {
+        error: 0,
+        message: "Test completed",
+        data: {
+          subscriptionId: subscriptionId,
+          success: !!subscriptionId
+        }
+      };
+    } catch (error) {
+      console.error("❌ Test failed:", error);
+      return {
+        error: -1,
+        message: "Test failed",
+        data: { error: String(error) }
+      };
+    }
+  })
+  .post("/create", async ({ body }) => {
     console.log("📦 Order creation request received:", body);
     
     const { userId, description, returnUrl, cancelUrl, amount } = body as {
