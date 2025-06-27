@@ -80,9 +80,6 @@ export const orderController = new Elysia({ prefix: "/order" })
       subscriptionId?: string;
     };
 
-    console.log("🔍 Extracted subscriptionId:", subscriptionId);
-    console.log("🔍 subscriptionId type:", typeof subscriptionId);
-
     const orderData = {
       orderCode: Number(String(new Date().getTime()).slice(-6)),
       amount,
@@ -106,6 +103,9 @@ export const orderController = new Elysia({ prefix: "/order" })
 
       // Save transaction to MongoDB
       console.log("💾 Saving transaction to MongoDB...");
+      console.log("🔍 Extracted subscriptionId:", subscriptionId);
+      console.log("🔍 subscriptionId type:", typeof subscriptionId);
+      
       const transactionData: any = {
         userId,
         orderCode: orderData.orderCode.toString(),
@@ -117,14 +117,21 @@ export const orderController = new Elysia({ prefix: "/order" })
       // Always include subscriptionID field, even if empty
       if (subscriptionId) {
         transactionData.subscriptionID = subscriptionId;
+        console.log("✅ Added subscriptionID to transaction data:", subscriptionId);
       } else {
         transactionData.subscriptionID = "";  // Empty string instead of undefined
+        console.log("⚠️ No subscriptionId provided, using empty string");
       }
       
-      console.log("🔍 Transaction data being saved:", transactionData);
+      console.log("🔍 Transaction data being saved:", JSON.stringify(transactionData, null, 2));
       
-      await mongoDBHandler.createTransaction(transactionData);
-      console.log("✅ Transaction saved to MongoDB");
+      try {
+        await mongoDBHandler.createTransaction(transactionData);
+        console.log("✅ Transaction saved to MongoDB successfully");
+      } catch (mongoError) {
+        console.error("❌ Error saving to MongoDB:", mongoError);
+        throw mongoError; // Re-throw to be caught by outer try-catch
+      }
 
       // Publish order creation event
       await rabbitMQService.publishToQueue("order.updates", {
