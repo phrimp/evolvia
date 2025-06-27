@@ -71,12 +71,13 @@ export const orderController = new Elysia({ prefix: "/order" })
   .post("/create", async ({ body }) => {
     console.log("📦 Order creation request received:", body);
     
-    const { userId, description, returnUrl, cancelUrl, amount } = body as {
+    const { userId, description, returnUrl, cancelUrl, amount, subscriptionId } = body as {
       userId: string;
       description: string;
       returnUrl: string;
       cancelUrl: string;
       amount: number;
+      subscriptionId?: string;
     };
 
     const orderData = {
@@ -106,6 +107,7 @@ export const orderController = new Elysia({ prefix: "/order" })
         userId,
         orderCode: orderData.orderCode.toString(),
         checkoutUrl: paymentLinkRes.checkoutUrl,
+        subscriptionID: subscriptionId,
       });
       console.log("✅ Transaction saved to MongoDB");
 
@@ -119,6 +121,7 @@ export const orderController = new Elysia({ prefix: "/order" })
           amount: orderData.amount,
           description: orderData.description,
           checkoutUrl: paymentLinkRes.checkoutUrl,
+          subscriptionId,
         },
       });
 

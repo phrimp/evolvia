@@ -5,6 +5,7 @@ export interface Transaction {
   userId: string;
   orderCode: string;
   checkoutUrl?: string;
+  subscriptionID?: string;
 }
 
 class MongoDBHandler {
