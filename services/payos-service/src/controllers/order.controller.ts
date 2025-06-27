@@ -3,6 +3,52 @@ import payOS from "../utils/payos";
 import { rabbitMQService } from "../utils/rabbitmq";
 import { PaymentMessage } from "../handlers/payment.handler";
 import { mongoDBHandler } from "../handlers/mongodb.handler";
+import { MongoClient, ObjectId } from 'mongodb';
+
+// Helper function to create subscription directly in billing MongoDB
+async function createSubscription(userId: string): Promise<string | null> {
+  let client: MongoClient | null = null;
+  try {
+    console.log(`📋 Creating subscription for user ${userId} in billing MongoDB...`);
+    
+    // Connect to billing service MongoDB
+    const billingMongoUrl = process.env.BILLING_MONGO_URI || process.env.MONGO_URI || 'mongodb://root:example@mongodb:27017';
+    client = new MongoClient(billingMongoUrl);
+    await client.connect();
+    
+    const billingDb = client.db('billing_management_service');
+    const subscriptionsCollection = billingDb.collection('subscriptions');
+    
+    // Generate subscription ID
+    const subscriptionId = `sub_${new ObjectId().toString()}`;
+    
+    // Insert subscription document
+    const subscriptionDoc = {
+      _id: new ObjectId(),
+      subscriptionId: subscriptionId,
+      userId: userId,
+      createdAt: new Date(),
+    };
+    
+    const result = await subscriptionsCollection.insertOne(subscriptionDoc);
+    
+    if (result.insertedId) {
+      console.log(`✅ Subscription created: ${subscriptionId}`);
+      return subscriptionId;
+    } else {
+      console.error("❌ Failed to insert subscription");
+      return null;
+    }
+    
+  } catch (error) {
+    console.error("❌ Error creating subscription:", error);
+    return null;
+  } finally {
+    if (client) {
+      await client.close();
+    }
+  }
+}
 
 // Timeout manager to track pending orders
 class OrderTimeoutManager {
@@ -98,11 +144,19 @@ export const orderController = new Elysia({ prefix: "/order" })  .post("/create"
       const orderCode = orderData.orderCode.toString();
       orderTimeoutManager.scheduleTimeout(orderCode, 30000); // 30 seconds
 
-      // Save transaction to MongoDB (only userId, orderCode, checkoutUrl, subscriptionId)
+      // Step 1: Create subscription in billing_management_service first
+      const subscriptionId = await createSubscription(userId);
+      
+      if (!subscriptionId) {
+        console.warn("⚠️  Continuing without subscription ID");
+      }
+
+      // Step 2: Save transaction to MongoDB with subscriptionId
       await mongoDBHandler.createTransaction({
         userId,
         orderCode: orderData.orderCode.toString(),
         checkoutUrl: paymentLinkRes.checkoutUrl,
+        subscriptionId: subscriptionId || undefined, // Convert null to undefined
       });
 
       // Publish order creation event
@@ -115,6 +169,7 @@ export const orderController = new Elysia({ prefix: "/order" })  .post("/create"
           amount: orderData.amount,
           description: orderData.description,
           checkoutUrl: paymentLinkRes.checkoutUrl,
+          subscriptionId: subscriptionId, // Include subscription ID in event
         },
       });
 
