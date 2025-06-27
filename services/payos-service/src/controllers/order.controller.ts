@@ -30,10 +30,12 @@ export const orderController = new Elysia({ prefix: "/order" })  .post("/create"
       const paymentLinkRes = await payOS.createPaymentLink(orderData);
       console.log("✅ PayOS payment link created:", paymentLinkRes);
 
-      // Save transaction to MongoDB (only userId and orderCode)
+      // Save transaction to MongoDB (only userId, orderCode, checkoutUrl, subscriptionId)
       await mongoDBHandler.createTransaction({
         userId,
         orderCode: orderData.orderCode.toString(),
+        checkoutUrl: paymentLinkRes.checkoutUrl,
+        subscriptionId: null, // Currently set to null as requested
       });
 
       // Publish order creation event

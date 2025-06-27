@@ -4,12 +4,8 @@ export interface Transaction {
   _id?: ObjectId;
   userId: string;
   orderCode: string;
-  amount?: number;
-  description?: string;
-  status?: string;
   checkoutUrl?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  subscriptionId?: string | null;
 }
 
 class MongoDBHandler {
@@ -60,8 +56,7 @@ class MongoDBHandler {
       
       const newTransaction: Transaction = {
         ...transaction,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        subscriptionId: transaction.subscriptionId || null,
       };
 
       const result = await this.transactionCollection.insertOne(newTransaction);
@@ -82,7 +77,6 @@ class MongoDBHandler {
       
       const transactions = await this.transactionCollection
         .find({ userId })
-        .sort({ createdAt: -1 })
         .toArray();
       
       return transactions;
@@ -105,15 +99,9 @@ class MongoDBHandler {
     }
   }
 
-  async updateTransactionStatus(orderCode: string, status: string, additionalData?: Partial<Transaction>): Promise<Transaction | null> {
+  async updateTransaction(orderCode: string, updateData: Partial<Transaction>): Promise<Transaction | null> {
     try {
       await this.connect();
-      
-      const updateData: Partial<Transaction> = {
-        status,
-        updatedAt: new Date(),
-        ...additionalData,
-      };
 
       const result = await this.transactionCollection.findOneAndUpdate(
         { orderCode },
@@ -123,7 +111,7 @@ class MongoDBHandler {
       
       return result;
     } catch (error) {
-      console.error('❌ Error updating transaction status:', error);
+      console.error('❌ Error updating transaction:', error);
       throw error;
     }
   }
