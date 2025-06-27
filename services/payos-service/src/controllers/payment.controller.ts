@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 import payOS from "../utils/payos";
 import { rabbitMQService } from "../utils/rabbitmq";
 import { PaymentMessage } from "../handlers/payment.handler";
+import { orderTimeoutManager } from "./order.controller";
 
 export const paymentController = new Elysia({ prefix: "/payment" })
   .post("/payos", async ({ body, headers }) => {
@@ -43,6 +44,12 @@ export const paymentController = new Elysia({ prefix: "/payment" })
           transactions: (webhookData as any).transactions
         }
       };
+
+      // Cancel timeout if payment is successful
+      if (webhookData.code === '00') {
+        console.log(`✅ Payment successful for order ${webhookData.orderCode}, cancelling timeout`);
+        orderTimeoutManager.cancelTimeout(webhookData.orderCode.toString());
+      }
 
       // Publish to multiple queues with complete data
       await Promise.all([

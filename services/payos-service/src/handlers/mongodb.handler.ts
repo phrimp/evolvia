@@ -5,7 +5,6 @@ export interface Transaction {
   userId: string;
   orderCode: string;
   checkoutUrl?: string;
-  subscriptionId?: string | null;
 }
 
 class MongoDBHandler {
@@ -56,7 +55,6 @@ class MongoDBHandler {
       
       const newTransaction: Transaction = {
         ...transaction,
-        subscriptionId: transaction.subscriptionId || null,
       };
 
       const result = await this.transactionCollection.insertOne(newTransaction);

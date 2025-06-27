@@ -62,14 +62,9 @@ export class PaymentMessageHandler {
     }
   }
   static async handlePaymentSuccess(message: PaymentMessage): Promise<void> {
-    // Update transaction status in MongoDB
-    await mongoDBHandler.updateTransactionStatus(
-      message.orderCode, 
-      'PAID',
-      {
-        amount: message.paymentDetails?.amountPaid || message.amount,
-      }
-    );
+    // Since we only store basic transaction info, we don't update status
+    // Just send notifications and events
+    console.log(`✅ Payment successful for order ${message.orderCode}`);
 
     // Enhanced notification with all payment data
     await rabbitMQService.publishToQueue('payment.notifications', {
@@ -101,8 +96,9 @@ export class PaymentMessageHandler {
     });
   }
   static async handlePaymentFailed(message: PaymentMessage): Promise<void> {
-    // Update transaction status in MongoDB
-    await mongoDBHandler.updateTransactionStatus(message.orderCode, 'FAILED');
+    // Since we only store basic transaction info, we don't update status
+    // Just send notifications and events
+    console.log(`❌ Payment failed for order ${message.orderCode}`);
 
     // Send notification
     await rabbitMQService.publishToQueue('payment.notifications', {
@@ -121,8 +117,9 @@ export class PaymentMessageHandler {
     });
   }
   static async handlePaymentCancelled(message: PaymentMessage): Promise<void> {
-    // Update transaction status in MongoDB
-    await mongoDBHandler.updateTransactionStatus(message.orderCode, 'CANCELLED');
+    // Since we only store basic transaction info, we don't update status
+    // Just send notifications and events
+    console.log(`🚫 Payment cancelled for order ${message.orderCode}`);
 
     // Enhanced cancellation notification
     await rabbitMQService.publishToQueue('payment.notifications', {
