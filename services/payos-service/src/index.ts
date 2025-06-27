@@ -70,12 +70,12 @@ const app = new Elysia()
   .get("/", () => "Hello Elysia")
   .group("/public/payos", (app) => 
     app
-      .get("/test", () => ({ message: "Public PayOS route works!" }))
+      .get("/ping", () => ({ message: "pong!" }))
       .use(paymentController) // PayOS webhooks should be public
   )
   .group("/protected/payos", (app) => 
     app
-      .get("/test", () => ({ message: "Protected PayOS route works!" }))
+      .get("/ping", () => ({ message: "pong!" }))
       .use(orderController) // Order creation requires authentication
   )
   .listen({

@@ -30,21 +30,16 @@ export const orderController = new Elysia({ prefix: "/order" })  .post("/create"
       const paymentLinkRes = await payOS.createPaymentLink(orderData);
       console.log("✅ PayOS payment link created:", paymentLinkRes);
 
-      // Save transaction to MongoDB
+      // Save transaction to MongoDB (only userId and orderCode)
       await mongoDBHandler.createTransaction({
         userId,
         orderCode: orderData.orderCode.toString(),
-        amount: orderData.amount,
-        description: orderData.description,
-        status: "PENDING_PAYMENT",
-        checkoutUrl: paymentLinkRes.checkoutUrl,
       });
 
       // Publish order creation event
       await rabbitMQService.publishToQueue("order.updates", {
         type: "ORDER_CREATED",
         orderCode: orderData.orderCode.toString(),
-        status: "PENDING_PAYMENT",
         timestamp: new Date().toISOString(),
         data: {
           userId,
