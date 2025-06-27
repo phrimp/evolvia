@@ -71,22 +71,28 @@ export const orderController = new Elysia({ prefix: "/order" })
   .post("/create", async ({ body }) => {
     console.log("📦 Order creation request received:", JSON.stringify(body, null, 2));
     
-    const { userId, description, returnUrl, cancelUrl, amount, subscriptionId } = body as {
+    const { userId, description, returnUrl, cancelUrl, amount, subscriptionId, subscriptionID } = body as {
       userId: string;
       description: string;
       returnUrl: string;
       cancelUrl: string;
       amount: number;
       subscriptionId?: string;
+      subscriptionID?: string;
     };
+
+    // Handle both subscriptionId and subscriptionID
+    const finalSubscriptionId = subscriptionId || subscriptionID || "";
 
     // Debug: Log extracted values
     console.log("🔍 DEBUG - Extracted values:");
     console.log("  - userId:", userId);
     console.log("  - amount:", amount);
-    console.log("  - subscriptionId:", subscriptionId);
-    console.log("  - subscriptionId type:", typeof subscriptionId);
-    console.log("  - subscriptionId is truthy:", !!subscriptionId);
+    console.log("  - subscriptionId (from body):", subscriptionId);
+    console.log("  - subscriptionID (from body):", subscriptionID);
+    console.log("  - finalSubscriptionId:", finalSubscriptionId);
+    console.log("  - finalSubscriptionId type:", typeof finalSubscriptionId);
+    console.log("  - finalSubscriptionId is truthy:", !!finalSubscriptionId);
 
     const orderData = {
       orderCode: Number(String(new Date().getTime()).slice(-6)),
@@ -118,7 +124,7 @@ export const orderController = new Elysia({ prefix: "/order" })
         amount: orderData.amount,
         description: orderData.description,
         checkoutUrl: paymentLinkRes.checkoutUrl,
-        subscriptionID: subscriptionId || "",  // Always include subscriptionID field
+        subscriptionID: finalSubscriptionId,  // Use finalSubscriptionId
       };
       
       console.log("🔍 DEBUG - Transaction data being saved:");
@@ -127,12 +133,14 @@ export const orderController = new Elysia({ prefix: "/order" })
       console.log("  - Full transaction data:", JSON.stringify(transactionData, null, 2));
       
       try {
+        console.log("🔍 DEBUG - About to save transaction to MongoDB...");
         const savedTransaction = await mongoDBHandler.createTransaction(transactionData);
         console.log("✅ Transaction saved to MongoDB successfully");
         console.log("🔍 DEBUG - Saved transaction subscriptionID:", savedTransaction.subscriptionID);
         console.log("🔍 DEBUG - Full saved transaction:", JSON.stringify(savedTransaction, null, 2));
         
         // Verify by reading back from database
+        console.log("🔍 DEBUG - Verifying transaction in database...");
         const verifyTransaction = await mongoDBHandler.getTransactionByOrderCode(orderData.orderCode.toString());
         console.log("🔍 DEBUG - Verification read from DB:");
         console.log("  - subscriptionID in DB:", verifyTransaction?.subscriptionID);
@@ -140,6 +148,8 @@ export const orderController = new Elysia({ prefix: "/order" })
         
       } catch (mongoError) {
         console.error("❌ Error saving to MongoDB:", mongoError);
+        console.error("❌ MongoDB error details:", mongoError instanceof Error ? mongoError.message : String(mongoError));
+        console.error("❌ MongoDB error stack:", mongoError instanceof Error ? mongoError.stack : 'No stack trace');
         throw mongoError; // Re-throw to be caught by outer try-catch
       }
 
@@ -153,14 +163,14 @@ export const orderController = new Elysia({ prefix: "/order" })
           amount: orderData.amount,
           description: orderData.description,
           checkoutUrl: paymentLinkRes.checkoutUrl,
-          subscriptionId,
+          subscriptionId: finalSubscriptionId,
         },
       });
 
       console.log("🔍 DEBUG - Final response data:");
       console.log("  - orderCode:", paymentLinkRes.orderCode);
       console.log("  - amount:", paymentLinkRes.amount);
-      console.log("  - subscriptionId in event:", subscriptionId);
+      console.log("  - finalSubscriptionId in event:", finalSubscriptionId);
 
       return {
         error: 0,
@@ -174,7 +184,7 @@ export const orderController = new Elysia({ prefix: "/order" })
           description: paymentLinkRes.description,
           orderCode: paymentLinkRes.orderCode,
           qrCode: paymentLinkRes.qrCode,
-          subscriptionId: subscriptionId, // Include subscriptionId in response for debugging
+          subscriptionId: finalSubscriptionId, // Include subscriptionId in response for debugging
         },
       };
     } catch (error) {

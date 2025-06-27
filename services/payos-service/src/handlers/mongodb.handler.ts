@@ -29,17 +29,20 @@ class MongoDBHandler {
   async connect(): Promise<void> {
     try {
       if (!this.isConnected) {
+        console.log('🔌 Attempting to connect to MongoDB...');
         await this.client.connect();
         // Add ping to verify connection
         await this.db.admin().ping();
         this.isConnected = true;
-        console.log('✅ Connected to MongoDB');
+        console.log('✅ Connected to MongoDB successfully');
+      } else {
+        console.log('✅ MongoDB already connected');
       }
     } catch (error) {
       console.error('❌ MongoDB connection error:', error);
+      console.error('❌ MongoDB connection error details:', error instanceof Error ? error.message : String(error));
       this.isConnected = false;
-      // Don't throw error to prevent service crash
-      // throw error;
+      throw error; // Throw error so calling code knows connection failed
     }
   }
 
@@ -57,6 +60,9 @@ class MongoDBHandler {
 
   async createTransaction(transaction: Omit<Transaction, '_id'>): Promise<Transaction> {
     try {
+      console.log('💾 Starting createTransaction...');
+      console.log('💾 Input transaction data:', JSON.stringify(transaction, null, 2));
+      
       await this.connect();
       
       const now = new Date();
@@ -82,6 +88,8 @@ class MongoDBHandler {
       return insertedTransaction;
     } catch (error) {
       console.error('❌ Error creating transaction:', error);
+      console.error('❌ Error details:', error instanceof Error ? error.message : String(error));
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       throw error;
     }
   }
