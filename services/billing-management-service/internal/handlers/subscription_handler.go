@@ -30,9 +30,9 @@ func (h *SubscriptionHandler) RegisterRoutes(app *fiber.App) {
 	protectedGroup := app.Group("/protected/billing/subscriptions")
 
 	// Subscription CRUD operations
-	protectedGroup.Post("/", h.CreateSubscription, utils.PermissionRequired(middleware.WriteSubscriptionPermission))
+	protectedGroup.Post("/", h.CreateSubscription)
 	protectedGroup.Get("/:id", h.GetSubscription, utils.PermissionRequired(middleware.ReadSubscriptionPermission))
-	protectedGroup.Put("/:id", h.UpdateSubscription, utils.PermissionRequired(middleware.UpdateSubscriptionPermission))
+	protectedGroup.Put("/:id", h.UpdateSubscription, utils.OwnerPermissionRequired(""))
 	protectedGroup.Delete("/:id", h.CancelSubscription, utils.PermissionRequired(middleware.DeleteSubscriptionPermission))
 
 	// User-specific subscription access (users can access their own subscriptions)
