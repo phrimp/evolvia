@@ -1,6 +1,4 @@
 import { rabbitMQService } from '../utils/rabbitmq';
-import payOS from '../utils/payos';
-import { mongoDBHandler } from './mongodb.handler';
 
 export interface PaymentMessage {
   type: 'PAYMENT_CREATED' | 'PAYMENT_SUCCESS' | 'PAYMENT_FAILED' | 'PAYMENT_CANCELLED';
