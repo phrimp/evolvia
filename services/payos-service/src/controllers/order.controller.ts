@@ -4,90 +4,6 @@ import { rabbitMQService } from "../utils/rabbitmq";
 import { PaymentMessage } from "../handlers/payment.handler";
 import { mongoDBHandler } from "../handlers/mongodb.handler";
 
-// Timeout manager to track pending orders
-class OrderTimeoutManager {
-  private timeouts: Map<string, NodeJS.Timeout> = new Map();
-
-  scheduleTimeout(orderCode: string, timeoutMs: number) {
-    console.log(`⏰ Scheduling timeout for order ${orderCode} in ${timeoutMs}ms`);
-    
-    const timeoutId = setTimeout(async () => {
-      try {
-        console.log(`🚨 Order ${orderCode} timed out, attempting to cancel...`);
-        
-        // Get transaction details
-        const transaction = await mongoDBHandler.getTransactionWithUrls(orderCode);
-        
-        // Call PayOS directly to cancel
-        const order = await payOS.cancelPaymentLink(orderCode, "Timeout");
-        
-        if (order) {
-          console.log(`✅ Order ${orderCode} cancelled due to timeout`);
-          
-          // Update transaction status to TIMEOUT
-          await mongoDBHandler.updateTransactionStatus(orderCode, 'TIMEOUT');
-        } else {
-          console.error(`❌ Failed to cancel order ${orderCode}: No order returned`);
-        }
-
-        // Remove from tracking
-        this.timeouts.delete(orderCode);
-
-        // Publish timeout event
-        const timeoutMessage = {
-          type: "PAYMENT_TIMEOUT",
-          orderCode: orderCode,
-          timestamp: new Date().toISOString(),
-          data: { 
-            reason: "15 minute timeout", 
-            auto_cancelled: true
-          }
-        };
-
-        await rabbitMQService.publishToQueue("payment.processing", timeoutMessage);
-
-        // Also publish to a specific timeout queue
-        await rabbitMQService.publishToQueue("payment.timeout", {
-          orderCode: orderCode,
-          userId: transaction?.userId,
-          message: "Payment timed out after 15 minutes",
-          timestamp: new Date().toISOString()
-        });
-
-        console.log(`🔄 Timeout event published for order ${orderCode}`);
-
-      } catch (error) {
-        console.error(`❌ Failed to auto-cancel order ${orderCode}:`, error);
-        this.timeouts.delete(orderCode);
-      }
-    }, timeoutMs);
-
-    this.timeouts.set(orderCode, timeoutId);
-  }
-
-  cancelTimeout(orderCode: string) {
-    const timeoutId = this.timeouts.get(orderCode);
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      this.timeouts.delete(orderCode);
-      console.log(`⏰ Cancelled timeout for order ${orderCode}`);
-    }
-  }
-
-  clearAllTimeouts() {
-    this.timeouts.forEach((timeoutId, orderCode) => {
-      clearTimeout(timeoutId);
-      console.log(`⏰ Cleared timeout for order ${orderCode}`);
-    });
-    this.timeouts.clear();
-  }
-}
-
-const orderTimeoutManager = new OrderTimeoutManager();
-
-// Export for use in payment handlers
-export { orderTimeoutManager };
-
 export const orderController = new Elysia({ prefix: "/order" })
   .post("/create", async ({ body }) => {
     console.log("📦 Order creation request received:", JSON.stringify(body, null, 2));
@@ -119,8 +35,7 @@ export const orderController = new Elysia({ prefix: "/order" })
       description,
       cancelUrl,
       returnUrl,
-      //expiredAt: Math.floor((Date.now() + 15 * 60 * 1000) / 1000), // 15 minutes from now (Unix timestamp)
-      expiredAt: Math.floor((Date.now() + 10 * 1000) / 1000),
+      expiredAt: Math.floor((Date.now() + 10 * 1000) / 1000), // 15 minutes from now (Unix timestamp)
     };
 
     console.log("📦 Order data prepared:", orderData);
@@ -130,10 +45,6 @@ export const orderController = new Elysia({ prefix: "/order" })
       console.log("💳 Creating PayOS payment link...");
       const paymentLinkRes = await payOS.createPaymentLink(orderData);
       console.log("✅ PayOS payment link created:", paymentLinkRes);
-
-      // Schedule auto-cancel after 15 minutes
-      const orderCode = orderData.orderCode.toString();
-      orderTimeoutManager.scheduleTimeout(orderCode, 15 * 60 * 1000); // 15 minutes in milliseconds
 
       // Save transaction to MongoDB
       console.log("💾 Saving transaction to MongoDB...");
@@ -273,9 +184,6 @@ export const orderController = new Elysia({ prefix: "/order" })
           data: null,
         };
       }
-
-      // Cancel the timeout since order is being manually cancelled
-      orderTimeoutManager.cancelTimeout(orderId);
 
       // Publish payment cancellation event
       const paymentMessage: PaymentMessage = {
