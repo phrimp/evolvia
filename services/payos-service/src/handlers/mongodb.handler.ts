@@ -8,7 +8,7 @@ export interface Transaction {
   description?: string;
   status?: string;
   checkoutUrl?: string;
-  subscriptionID?: string;
+  subscriptionID?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -69,6 +69,7 @@ class MongoDBHandler {
       const newTransaction: Transaction = {
         ...transaction,
         status: transaction.status || 'PENDING_PAYMENT',
+        subscriptionID: transaction.subscriptionID || null,
         createdAt: now,
         updatedAt: now,
       };
