@@ -15,11 +15,11 @@ class OrderTimeoutManager {
       try {
         console.log(`🚨 Order ${orderCode} timed out, attempting to cancel...`);
         
-        // Get transaction details including cancelUrl
+        // Get transaction details
         const transaction = await mongoDBHandler.getTransactionWithUrls(orderCode);
         
-        // Call PayOS directly instead of going through protected API
-        const order = await payOS.cancelPaymentLink(orderCode, "Timeout - Payment link expired after 30 seconds");
+        // Call PayOS directly to cancel
+        const order = await payOS.cancelPaymentLink(orderCode, "Timeout");
         
         if (order) {
           console.log(`✅ Order ${orderCode} cancelled due to timeout`);
@@ -33,33 +33,28 @@ class OrderTimeoutManager {
         // Remove from tracking
         this.timeouts.delete(orderCode);
 
-        // Publish timeout event with redirect information
+        // Publish timeout event
         const timeoutMessage = {
           type: "PAYMENT_TIMEOUT",
           orderCode: orderCode,
           timestamp: new Date().toISOString(),
           data: { 
-            reason: "30 second timeout", 
-            auto_cancelled: true,
-            cancelUrl: transaction?.cancelUrl,
-            redirectUrl: transaction?.cancelUrl || '/payment/failed',
-            shouldRedirect: true
+            reason: "15 minute timeout", 
+            auto_cancelled: true
           }
         };
 
         await rabbitMQService.publishToQueue("payment.processing", timeoutMessage);
 
-        // Also publish to a specific timeout queue for frontend handling
+        // Also publish to a specific timeout queue
         await rabbitMQService.publishToQueue("payment.timeout", {
           orderCode: orderCode,
           userId: transaction?.userId,
-          cancelUrl: transaction?.cancelUrl,
-          redirectUrl: transaction?.cancelUrl || '/payment/failed',
-          message: "Payment timed out after 30 seconds",
+          message: "Payment timed out after 15 minutes",
           timestamp: new Date().toISOString()
         });
 
-        console.log(`🔄 Timeout event published for order ${orderCode} with redirect to: ${transaction?.cancelUrl || '/payment/failed'}`);
+        console.log(`🔄 Timeout event published for order ${orderCode}`);
 
       } catch (error) {
         console.error(`❌ Failed to auto-cancel order ${orderCode}:`, error);
@@ -117,8 +112,6 @@ export const orderController = new Elysia({ prefix: "/order" })
     console.log("  - subscriptionId (from body):", subscriptionId);
     console.log("  - subscriptionID (from body):", subscriptionID);
     console.log("  - finalSubscriptionId:", finalSubscriptionId);
-    console.log("  - finalSubscriptionId type:", typeof finalSubscriptionId);
-    console.log("  - finalSubscriptionId is truthy:", !!finalSubscriptionId);
 
     const orderData = {
       orderCode: Number(String(new Date().getTime()).slice(-6)),
@@ -126,7 +119,7 @@ export const orderController = new Elysia({ prefix: "/order" })
       description,
       cancelUrl,
       returnUrl,
-      expiredAt: Math.floor((Date.now() + 30 * 1000) / 1000), // 30 seconds from now (Unix timestamp)
+      expiredAt: Math.floor((Date.now() + 15 * 60 * 1000) / 1000), // 15 minutes from now (Unix timestamp)
     };
 
     console.log("📦 Order data prepared:", orderData);
@@ -137,9 +130,9 @@ export const orderController = new Elysia({ prefix: "/order" })
       const paymentLinkRes = await payOS.createPaymentLink(orderData);
       console.log("✅ PayOS payment link created:", paymentLinkRes);
 
-      // Schedule auto-cancel after 30 seconds using Worker Thread approach
+      // Schedule auto-cancel after 15 minutes
       const orderCode = orderData.orderCode.toString();
-      orderTimeoutManager.scheduleTimeout(orderCode, 30000); // 30 seconds
+      orderTimeoutManager.scheduleTimeout(orderCode, 15 * 60 * 1000); // 15 minutes in milliseconds
 
       // Save transaction to MongoDB
       console.log("💾 Saving transaction to MongoDB...");
@@ -150,14 +143,13 @@ export const orderController = new Elysia({ prefix: "/order" })
         amount: orderData.amount,
         description: orderData.description,
         checkoutUrl: paymentLinkRes.checkoutUrl,
-        subscriptionID: finalSubscriptionId,  // Use finalSubscriptionId
+        subscriptionID: finalSubscriptionId,
         returnUrl: returnUrl,
         cancelUrl: cancelUrl,
       };
       
       console.log("🔍 DEBUG - Transaction data being saved:");
       console.log("  - subscriptionID value:", transactionData.subscriptionID);
-      console.log("  - subscriptionID type:", typeof transactionData.subscriptionID);
       console.log("  - Full transaction data:", JSON.stringify(transactionData, null, 2));
       
       try {
@@ -165,20 +157,10 @@ export const orderController = new Elysia({ prefix: "/order" })
         const savedTransaction = await mongoDBHandler.createTransaction(transactionData);
         console.log("✅ Transaction saved to MongoDB successfully");
         console.log("🔍 DEBUG - Saved transaction subscriptionID:", savedTransaction.subscriptionID);
-        console.log("🔍 DEBUG - Full saved transaction:", JSON.stringify(savedTransaction, null, 2));
-        
-        // Verify by reading back from database
-        console.log("🔍 DEBUG - Verifying transaction in database...");
-        const verifyTransaction = await mongoDBHandler.getTransactionByOrderCode(orderData.orderCode.toString());
-        console.log("🔍 DEBUG - Verification read from DB:");
-        console.log("  - subscriptionID in DB:", verifyTransaction?.subscriptionID);
-        console.log("  - Full transaction from DB:", JSON.stringify(verifyTransaction, null, 2));
         
       } catch (mongoError) {
         console.error("❌ Error saving to MongoDB:", mongoError);
-        console.error("❌ MongoDB error details:", mongoError instanceof Error ? mongoError.message : String(mongoError));
-        console.error("❌ MongoDB error stack:", mongoError instanceof Error ? mongoError.stack : 'No stack trace');
-        throw mongoError; // Re-throw to be caught by outer try-catch
+        throw mongoError;
       }
 
       // Publish order creation event
@@ -198,7 +180,6 @@ export const orderController = new Elysia({ prefix: "/order" })
       console.log("🔍 DEBUG - Final response data:");
       console.log("  - orderCode:", paymentLinkRes.orderCode);
       console.log("  - amount:", paymentLinkRes.amount);
-      console.log("  - finalSubscriptionId in event:", finalSubscriptionId);
 
       return {
         error: 0,
@@ -212,13 +193,11 @@ export const orderController = new Elysia({ prefix: "/order" })
           description: paymentLinkRes.description,
           orderCode: paymentLinkRes.orderCode,
           qrCode: paymentLinkRes.qrCode,
-          subscriptionId: finalSubscriptionId, // Include subscriptionId in response for debugging
+          subscriptionId: finalSubscriptionId,
         },
       };
     } catch (error) {
       console.error("❌ PayOS error details:", error);
-      console.error("❌ Error message:", error instanceof Error ? error.message : String(error));
-      console.error("❌ Error stack:", error instanceof Error ? error.stack : 'No stack trace');
 
       // Publish order creation failure
       await rabbitMQService.publishToQueue("payment.failed", {
@@ -301,7 +280,7 @@ export const orderController = new Elysia({ prefix: "/order" })
       const paymentMessage: PaymentMessage = {
         type: "PAYMENT_CANCELLED",
         orderCode: orderId,
-        amount: 0, // We don't have amount info here
+        amount: 0,
         description: cancellationReason,
         timestamp: new Date().toISOString(),
         data: order,
@@ -339,47 +318,6 @@ export const orderController = new Elysia({ prefix: "/order" })
       return {
         error: -1,
         message: "failed",
-        data: null,
-      };
-    }
-  })
-  .get("/timeout/:orderCode", async ({ params: { orderCode } }) => {
-    try {
-      console.log("⏰ Handling timeout redirect for orderCode:", orderCode);
-      
-      const transaction = await mongoDBHandler.getTransactionByOrderCode(orderCode);
-      
-      if (!transaction) {
-        return {
-          error: -1,
-          message: "Transaction not found",
-          data: null,
-        };
-      }
-      
-      // Update transaction status if not already updated
-      if (transaction.status !== 'TIMEOUT') {
-        await mongoDBHandler.updateTransactionStatus(orderCode, 'TIMEOUT');
-      }
-      
-      console.log("⏰ Redirecting to cancelUrl:", transaction.cancelUrl);
-      
-      return {
-        error: 0,
-        message: "Payment timeout",
-        data: {
-          orderCode: orderCode,
-          status: 'TIMEOUT',
-          redirectUrl: transaction.cancelUrl || '/payment/failed',
-          cancelUrl: transaction.cancelUrl,
-          message: "Payment timed out after 30 seconds. Redirecting to failure page..."
-        },
-      };
-    } catch (error) {
-      console.error("❌ Error handling timeout redirect:", error);
-      return {
-        error: -1,
-        message: "Failed to handle timeout",
         data: null,
       };
     }
