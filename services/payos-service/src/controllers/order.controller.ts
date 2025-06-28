@@ -15,11 +15,17 @@ class OrderTimeoutManager {
       try {
         console.log(`🚨 Order ${orderCode} timed out, attempting to cancel...`);
         
+        // Get transaction details including cancelUrl
+        const transaction = await mongoDBHandler.getTransactionWithUrls(orderCode);
+        
         // Call PayOS directly instead of going through protected API
         const order = await payOS.cancelPaymentLink(orderCode, "Timeout - Payment link expired after 30 seconds");
         
         if (order) {
           console.log(`✅ Order ${orderCode} cancelled due to timeout`);
+          
+          // Update transaction status to TIMEOUT
+          await mongoDBHandler.updateTransactionStatus(orderCode, 'TIMEOUT');
         } else {
           console.error(`❌ Failed to cancel order ${orderCode}: No order returned`);
         }
@@ -27,13 +33,33 @@ class OrderTimeoutManager {
         // Remove from tracking
         this.timeouts.delete(orderCode);
 
-        // Publish timeout event
-        await rabbitMQService.publishToQueue("payment.processing", {
+        // Publish timeout event with redirect information
+        const timeoutMessage = {
           type: "PAYMENT_TIMEOUT",
           orderCode: orderCode,
           timestamp: new Date().toISOString(),
-          data: { reason: "30 second timeout", auto_cancelled: true }
+          data: { 
+            reason: "30 second timeout", 
+            auto_cancelled: true,
+            cancelUrl: transaction?.cancelUrl,
+            redirectUrl: transaction?.cancelUrl || '/payment/failed',
+            shouldRedirect: true
+          }
+        };
+
+        await rabbitMQService.publishToQueue("payment.processing", timeoutMessage);
+
+        // Also publish to a specific timeout queue for frontend handling
+        await rabbitMQService.publishToQueue("payment.timeout", {
+          orderCode: orderCode,
+          userId: transaction?.userId,
+          cancelUrl: transaction?.cancelUrl,
+          redirectUrl: transaction?.cancelUrl || '/payment/failed',
+          message: "Payment timed out after 30 seconds",
+          timestamp: new Date().toISOString()
         });
+
+        console.log(`🔄 Timeout event published for order ${orderCode} with redirect to: ${transaction?.cancelUrl || '/payment/failed'}`);
 
       } catch (error) {
         console.error(`❌ Failed to auto-cancel order ${orderCode}:`, error);
@@ -125,6 +151,8 @@ export const orderController = new Elysia({ prefix: "/order" })
         description: orderData.description,
         checkoutUrl: paymentLinkRes.checkoutUrl,
         subscriptionID: finalSubscriptionId,  // Use finalSubscriptionId
+        returnUrl: returnUrl,
+        cancelUrl: cancelUrl,
       };
       
       console.log("🔍 DEBUG - Transaction data being saved:");
@@ -311,6 +339,47 @@ export const orderController = new Elysia({ prefix: "/order" })
       return {
         error: -1,
         message: "failed",
+        data: null,
+      };
+    }
+  })
+  .get("/timeout/:orderCode", async ({ params: { orderCode } }) => {
+    try {
+      console.log("⏰ Handling timeout redirect for orderCode:", orderCode);
+      
+      const transaction = await mongoDBHandler.getTransactionByOrderCode(orderCode);
+      
+      if (!transaction) {
+        return {
+          error: -1,
+          message: "Transaction not found",
+          data: null,
+        };
+      }
+      
+      // Update transaction status if not already updated
+      if (transaction.status !== 'TIMEOUT') {
+        await mongoDBHandler.updateTransactionStatus(orderCode, 'TIMEOUT');
+      }
+      
+      console.log("⏰ Redirecting to cancelUrl:", transaction.cancelUrl);
+      
+      return {
+        error: 0,
+        message: "Payment timeout",
+        data: {
+          orderCode: orderCode,
+          status: 'TIMEOUT',
+          redirectUrl: transaction.cancelUrl || '/payment/failed',
+          cancelUrl: transaction.cancelUrl,
+          message: "Payment timed out after 30 seconds. Redirecting to failure page..."
+        },
+      };
+    } catch (error) {
+      console.error("❌ Error handling timeout redirect:", error);
+      return {
+        error: -1,
+        message: "Failed to handle timeout",
         data: null,
       };
     }

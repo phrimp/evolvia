@@ -9,6 +9,8 @@ export interface Transaction {
   status?: string;
   checkoutUrl?: string;
   subscriptionID?: string | null;
+  returnUrl?: string;
+  cancelUrl?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -123,6 +125,19 @@ class MongoDBHandler {
     }
   }
 
+  async getTransactionWithUrls(orderCode: string): Promise<Transaction | null> {
+    try {
+      await this.connect();
+      
+      const transaction = await this.transactionCollection.findOne({ orderCode });
+      
+      return transaction;
+    } catch (error) {
+      console.error('❌ Error getting transaction with URLs by orderCode:', error);
+      throw error;
+    }
+  }
+
   async updateTransaction(orderCode: string, updateData: Partial<Transaction>): Promise<Transaction | null> {
     try {
       await this.connect();
@@ -149,6 +164,29 @@ class MongoDBHandler {
       return result.deletedCount > 0;
     } catch (error) {
       console.error('❌ Error deleting transaction:', error);
+      throw error;
+    }
+  }
+
+  async updateTransactionStatus(orderCode: string, status: string): Promise<Transaction | null> {
+    try {
+      await this.connect();
+
+      const result = await this.transactionCollection.findOneAndUpdate(
+        { orderCode },
+        { 
+          $set: { 
+            status: status,
+            updatedAt: new Date()
+          } 
+        },
+        { returnDocument: 'after' }
+      );
+      
+      console.log(`📊 Transaction ${orderCode} status updated to: ${status}`);
+      return result;
+    } catch (error) {
+      console.error('❌ Error updating transaction status:', error);
       throw error;
     }
   }
