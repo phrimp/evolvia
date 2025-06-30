@@ -81,7 +81,7 @@ func (s *SubscriptionService) CreateSubscription(ctx context.Context, req *model
 		startTrial = *req.StartTrial
 	}
 
-	status := models.SubscriptionStatusActive
+	status := models.SubscriptionStatusInactive
 
 	// Handle trial period
 	if startTrial && plan.TrialDays > 0 {
