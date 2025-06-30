@@ -8,6 +8,7 @@ class RabbitMQService {
     constructor() {
         this.url = process.env.RABBITMQ_URI || 'amqp://localhost:5672';
     }
+    
     async connect(): Promise<void> {
         try {
             this.connection = await amqp.connect(this.url) as any;
@@ -26,7 +27,12 @@ class RabbitMQService {
     private async setupQueues(): Promise<void> {
         if (!this.channel) throw new Error('Channel not initialized');
 
-        // Payment processing queue
+        // Declare the topic exchange for billing service communication
+        await this.channel.assertExchange('billing.events', 'topic', {
+            durable: true
+        });
+
+        // Internal payment processing queue
         await this.channel.assertQueue('payment.processing', {
             durable: true,
             arguments: {
@@ -48,6 +54,8 @@ class RabbitMQService {
         await this.channel.assertQueue('order.updates', {
             durable: true
         });
+
+        console.log('✅ RabbitMQ exchanges and queues setup complete');
     }
 
     async publishToQueue(queue: string, message: any): Promise<void> {
@@ -67,6 +75,31 @@ class RabbitMQService {
                 resolve();
             } else {
                 reject(new Error('Failed to send message to queue'));
+            }
+        });
+    }
+
+    async publishToExchange(exchange: string, routingKey: string, message: any): Promise<void> {
+        if (!this.channel) {
+            await this.connect();
+        }
+
+        if (!this.channel) {
+            throw new Error('Failed to establish channel connection');
+        }
+
+        const messageBuffer = Buffer.from(JSON.stringify(message));
+        
+        return new Promise((resolve, reject) => {
+            const result = this.channel!.publish(exchange, routingKey, messageBuffer, { 
+                persistent: true,
+                timestamp: Date.now()
+            });
+            if (result) {
+                console.log(`Published to exchange: ${exchange} with routing key: ${routingKey}`);
+                resolve();
+            } else {
+                reject(new Error(`Failed to publish message to exchange: ${exchange}`));
             }
         });
     }

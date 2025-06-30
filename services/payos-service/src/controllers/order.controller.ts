@@ -35,7 +35,7 @@ export const orderController = new Elysia({ prefix: "/order" })
       description,
       cancelUrl,
       returnUrl,
-      expiredAt: Math.floor((Date.now() + 10 * 1000) / 1000), // 15 minutes from now (Unix timestamp)
+      expiredAt: Math.floor((Date.now() + 60 * 1000) / 1000), // 1 minute from now (Unix timestamp)
     };
 
     console.log("📦 Order data prepared:", orderData);
@@ -75,7 +75,7 @@ export const orderController = new Elysia({ prefix: "/order" })
         throw mongoError;
       }
 
-      // Publish order creation event
+      // Publish order creation event to internal queue
       await rabbitMQService.publishToQueue("order.updates", {
         type: "ORDER_CREATED",
         orderCode: orderData.orderCode.toString(),
@@ -92,6 +92,7 @@ export const orderController = new Elysia({ prefix: "/order" })
       console.log("🔍 DEBUG - Final response data:");
       console.log("  - orderCode:", paymentLinkRes.orderCode);
       console.log("  - amount:", paymentLinkRes.amount);
+      console.log("  - subscriptionId:", finalSubscriptionId);
 
       return {
         error: 0,
@@ -111,7 +112,7 @@ export const orderController = new Elysia({ prefix: "/order" })
     } catch (error) {
       console.error("❌ PayOS error details:", error);
 
-      // Publish order creation failure
+      // Publish order creation failure to internal queue
       await rabbitMQService.publishToQueue("payment.failed", {
         type: "ORDER_CREATION_FAILED",
         orderCode: orderData.orderCode.toString(),
@@ -185,11 +186,30 @@ export const orderController = new Elysia({ prefix: "/order" })
         };
       }
 
-      // Publish payment cancellation event
+      // Get transaction to retrieve subscription ID
+      const transaction = await mongoDBHandler.getTransactionByOrderCode(orderId);
+      const subscriptionId = transaction?.subscriptionID || null;
+
+      // Publish payment cancellation event to billing service
+      await rabbitMQService.publishToExchange('billing.events', 'payment.processing', {
+        type: 'PAYMENT_CANCELLED',
+        orderCode: orderId,
+        subscription_id: subscriptionId,
+        amount: transaction?.amount || 0,
+        description: cancellationReason,
+        timestamp: new Date().toISOString(),
+        data: {
+          cancellationReason: cancellationReason,
+          canceledAt: new Date().toISOString(),
+          orderData: order
+        }
+      });
+
+      // Publish to internal payment processing queue
       const paymentMessage: PaymentMessage = {
         type: "PAYMENT_CANCELLED",
         orderCode: orderId,
-        amount: 0,
+        amount: transaction?.amount || 0,
         description: cancellationReason,
         timestamp: new Date().toISOString(),
         data: order,
@@ -197,7 +217,7 @@ export const orderController = new Elysia({ prefix: "/order" })
 
       await rabbitMQService.publishToQueue("payment.processing", paymentMessage);
 
-      console.log(`✅ Order ${orderId} cancelled successfully`);
+      console.log(`✅ Order ${orderId} cancelled successfully (subscription: ${subscriptionId})`);
 
       return {
         error: 0,

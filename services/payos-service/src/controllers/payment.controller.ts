@@ -2,10 +2,11 @@ import { Elysia } from "elysia";
 import payOS from "../utils/payos";
 import { rabbitMQService } from "../utils/rabbitmq";
 import { PaymentMessage } from "../handlers/payment.handler";
+import { mongoDBHandler } from "../handlers/mongodb.handler";
 
 export const paymentController = new Elysia({ prefix: "/payment" })
   .post("/payos", async ({ body, headers }) => {
-    console.log("payment handler");
+    console.log("💳 PayOS webhook received");
     
     try {
       // PayOS webhook verification
@@ -19,7 +20,18 @@ export const paymentController = new Elysia({ prefix: "/payment" })
           message: "Ok",
           data: webhookData
         };
-      }      // Enhanced payment message with all data
+      }
+
+      // Get transaction from MongoDB to retrieve subscription ID
+      const transaction = await mongoDBHandler.getTransactionByOrderCode(webhookData.orderCode.toString());
+      const subscriptionId = transaction?.subscriptionID || null;
+
+      console.log("🔍 Transaction lookup result:");
+      console.log("  - orderCode:", webhookData.orderCode);
+      console.log("  - found transaction:", !!transaction);
+      console.log("  - subscriptionID:", subscriptionId);
+
+      // Enhanced payment message with all data
       const paymentMessage: PaymentMessage = {
         type: webhookData.code === '00' ? 'PAYMENT_SUCCESS' : 'PAYMENT_FAILED',
         orderCode: webhookData.orderCode.toString(),
@@ -44,15 +56,54 @@ export const paymentController = new Elysia({ prefix: "/payment" })
         }
       };
 
-      // Publish to multiple queues with complete data
+      // Billing service event (NEW)
+      const billingServiceEvent = {
+        type: webhookData.code === '00' ? 'PAYMENT_SUCCESS' : 'PAYMENT_FAILED',
+        orderCode: webhookData.orderCode.toString(),
+        subscription_id: subscriptionId, // Key field for billing service
+        amount: webhookData.amount,
+        description: webhookData.description,
+        timestamp: new Date().toISOString(),
+        data: {
+          paymentId: (webhookData as any).id,
+          status: (webhookData as any).status,
+          accountNumber: webhookData.accountNumber,
+          accountName: (webhookData as any).accountName,
+          amountPaid: (webhookData as any).amountPaid,
+          bin: (webhookData as any).bin,
+          transactionDetails: (webhookData as any).transactions
+        }
+      };
+
+      console.log("📤 Publishing billing service event:", {
+        type: billingServiceEvent.type,
+        orderCode: billingServiceEvent.orderCode,
+        subscription_id: billingServiceEvent.subscription_id
+      });
+
+      // Publish to billing service exchange (CRITICAL FOR BILLING SERVICE)
+      await rabbitMQService.publishToExchange(
+        'billing.events',
+        'payment.processing',
+        billingServiceEvent
+      );
+
+      // Publish to internal queues and other services
       await Promise.all([
-        rabbitMQService.publishToQueue('payment.processing', paymentMessage),        rabbitMQService.publishToQueue('public.payment.events', {
+        // Internal payment processing
+        rabbitMQService.publishToQueue('payment.processing', paymentMessage),
+        
+        // Public payment events
+        rabbitMQService.publishToQueue('public.payment.events', {
           eventType: 'PAYMENT_WEBHOOK_RECEIVED',
           orderCode: paymentMessage.orderCode,
           status: (webhookData as any).status,
           paymentData: paymentMessage.paymentDetails,
+          subscriptionId: subscriptionId,
           timestamp: new Date().toISOString()
         }),
+        
+        // Analytics events
         rabbitMQService.publishToQueue('analytics.events', {
           category: 'payment',
           action: (webhookData as any).status,
@@ -60,11 +111,12 @@ export const paymentController = new Elysia({ prefix: "/payment" })
           amount: paymentMessage.amount,
           paymentMethod: (webhookData as any).bin ? 'BANK_TRANSFER' : 'UNKNOWN',
           paymentDetails: paymentMessage.paymentDetails,
+          subscriptionId: subscriptionId,
           timestamp: new Date().toISOString()
         })
       ]);
 
-      console.log("Enhanced payment message published:", paymentMessage);
+      console.log("✅ All payment events published successfully");
 
       return {
         error: 0,
@@ -72,19 +124,34 @@ export const paymentController = new Elysia({ prefix: "/payment" })
         data: webhookData
       };
     } catch (error) {
-      console.error("Webhook verification failed:", error);
+      console.error("❌ Webhook verification failed:", error);
       
       // Enhanced error event publishing
       try {
-        await rabbitMQService.publishToQueue('payment.failed', {
-          type: 'WEBHOOK_VERIFICATION_FAILED',
-          error: error instanceof Error ? error.message : String(error),
-          body: body,
-          timestamp: new Date().toISOString(),
-          rawData: body
-        });
+        await Promise.all([
+          rabbitMQService.publishToQueue('payment.failed', {
+            type: 'WEBHOOK_VERIFICATION_FAILED',
+            error: error instanceof Error ? error.message : String(error),
+            body: body,
+            timestamp: new Date().toISOString(),
+            rawData: body
+          }),
+          // Also publish failure to billing service
+          rabbitMQService.publishToExchange('billing.events', 'payment.processing', {
+            type: 'PAYMENT_FAILED',
+            orderCode: 'UNKNOWN',
+            subscription_id: null,
+            amount: 0,
+            description: 'Webhook verification failed',
+            timestamp: new Date().toISOString(),
+            data: {
+              error: error instanceof Error ? error.message : String(error),
+              rawBody: body
+            }
+          })
+        ]);
       } catch (queueError) {
-        console.error("Failed to publish error to queue:", queueError);
+        console.error("❌ Failed to publish error events:", queueError);
       }
       
       return {
