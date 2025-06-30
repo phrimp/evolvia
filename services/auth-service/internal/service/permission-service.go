@@ -43,3 +43,7 @@ func (ps *PermissionService) NewPermission(ctx context.Context, name, category, 
 func (ps *PermissionService) GetAvailablePermission(ctx context.Context, name string) (*models.Permission, error) {
 	return ps.PermissionRepo.FindAvailablePermission(ctx, name)
 }
+
+func (ps *PermissionService) GetAllPermission(ctx context.Context) ([]*models.Permission, error) {
+	return ps.PermissionRepo.FindAll(ctx)
+}
