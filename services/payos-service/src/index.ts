@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import { paymentController } from "./controllers/payment.controller";
 import { orderController } from "./controllers/order.controller";
+import { webhookReceiverController } from "./controllers/webhook.controller"; // Add this import
 import { rabbitMQService, EventTracker } from "./utils/rabbitmq";
 import { PaymentMessageHandler } from "./handlers/payment.handler";
 import { mongoDBHandler } from "./handlers/mongodb.handler";
@@ -130,6 +131,7 @@ const app = new Elysia()
     app
       .get("/ping", () => ({ message: "pong!" }))
       .use(paymentController) // PayOS webhooks should be public
+      .use(webhookReceiverController) // Test webhook receiver
   )
   .group("/protected/payos", (app) => 
     app
