@@ -6,7 +6,7 @@ import { mongoDBHandler } from "../handlers/mongodb.handler";
 
 export const paymentController = new Elysia({ prefix: "/payment" })
   .post("/payos", async ({ body, headers }) => {
-    console.log("💳 PayOS webhook received");
+    console.log("PayOS webhook received");
     
     try {
       // PayOS webhook verification
@@ -26,7 +26,7 @@ export const paymentController = new Elysia({ prefix: "/payment" })
       const transaction = await mongoDBHandler.getTransactionByOrderCode(webhookData.orderCode.toString());
       const subscriptionId = transaction?.subscriptionID || null;
 
-      console.log("🔍 Transaction lookup result:");
+      console.log("Transaction lookup result:");
       console.log("  - orderCode:", webhookData.orderCode);
       console.log("  - found transaction:", !!transaction);
       console.log("  - subscriptionID:", subscriptionId);
@@ -75,48 +75,74 @@ export const paymentController = new Elysia({ prefix: "/payment" })
         }
       };
 
-      console.log("📤 Publishing billing service event:", {
+      console.log("[BILLING] Preparing to publish billing service event");
+      console.log("[BILLING] Event details:", {
         type: billingServiceEvent.type,
         orderCode: billingServiceEvent.orderCode,
-        subscription_id: billingServiceEvent.subscription_id
+        subscription_id: billingServiceEvent.subscription_id,
+        exchange: 'billing.events',
+        routingKey: 'payment.processing'
       });
 
+      console.log("[EVENT-FLOW] Starting event publishing sequence...");
+
       // Publish to billing service exchange (CRITICAL FOR BILLING SERVICE)
+      console.log("[BILLING] Publishing to billing service exchange...");
       await rabbitMQService.publishToExchange(
         'billing.events',
         'payment.processing',
         billingServiceEvent
       );
+      console.log("[BILLING] Billing service event published successfully");
+
+      console.log("[INTERNAL] Publishing to internal queues...");
 
       // Publish to internal queues and other services
       await Promise.all([
         // Internal payment processing
-        rabbitMQService.publishToQueue('payment.processing', paymentMessage),
+        (async () => {
+          console.log("[QUEUE] Publishing to payment.processing queue...");
+          await rabbitMQService.publishToQueue('payment.processing', paymentMessage);
+          console.log("[QUEUE] payment.processing queue published");
+        })(),
         
         // Public payment events
-        rabbitMQService.publishToQueue('public.payment.events', {
-          eventType: 'PAYMENT_WEBHOOK_RECEIVED',
-          orderCode: paymentMessage.orderCode,
-          status: (webhookData as any).status,
-          paymentData: paymentMessage.paymentDetails,
-          subscriptionId: subscriptionId,
-          timestamp: new Date().toISOString()
-        }),
+        (async () => {
+          console.log("[QUEUE] Publishing to public.payment.events queue...");
+          await rabbitMQService.publishToQueue('public.payment.events', {
+            eventType: 'PAYMENT_WEBHOOK_RECEIVED',
+            orderCode: paymentMessage.orderCode,
+            status: (webhookData as any).status,
+            paymentData: paymentMessage.paymentDetails,
+            subscriptionId: subscriptionId,
+            timestamp: new Date().toISOString()
+          });
+          console.log("[QUEUE] public.payment.events queue published");
+        })(),
         
         // Analytics events
-        rabbitMQService.publishToQueue('analytics.events', {
-          category: 'payment',
-          action: (webhookData as any).status,
-          orderCode: paymentMessage.orderCode,
-          amount: paymentMessage.amount,
-          paymentMethod: (webhookData as any).bin ? 'BANK_TRANSFER' : 'UNKNOWN',
-          paymentDetails: paymentMessage.paymentDetails,
-          subscriptionId: subscriptionId,
-          timestamp: new Date().toISOString()
-        })
+        (async () => {
+          console.log("[QUEUE] Publishing to analytics.events queue...");
+          await rabbitMQService.publishToQueue('analytics.events', {
+            category: 'payment',
+            action: (webhookData as any).status,
+            orderCode: paymentMessage.orderCode,
+            amount: paymentMessage.amount,
+            paymentMethod: (webhookData as any).bin ? 'BANK_TRANSFER' : 'UNKNOWN',
+            paymentDetails: paymentMessage.paymentDetails,
+            subscriptionId: subscriptionId,
+            timestamp: new Date().toISOString()
+          });
+          console.log("[QUEUE] analytics.events queue published");
+        })()
       ]);
 
-      console.log("✅ All payment events published successfully");
+      console.log("[EVENT-FLOW] All payment events published successfully!");
+      console.log("[SUMMARY] Event publishing summary:");
+      console.log("  - billing.events exchange (payment.processing routing key)");
+      console.log("  - payment.processing queue");
+      console.log("  - public.payment.events queue");
+      console.log("  - analytics.events queue");
 
       return {
         error: 0,
@@ -124,7 +150,7 @@ export const paymentController = new Elysia({ prefix: "/payment" })
         data: webhookData
       };
     } catch (error) {
-      console.error("❌ Webhook verification failed:", error);
+      console.error("Webhook verification failed:", error);
       
       // Enhanced error event publishing
       try {
@@ -151,7 +177,7 @@ export const paymentController = new Elysia({ prefix: "/payment" })
           })
         ]);
       } catch (queueError) {
-        console.error("❌ Failed to publish error events:", queueError);
+        console.error("Failed to publish error events:", queueError);
       }
       
       return {

@@ -62,14 +62,17 @@ export class PaymentMessageHandler {
   }
 
   static async handlePaymentSuccess(message: PaymentMessage): Promise<void> {
-    console.log(`✅ Payment successful for order ${message.orderCode}`);
+    console.log(`[HANDLER] Processing payment success for order ${message.orderCode}`);
 
     try {
       // Get transaction to retrieve subscription ID
+      console.log(`[HANDLER] Looking up transaction for orderCode: ${message.orderCode}`);
       const transaction = await mongoDBHandler.getTransactionByOrderCode(message.orderCode);
       const subscriptionId = transaction?.subscriptionID || null;
+      console.log(`[HANDLER] Found subscriptionID: ${subscriptionId}`);
 
       // Publish to billing service (CRITICAL)
+      console.log(`[HANDLER] Publishing SUCCESS to billing service...`);
       await rabbitMQService.publishToExchange('billing.events', 'payment.processing', {
         type: 'PAYMENT_SUCCESS',
         orderCode: message.orderCode,
@@ -86,7 +89,9 @@ export class PaymentMessageHandler {
           transactionDetails: message.paymentDetails?.transactions
         }
       });
+      console.log(`[HANDLER] SUCCESS published to billing service`);
 
+      console.log(`[HANDLER] Publishing internal notifications...`);
       // Enhanced notification with all payment data
       await rabbitMQService.publishToQueue('payment.notifications', {
         type: 'PAYMENT_SUCCESS_NOTIFICATION',
@@ -119,23 +124,26 @@ export class PaymentMessageHandler {
         timestamp: new Date().toISOString()
       });
 
-      console.log(`✅ Payment success events published for order ${message.orderCode} (subscription: ${subscriptionId})`);
+      console.log(`[HANDLER] Payment success events published for order ${message.orderCode} (subscription: ${subscriptionId})`);
 
     } catch (error) {
-      console.error(`❌ Error handling payment success for ${message.orderCode}:`, error);
+      console.error(`[HANDLER] Error handling payment success for ${message.orderCode}:`, error);
       throw error;
     }
   }
 
   static async handlePaymentFailed(message: PaymentMessage): Promise<void> {
-    console.log(`❌ Payment failed for order ${message.orderCode}`);
+    console.log(`[HANDLER] Processing payment failure for order ${message.orderCode}`);
 
     try {
       // Get transaction to retrieve subscription ID
+      console.log(`[HANDLER] Looking up transaction for orderCode: ${message.orderCode}`);
       const transaction = await mongoDBHandler.getTransactionByOrderCode(message.orderCode);
       const subscriptionId = transaction?.subscriptionID || null;
+      console.log(`[HANDLER] Found subscriptionID: ${subscriptionId}`);
 
       // Publish to billing service (CRITICAL)
+      console.log(`[HANDLER] Publishing FAILURE to billing service...`);
       await rabbitMQService.publishToExchange('billing.events', 'payment.processing', {
         type: 'PAYMENT_FAILED',
         orderCode: message.orderCode,
@@ -149,7 +157,9 @@ export class PaymentMessageHandler {
           failureReason: message.description
         }
       });
+      console.log(`[HANDLER] FAILURE published to billing service`);
 
+      console.log(`[HANDLER] Publishing internal notifications...`);
       // Send notification
       await rabbitMQService.publishToQueue('payment.notifications', {
         type: 'PAYMENT_FAILED_NOTIFICATION',
@@ -168,23 +178,26 @@ export class PaymentMessageHandler {
         timestamp: new Date().toISOString()
       });
 
-      console.log(`✅ Payment failure events published for order ${message.orderCode} (subscription: ${subscriptionId})`);
+      console.log(`[HANDLER] Payment failure events published for order ${message.orderCode} (subscription: ${subscriptionId})`);
 
     } catch (error) {
-      console.error(`❌ Error handling payment failure for ${message.orderCode}:`, error);
+      console.error(`[HANDLER] Error handling payment failure for ${message.orderCode}:`, error);
       throw error;
     }
   }
 
   static async handlePaymentCancelled(message: PaymentMessage): Promise<void> {
-    console.log(`🚫 Payment cancelled for order ${message.orderCode}`);
+    console.log(`[HANDLER] Processing payment cancellation for order ${message.orderCode}`);
 
     try {
       // Get transaction to retrieve subscription ID
+      console.log(`[HANDLER] Looking up transaction for orderCode: ${message.orderCode}`);
       const transaction = await mongoDBHandler.getTransactionByOrderCode(message.orderCode);
       const subscriptionId = transaction?.subscriptionID || null;
+      console.log(`[HANDLER] Found subscriptionID: ${subscriptionId}`);
 
       // Publish to billing service (CRITICAL)
+      console.log(`[HANDLER] Publishing CANCELLATION to billing service...`);
       await rabbitMQService.publishToExchange('billing.events', 'payment.processing', {
         type: 'PAYMENT_CANCELLED',
         orderCode: message.orderCode,
@@ -199,7 +212,9 @@ export class PaymentMessageHandler {
           cancellationReason: message.paymentDetails?.cancellationReason
         }
       });
+      console.log(`[HANDLER] CANCELLATION published to billing service`);
 
+      console.log(`[HANDLER] Publishing internal notifications...`);
       // Enhanced cancellation notification
       await rabbitMQService.publishToQueue('payment.notifications', {
         type: 'PAYMENT_CANCELLED_NOTIFICATION',
@@ -227,23 +242,26 @@ export class PaymentMessageHandler {
         timestamp: new Date().toISOString()
       });
 
-      console.log(`✅ Payment cancellation events published for order ${message.orderCode} (subscription: ${subscriptionId})`);
+      console.log(`[HANDLER] Payment cancellation events published for order ${message.orderCode} (subscription: ${subscriptionId})`);
 
     } catch (error) {
-      console.error(`❌ Error handling payment cancellation for ${message.orderCode}:`, error);
+      console.error(`[HANDLER] Error handling payment cancellation for ${message.orderCode}:`, error);
       throw error;
     }
   }
 
   static async handlePaymentTimeout(message: PaymentMessage): Promise<void> {
-    console.log(`⏰ Payment timeout for order ${message.orderCode}`);
+    console.log(`[HANDLER] Processing payment timeout for order ${message.orderCode}`);
 
     try {
       // Get transaction to retrieve subscription ID
+      console.log(`[HANDLER] Looking up transaction for orderCode: ${message.orderCode}`);
       const transaction = await mongoDBHandler.getTransactionByOrderCode(message.orderCode);
       const subscriptionId = transaction?.subscriptionID || null;
+      console.log(`[HANDLER] Found subscriptionID: ${subscriptionId}`);
 
       // Publish to billing service (CRITICAL)
+      console.log(`[HANDLER] Publishing TIMEOUT to billing service...`);
       await rabbitMQService.publishToExchange('billing.events', 'payment.processing', {
         type: 'PAYMENT_TIMEOUT',
         orderCode: message.orderCode,
@@ -257,11 +275,12 @@ export class PaymentMessageHandler {
           timeoutReason: 'Payment expired'
         }
       });
+      console.log(`[HANDLER] TIMEOUT published to billing service`);
 
-      console.log(`✅ Payment timeout events published for order ${message.orderCode} (subscription: ${subscriptionId})`);
+      console.log(`[HANDLER] Payment timeout events published for order ${message.orderCode} (subscription: ${subscriptionId})`);
 
     } catch (error) {
-      console.error(`❌ Error handling payment timeout for ${message.orderCode}:`, error);
+      console.error(`[HANDLER] Error handling payment timeout for ${message.orderCode}:`, error);
       throw error;
     }
   }
