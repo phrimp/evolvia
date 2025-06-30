@@ -153,7 +153,7 @@ func (c *EventConsumer) Start() error {
 		for msg := range msgs {
 			if err := c.processMessage(msg); err != nil {
 				log.Printf("Failed to process message: %v", err)
-				msg.Nack(false, true) // Nack and requeue
+				msg.Nack(false, false) // Nack and requeue
 			} else {
 				msg.Ack(false) // Acknowledge message
 			}
