@@ -148,10 +148,12 @@ func main() {
 	// Init Handlers
 	auth_handler := handlers.NewAuthHandler(services_init.UserService, services_init.JwtService, services_init.SessionService, services_init.UserRoleService, services_init.gRPCSessionService, services_init.gRPCGoogleService)
 	role_handler := handlers.NewRoleHandler(services_init.RoleService, services_init.UserRoleService)
+	permission_handler := handlers.NewPermissionHanlder(services_init.RoleService, services_init.UserRoleService, services_init.PermissionService)
 
 	// Register Routes
 	auth_handler.RegisterRoutes(app)
 	role_handler.RegisterRoutes(app)
+	permission_handler.RegisterRoutes(app)
 
 	shutdownChan := make(chan os.Signal, 1)
 	doneChan := make(chan bool, 1)
