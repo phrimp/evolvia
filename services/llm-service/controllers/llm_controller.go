@@ -215,8 +215,10 @@ func (ctrl *LLMController) GetChatHistory(c *gin.Context) {
 // POST /public/llm/query - Allow LLM to execute custom queries
 func (ctrl *LLMController) ExecuteQuery(c *gin.Context) {
 	var request struct {
+		Database   string                 `json:"database"`
 		Collection string                 `json:"collection" binding:"required"`
 		Query      map[string]interface{} `json:"query" binding:"required"`
+		UserID     string                 `json:"userId"` // Allow passing userID directly
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -224,15 +226,16 @@ func (ctrl *LLMController) ExecuteQuery(c *gin.Context) {
 		return
 	}
 
-	// Get user ID from token if available
-	userID, err := utils.GetUserIDFromToken(c)
-	if err != nil {
-		utils.UnauthorizedResponse(c, "Invalid token")
-		return
+	// Use userID from request or try to get from token
+	userID := request.UserID
+	if userID == "" {
+		if tokenUserID, err := utils.GetUserIDFromToken(c); err == nil {
+			userID = tokenUserID
+		}
 	}
 
 	if userID == "" {
-		utils.UnauthorizedResponse(c, "User authentication required for database queries")
+		utils.BadRequestResponse(c, "UserID is required for database queries")
 		return
 	}
 
@@ -244,13 +247,14 @@ func (ctrl *LLMController) ExecuteQuery(c *gin.Context) {
 	}
 
 	// Execute query with security constraints
-	results, err := rag.ExecuteCustomQuery(userID, "", request.Collection, request.Query)
+	results, err := rag.ExecuteCustomQuery(userID, request.Database, request.Collection, request.Query)
 	if err != nil {
 		utils.InternalErrorResponse(c, "Failed to execute query", err)
 		return
 	}
 
 	utils.SuccessResponse(c, "Query executed successfully", gin.H{
+		"database":   request.Database,
 		"collection": request.Collection,
 		"results":    results,
 		"count":      len(results),
