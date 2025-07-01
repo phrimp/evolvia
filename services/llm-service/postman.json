@@ -1,0 +1,266 @@
+{
+  "info": {
+    "_postman_id": "llm-service-api",
+    "name": "LLM Service API",
+    "description": "API collection for Evolvia LLM Service with RAG capabilities",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "1"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Ping",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/public/llm/ping",
+          "host": ["{{baseUrl}}"],
+          "path": ["public", "llm", "ping"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Model Status",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/public/llm/model",
+          "host": ["{{baseUrl}}"],
+          "path": ["public", "llm", "model"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Chat Session",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "if (pm.response.code === 200) {",
+              "    const responseJson = pm.response.json();",
+              "    if (responseJson.data && responseJson.data.sessionId) {",
+              "        pm.collectionVariables.set('sessionId', responseJson.data.sessionId);",
+              "        console.log('Session ID saved:', responseJson.data.sessionId);",
+              "    }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "disabled": true
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/public/llm/model/session",
+          "host": ["{{baseUrl}}"],
+          "path": ["public", "llm", "model", "session"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Chat with LLM",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "disabled": true
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"message\": \"Xin chào, tôi muốn biết thông tin tài khoản của mình\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/public/llm/model/{{sessionId}}/chat",
+          "host": ["{{baseUrl}}"],
+          "path": ["public", "llm", "model", "{{sessionId}}", "chat"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Chat History",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "disabled": true
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/public/llm/model/history/{{sessionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["public", "llm", "model", "history", "{{sessionId}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Execute Custom Query (Internal API)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "disabled": true
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"database\": \"profile_service\",\n    \"collection\": \"users\",\n    \"query\": {\"status\": \"active\"}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/public/llm/query",
+          "host": ["{{baseUrl}}"],
+          "path": ["public", "llm", "query"]
+        }
+      },
+      "response": []
+    }
+  ]
+}

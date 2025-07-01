@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build and Run LLM Service",
+      "type": "shell",
+      "command": "go mod download && go run main.go",
+      "group": "build",
+      "isBackground": false,
+      "problemMatcher": ["$go"]
+    }
+  ]
+}
