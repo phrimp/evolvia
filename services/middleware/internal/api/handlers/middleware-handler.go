@@ -45,12 +45,18 @@ func (h *MiddlewareHandler) ValidateToken(c fiber.Ctx) error {
 		})
 	}
 
-	//	session, err := h.sessionService.GetSession(c.Context(), tokenString)
-	//	if err != nil || !session.IsValid {
-	//		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-	//			"error": "Session not found or invalid",
-	//		})
-	//	}
+	session, err := h.sessionService.GetSession(c.Context(), tokenString)
+	if err != nil || !session.IsValid {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Session not found or invalid",
+		})
+	}
+
+	if _, err := h.sessionService.CheckSystemStatus(c.Context()); err != nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "System Maintenance",
+		})
+	}
 
 	// Set headers for downstream services
 	re := regexp.MustCompile(`"([^"]*)"`)

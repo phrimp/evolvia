@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"auth_service/internal/repository"
 	"auth_service/internal/service"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 )
@@ -26,6 +28,45 @@ func (h *PermissionHanlder) RegisterRoutes(app *fiber.App) {
 	permissionGroup := app.Group("/protected/auth/permission")
 
 	permissionGroup.Get("/", h.GetAllPermission)
+}
+
+func (h *PermissionHanlder) Maintenance(c fiber.Ctx) error {
+	userID := c.Get("X-User-ID")
+	userPermissions := c.Get("X-User-Permissions")
+
+	hasPermission := false
+	if userPermissions != "" {
+		permissions := strings.SplitSeq(userPermissions, ",")
+		for perm := range permissions {
+			if strings.HasPrefix(perm, "admin") || perm == "admin" {
+				hasPermission = true
+				break
+			}
+		}
+	}
+
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "You don't have enough permission",
+		})
+	}
+
+	log.Printf("User %s request system maintenance", userID)
+
+	var maintenance_status bool
+
+	err := repository.Repositories_instance.RedisRepository.GetStructCached(c.Context(), "maintenance", "", &maintenance_status)
+	if err != nil {
+		repository.Repositories_instance.RedisRepository.SaveStructCached(c.Context(), "", "maintenance", true, 24000*time.Hour)
+		maintenance_status = true
+	} else {
+		repository.Repositories_instance.RedisRepository.DeleteKey(c.Context(), "maintenance")
+		maintenance_status = false
+	}
+
+	return c.JSON(fiber.Map{
+		"System Maintenance Status": maintenance_status,
+	})
 }
 
 func (h *PermissionHanlder) GetAllPermission(c fiber.Ctx) error {
