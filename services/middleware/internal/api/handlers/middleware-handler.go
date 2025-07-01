@@ -52,7 +52,7 @@ func (h *MiddlewareHandler) ValidateToken(c fiber.Ctx) error {
 		})
 	}
 
-	if _, err := h.sessionService.CheckSystemStatus(c.Context()); err != nil {
+	if _, err := h.sessionService.CheckSystemStatus(c.Context()); err == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"error": "System Maintenance",
 		})
