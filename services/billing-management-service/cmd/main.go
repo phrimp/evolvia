@@ -59,10 +59,11 @@ func main() {
 	app.Get("/health", func(c fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).SendString("Billing Management Service is healthy")
 	})
-	var eventConsumer event.Consumer
+
 	// Initialize repositories
 	subscriptionRepo := repository.NewSubscriptionRepository(mongo.Mongo_Database)
 	planRepo := repository.NewPlanRepository(mongo.Mongo_Database)
+	analyticsRepo := repository.NewAnalyticsRepository(mongo.Mongo_Database)
 
 	// Create database indexes
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -80,25 +81,13 @@ func main() {
 		log.Printf("Warning: Failed to initialize event publisher: %v", err)
 	}
 
-	// Initialize event consumer
-	//	eventConsumer, err := event.NewEventConsumer(cfg.RabbitMQ.URI, subscriptionRepo)
-	//	if err != nil {
-	//		log.Printf("Warning: Failed to initialize event consumer: %v", err)
-	//	} else {
-	//		if err := eventConsumer.Start(); err != nil {
-	//			log.Printf("Warning: Failed to start event consumer: %v", err)
-	//			eventConsumer.Close()
-	//		} else {
-	//			log.Println("Successfully started event consumer")
-	//			defer eventConsumer.Close()
-	//		}
-	//	}
-
 	// Initialize services
-	// billingService := services.NewBillingService(subscriptionRepo, planRepo, invoiceRepo, eventPublisher)
 	planService := services.NewPlanService(planRepo, eventPublisher)
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, planRepo, eventPublisher)
+	analyticsService := services.NewAnalyticsService(analyticsRepo, subscriptionRepo, planRepo)
 
+	// Initialize event consumer
+	var eventConsumer event.Consumer
 	eventConsumer, err = event.NewEventConsumer(cfg.RabbitMQ.URI, subscriptionService)
 	if err != nil {
 		log.Printf("Warning: Failed to initialize event consumer: %v", err)
@@ -111,14 +100,18 @@ func main() {
 			defer eventConsumer.Close()
 		}
 	}
+
 	// Initialize and register handlers
-	// billingHandler := handlers.NewBillingHandler(billingService)
-	// billingHandler.RegisterRoutes(app)
 	planHandler := handlers.NewPlanHandler(planService)
 	planHandler.RegisterRoutes(app)
+
 	subscriptionHandler := handlers.NewSubscriptionHandler(subscriptionService)
 	subscriptionHandler.RegisterRoutes(app)
 
+	analyticsHandler := handlers.NewAnalyticsHandler(analyticsService)
+	analyticsHandler.RegisterRoutes(app)
+
+	// Setup graceful shutdown
 	shutdownChan := make(chan os.Signal, 1)
 	doneChan := make(chan bool, 1)
 
@@ -149,6 +142,13 @@ func main() {
 		}
 	}
 
+	// Close event consumer
+	if eventConsumer != nil {
+		if err := eventConsumer.Close(); err != nil {
+			log.Printf("Error closing event consumer: %v", err)
+		}
+	}
+
 	// Disconnect from MongoDB
 	mongo.DisconnectMongo()
 
@@ -156,12 +156,6 @@ func main() {
 	if discovery.ServiceDiscovery != nil {
 		if err := discovery.ServiceDiscovery.Deregister(); err != nil {
 			log.Printf("Error deregistering from service discovery: %v", err)
-		}
-	}
-
-	if eventConsumer != nil {
-		if err := eventConsumer.Close(); err != nil {
-			log.Printf("Error closing event consumer: %v", err)
 		}
 	}
 

@@ -49,6 +49,31 @@ var default_permissions []*models.Permission = []*models.Permission{
 	{Name: "delete:subscription", Description: "Delete Permission for Subscription resources", Category: "subscription", IsSystem: false},
 	{Name: "manage:subscription", Description: "Manage Permission for Subscription resources (suspend, reactivate, etc.)", Category: "subscription", IsSystem: false},
 
+	// Billing dashboard and analytics permissions
+	{Name: "read:billing:dashboard", Description: "Read Permission for Billing Dashboard", Category: "billing", IsSystem: false},
+	{Name: "read:billing:analytics", Description: "Read Permission for Billing Analytics", Category: "billing", IsSystem: false},
+	{Name: "process:billing:operations", Description: "Process Billing Operations (trial expirations, etc.)", Category: "billing", IsSystem: false},
+
+	// Advanced analytics permissions
+	{Name: "read:billing:analytics:advanced", Description: "Read Permission for Advanced Billing Analytics", Category: "billing", IsSystem: false},
+	{Name: "read:billing:analytics:financial", Description: "Read Permission for Financial Analytics (MRR, ARR, LTV)", Category: "billing", IsSystem: false},
+	{Name: "read:billing:analytics:users", Description: "Read Permission for User Analytics and Metrics", Category: "billing", IsSystem: false},
+	{Name: "read:billing:analytics:revenue", Description: "Read Permission for Revenue Analytics and Forecasting", Category: "billing", IsSystem: false},
+	{Name: "read:billing:analytics:trends", Description: "Read Permission for Subscription Trends and Historical Data", Category: "billing", IsSystem: false},
+	{Name: "read:billing:analytics:cohort", Description: "Read Permission for Cohort Analysis and Customer Behavior", Category: "billing", IsSystem: false},
+	{Name: "read:billing:analytics:geographic", Description: "Read Permission for Geographic Analytics", Category: "billing", IsSystem: false},
+	{Name: "read:billing:analytics:performance", Description: "Read Permission for Performance Metrics and KPIs", Category: "billing", IsSystem: false},
+
+	// Export and reporting permissions
+	{Name: "export:billing:data", Description: "Export Billing Data to various formats", Category: "billing", IsSystem: false},
+	{Name: "export:billing:analytics", Description: "Export Analytics Reports and Data", Category: "billing", IsSystem: false},
+	{Name: "export:billing:financial", Description: "Export Financial Reports", Category: "billing", IsSystem: false},
+
+	// Billing administration permissions
+	{Name: "billing:admin", Description: "Full Administrative Access to Billing System", Category: "billing", IsSystem: false},
+	{Name: "billing:manager", Description: "Manager-level Access to Billing Operations", Category: "billing", IsSystem: false},
+	{Name: "billing:analyst", Description: "Analyst Access to Billing Data and Reports", Category: "billing", IsSystem: false},
+
 	// Profile-specific permissions
 	{Name: "read:profile", Description: "Read Permission for Profile resources", Category: "profile", IsSystem: false},
 	{Name: "read:profile:all", Description: "Read All Permission for Profile resources", Category: "profile", IsSystem: false},
@@ -65,11 +90,6 @@ var default_permissions []*models.Permission = []*models.Permission{
 	{Name: "update:object", Description: "Update Permission for Object resources", Category: "object", IsSystem: false},
 	{Name: "delete:object", Description: "Delete Permission for Object resources", Category: "object", IsSystem: false},
 	{Name: "search:object", Description: "Search Permission for Object resources", Category: "object", IsSystem: false},
-
-	// Billing dashboard and analytics permissions
-	{Name: "read:billing:dashboard", Description: "Read Permission for Billing Dashboard", Category: "billing", IsSystem: false},
-	{Name: "read:billing:analytics", Description: "Read Permission for Billing Analytics", Category: "billing", IsSystem: false},
-	{Name: "process:billing:operations", Description: "Process Billing Operations (trial expirations, etc.)", Category: "billing", IsSystem: false},
 
 	// Skill management permissions
 	{Name: "read:skill", Description: "Read Permission for Skills", Category: "skill", IsSystem: false},
@@ -93,13 +113,14 @@ var default_permissions []*models.Permission = []*models.Permission{
 	{Name: "read:knowledge:analytics", Description: "Read Permission for Knowledge Analytics", Category: "knowledge", IsSystem: false},
 	{Name: "read:knowledge:dashboard", Description: "Read Permission for Knowledge Dashboard", Category: "knowledge", IsSystem: false},
 
-	// Legacy admin/manager permissions for backward compatibility
-	{Name: "admin", Description: "Global Admin Permission", Category: "admin", IsSystem: false},
-	{Name: "manager", Description: "Global Manager Permission", Category: "manager", IsSystem: false},
-
 	// Input service permissions (for PowerPoint processing)
 	{Name: "upload:powerpoint", Description: "Upload PowerPoint files for skill extraction", Category: "input", IsSystem: false},
 	{Name: "process:input", Description: "Process input files for analysis", Category: "input", IsSystem: false},
+
+	// Legacy admin/manager permissions for backward compatibility
+	{Name: "admin", Description: "Global Admin Permission", Category: "admin", IsSystem: false},
+	{Name: "manager", Description: "Global Manager Permission", Category: "manager", IsSystem: false},
+	{Name: "super:admin", Description: "Super Administrator Permission - highest level access", Category: "admin", IsSystem: false},
 }
 
 type PermissionRepository struct {
@@ -121,7 +142,51 @@ func (pr *PermissionRepository) InitDefaultPermissions(ctx context.Context) erro
 	}
 
 	if count > 0 {
-		log.Printf("Permissions collection already contains %d documents, skipping default initialization", count)
+		log.Printf("Permissions collection already contains %d documents, checking for new permissions...", count)
+
+		// Check if we need to add any new permissions
+		existingPermissions, err := pr.FindAll(ctx)
+		if err != nil {
+			return fmt.Errorf("error fetching existing permissions: %w", err)
+		}
+
+		existingPermissionNames := make(map[string]bool)
+		for _, perm := range existingPermissions {
+			existingPermissionNames[perm.Name] = true
+		}
+
+		// Add any missing permissions
+		var addedCount int
+		currentTime := int(time.Now().Unix())
+
+		for _, permission := range default_permissions {
+			if !existingPermissionNames[permission.Name] {
+				// This is a new permission that doesn't exist yet
+				newPermission := *permission // Create a copy
+				newPermission.ID = bson.NewObjectID()
+				newPermission.CreatedAt = currentTime
+				newPermission.UpdatedAt = currentTime
+
+				_, err := pr.collection.InsertOne(ctx, &newPermission)
+				if err != nil {
+					return fmt.Errorf("failed to insert new permission %s: %w", newPermission.Name, err)
+				}
+
+				pr.mu.Lock()
+				available_permissions[newPermission.Name] = &newPermission
+				pr.mu.Unlock()
+
+				log.Printf("Added new permission: %s", newPermission.Name)
+				addedCount++
+			}
+		}
+
+		if addedCount > 0 {
+			log.Printf("Successfully added %d new permissions", addedCount)
+		} else {
+			log.Printf("No new permissions to add")
+		}
+
 		return nil
 	}
 
@@ -186,7 +251,7 @@ func (pr *PermissionRepository) CollectPermissions(ctx context.Context) {
 		available_permissions[p.Name] = p
 		pr.mu.Unlock()
 	}
-	log.Printf("Permission Collected: %v", available_permissions)
+	log.Printf("Permission Collected: %d permissions loaded", len(available_permissions))
 }
 
 func (pr *PermissionRepository) FindAvailablePermission(ctx context.Context, name string) (*models.Permission, error) {
@@ -218,7 +283,7 @@ func (pr *PermissionRepository) AddtoAvailablePermissions(p *models.Permission) 
 	log.Printf("Adding New Available Permission: %v", p)
 	pr.mu.Lock()
 	available_permissions[p.Name] = p
-	pr.mu.Unlock() // Fixed: was double-locking instead of unlocking
+	pr.mu.Unlock()
 	log.Printf("New Available Permission Added")
 }
 
@@ -234,4 +299,24 @@ func (pr *PermissionRepository) FindAll(ctx context.Context) ([]*models.Permissi
 		return nil, err
 	}
 	return permissions, nil
+}
+
+// Helper method to get permissions by category
+func (pr *PermissionRepository) FindByCategory(ctx context.Context, category string) ([]*models.Permission, error) {
+	cursor, err := pr.collection.Find(ctx, bson.M{"category": category})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var permissions []*models.Permission
+	if err = cursor.All(ctx, &permissions); err != nil {
+		return nil, err
+	}
+	return permissions, nil
+}
+
+// Helper method to get all billing-related permissions
+func (pr *PermissionRepository) FindBillingPermissions(ctx context.Context) ([]*models.Permission, error) {
+	return pr.FindByCategory(ctx, "billing")
 }

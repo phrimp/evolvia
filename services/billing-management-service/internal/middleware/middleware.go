@@ -21,7 +21,21 @@ const (
 	ReadBillingAnalyticsPermission     = "read:billing:analytics"
 	ProcessBillingOperationsPermission = "process:billing:operations"
 
+	// Advanced analytics permissions
+	ReadAdvancedAnalyticsPermission  = "read:billing:analytics:advanced"
+	ReadFinancialAnalyticsPermission = "read:billing:analytics:financial"
+	ReadUserAnalyticsPermission      = "read:billing:analytics:users"
+	ReadRevenueAnalyticsPermission   = "read:billing:analytics:revenue"
+
+	// Export permissions
+	ExportBillingDataPermission = "export:billing:data"
+	ExportAnalyticsPermission   = "export:billing:analytics"
+
 	// Admin permissions (for backward compatibility)
 	AdminPermission   = "admin"
 	ManagerPermission = "manager"
+
+	// Super admin permissions
+	SuperAdminPermission   = "super:admin"
+	BillingAdminPermission = "billing:admin"
 )
