@@ -28,6 +28,7 @@ func (h *PermissionHanlder) RegisterRoutes(app *fiber.App) {
 	permissionGroup := app.Group("/protected/auth/permission")
 
 	permissionGroup.Get("/", h.GetAllPermission)
+	permissionGroup.Post("/maintenance", h.Maintenance)
 }
 
 func (h *PermissionHanlder) Maintenance(c fiber.Ctx) error {
