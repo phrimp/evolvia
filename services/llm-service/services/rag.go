@@ -3,8 +3,8 @@ package services
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -39,7 +39,7 @@ func GetRAGService() *RAGService {
 func (r *RAGService) loadRAGFiles() error {
 	// Load database.md
 	databasePath := filepath.Join("rag", "database.md")
-	if content, err := ioutil.ReadFile(databasePath); err == nil {
+	if content, err := os.ReadFile(databasePath); err == nil {
 		r.DatabasePrompt = string(content)
 	} else {
 		log.Printf("Warning: Could not load %s: %v", databasePath, err)
@@ -47,7 +47,7 @@ func (r *RAGService) loadRAGFiles() error {
 
 	// Load guard.md
 	guardPath := filepath.Join("rag", "guard.md")
-	if content, err := ioutil.ReadFile(guardPath); err == nil {
+	if content, err := os.ReadFile(guardPath); err == nil {
 		r.GuardPrompt = string(content)
 	} else {
 		log.Printf("Warning: Could not load %s: %v", guardPath, err)
@@ -55,7 +55,7 @@ func (r *RAGService) loadRAGFiles() error {
 
 	// Load prompt.md
 	promptPath := filepath.Join("rag", "prompt.md")
-	if content, err := ioutil.ReadFile(promptPath); err == nil {
+	if content, err := os.ReadFile(promptPath); err == nil {
 		r.SystemPrompt = string(content)
 	} else {
 		log.Printf("Warning: Could not load %s: %v", promptPath, err)
@@ -181,7 +181,7 @@ func (r *RAGService) formatUserData(result bson.M) string {
 	email := "N/A"
 	profile := "N/A"
 
-	// Try different field names
+	// Try different field names for flat structure
 	if nameVal, ok := result["name"]; ok && nameVal != nil {
 		name = fmt.Sprintf("%v", nameVal)
 	} else if nameVal, ok := result["fullName"]; ok && nameVal != nil {
@@ -190,8 +190,33 @@ func (r *RAGService) formatUserData(result bson.M) string {
 		name = fmt.Sprintf("%v", nameVal)
 	}
 
+	// Check nested personalInfo structure
+	if personalInfo, ok := result["personalInfo"].(bson.M); ok {
+		var nameParts []string
+		if firstName, exists := personalInfo["firstName"]; exists && firstName != nil {
+			nameParts = append(nameParts, fmt.Sprintf("%v", firstName))
+		}
+		if lastName, exists := personalInfo["lastName"]; exists && lastName != nil {
+			nameParts = append(nameParts, fmt.Sprintf("%v", lastName))
+		}
+		if len(nameParts) > 0 {
+			name = strings.Join(nameParts, " ")
+		}
+		if displayName, exists := personalInfo["displayName"]; exists && displayName != nil && name == "N/A" {
+			name = fmt.Sprintf("%v", displayName)
+		}
+	}
+
+	// Check flat email field first
 	if emailVal, ok := result["email"]; ok && emailVal != nil {
 		email = fmt.Sprintf("%v", emailVal)
+	}
+
+	// Check nested contactInfo structure
+	if contactInfo, ok := result["contactInfo"].(bson.M); ok {
+		if emailVal, exists := contactInfo["email"]; exists && emailVal != nil {
+			email = fmt.Sprintf("%v", emailVal)
+		}
 	}
 
 	if profileVal, ok := result["profile"]; ok && profileVal != nil {

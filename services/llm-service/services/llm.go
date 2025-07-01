@@ -27,7 +27,7 @@ var llmService *LLMService
 func InitLLMService() error {
 	llmService = &LLMService{
 		Client: &http.Client{
-			Timeout: 10 * time.Second, // Giảm từ 60s xuống 10s
+			Timeout: 120 * time.Second, // Increased timeout for LLM responses
 		},
 		BaseURL:  configs.AppConfig.LLMBaseURL,
 		APIKey:   configs.AppConfig.LLMAPIKey,
@@ -92,12 +92,16 @@ func (l *LLMService) ProcessChat(userMessage string, userID string) (*models.LLM
 	}
 
 	// Try to send request to LLM
+	log.Printf("Sending LLM request for user: %s, message: %s", userID, userMessage)
 	response, err := l.sendLLMRequest(userMessage, fullSystemPrompt)
 	if err != nil {
 		log.Printf("LLM service failed: %v", err)
+		log.Printf("Falling back to default response")
 		// Return fallback response based on RAG context
 		return l.generateFallbackResponse(userMessage, ragContext), nil
 	}
+
+	log.Printf("LLM response received successfully")
 
 	// Process response
 	llmResponse := &models.LLMResponse{
@@ -170,12 +174,13 @@ func (l *LLMService) generateFallbackResponse(userMessage, ragContext string) *m
 func (l *LLMService) sendChatRequest(request ChatCompletionRequest) (*ChatCompletionResponse, error) {
 	jsonData, err := json.Marshal(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal request: %v", err)
 	}
 
+	log.Printf("Making request to: %s", l.BaseURL+"/chat/completions")
 	req, err := http.NewRequest("POST", l.BaseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -183,19 +188,21 @@ func (l *LLMService) sendChatRequest(request ChatCompletionRequest) (*ChatComple
 		req.Header.Set("Authorization", "Bearer "+l.APIKey)
 	}
 
+	log.Printf("Sending request to LLM API...")
 	resp, err := l.Client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
+	log.Printf("Received response with status: %d", resp.StatusCode)
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("LLM API error: %s", string(body))
+		return nil, fmt.Errorf("LLM API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var response ChatCompletionResponse
