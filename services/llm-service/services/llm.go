@@ -215,14 +215,16 @@ func (l *LLMService) sendChatRequest(request ChatCompletionRequest) (*ChatComple
 }
 
 func (l *LLMService) shouldRejectMessage(message string) bool {
-	rejectKeywords := []string{
-		"làm bài tập", "giải bài", "homework", "assignment",
-		"viết code", "lập trình", "debug", "fix bug",
-		"hack", "crack", "bypass", "exploit",
-		"chứng khoán", "đầu tư", "bitcoin", "crypto",
-		"thuốc", "bệnh", "chẩn đoán", "điều trị",
-		"luật", "pháp lý", "kiện tụng",
+	// Get RAG service to read guard keywords
+	rag := GetRAGService()
+	if rag == nil {
+		return false
 	}
+
+	guardPrompt := rag.GetGuardPrompt()
+
+	// Extract keywords from guard prompt (look for lines with quotes)
+	rejectKeywords := l.extractKeywordsFromGuard(guardPrompt)
 
 	lowerMessage := strings.ToLower(message)
 	for _, keyword := range rejectKeywords {
@@ -231,4 +233,35 @@ func (l *LLMService) shouldRejectMessage(message string) bool {
 		}
 	}
 	return false
+}
+
+func (l *LLMService) extractKeywordsFromGuard(guardPrompt string) []string {
+	keywords := []string{}
+	lines := strings.Split(guardPrompt, "\n")
+
+	for _, line := range lines {
+		// Look for lines containing quoted keywords
+		if strings.Contains(line, "\"") {
+			// Extract quoted words from lines like: - "làm bài tập", "giải bài", "homework"
+			parts := strings.Split(line, "\"")
+			for i := 1; i < len(parts); i += 2 { // Every odd index contains the quoted text
+				keyword := strings.TrimSpace(parts[i])
+				if keyword != "" {
+					keywords = append(keywords, keyword)
+				}
+			}
+		}
+	}
+
+	// Fallback keywords if nothing found in guard.md
+	if len(keywords) == 0 {
+		keywords = []string{
+			"làm bài tập", "giải bài", "homework", "assignment",
+			"viết code", "lập trình", "debug", "fix bug", "code", "python", "java",
+			"hack", "crack", "bypass", "exploit",
+			"chứng khoán", "đầu tư", "bitcoin", "crypto",
+		}
+	}
+
+	return keywords
 }

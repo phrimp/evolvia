@@ -50,11 +50,12 @@ Bạn có câu hỏi nào khác về tài khoản của mình không?"
 ### Các từ khóa cảnh báo cần từ chối:
 
 - "làm bài tập", "giải bài", "homework", "assignment"
-- "viết code", "lập trình", "debug", "fix bug"
+- "viết code", "lập trình", "debug", "fix bug", "code", "python", "java", "javascript"
 - "hack", "crack", "bypass", "exploit"
 - "chứng khoán", "đầu tư", "bitcoin", "crypto"
 - "thuốc", "bệnh", "chẩn đoán", "điều trị"
 - "luật", "pháp lý", "kiện tụng"
+- "game", "tic-tac-toe", "tictactoe", "algorithm", "thuật toán"
 
 ## PHẠM VI ĐƯỢC PHÉP:
 
