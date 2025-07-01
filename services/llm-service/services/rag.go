@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	// "go.mongodb.org/mongo-driver/mongo"
 )
 
 type RAGService struct {
@@ -107,30 +107,24 @@ func (r *RAGService) BuildRAGContext(userID string, userMessage string) string {
 	return basePrompt
 }
 
-// ExecuteCustomQuery - Cho phép LLM tự tạo và thực hiện query với multiple databases
+// ExecuteCustomQuery - Dynamic database connection based on naming convention
 func (r *RAGService) ExecuteCustomQuery(userID string, databaseName string, collection string, query map[string]interface{}) ([]bson.M, error) {
 	dbService := GetDatabaseService()
 	if dbService == nil {
 		return nil, fmt.Errorf("database service not available")
 	}
 
-	// Select database based on databaseName parameter
-	var db *mongo.Database
-	switch databaseName {
-	case "profile_service":
-		db = dbService.ProfileDatabase
-	case "llm_service":
-		db = dbService.Database
-	case "auth_service", "payos_service", "billing_management_service", "knowledge_service":
-		// These would need to be added to DatabaseService if needed
-		return nil, fmt.Errorf("database %s not configured", databaseName)
-	default:
-		// Use default database
-		db = dbService.Database
+	// Dynamic database connection using MongoDB client
+	mongoClient := dbService.Client
+	if mongoClient == nil {
+		return nil, fmt.Errorf("MongoDB client not available")
 	}
 
+	// Connect to any database dynamically
+	db := mongoClient.Database(databaseName)
+
 	// Security: always add userID to query for user-related collections
-	secureCollections := []string{"users", "orders", "subscriptions", "profiles", "Profile"}
+	secureCollections := []string{"users", "orders", "subscriptions", "profiles", "Profile", "sessions"}
 	for _, secureCol := range secureCollections {
 		if collection == secureCol {
 			query["userId"] = userID
@@ -138,18 +132,48 @@ func (r *RAGService) ExecuteCustomQuery(userID string, databaseName string, coll
 		}
 	}
 
+	// Test connection first
+	err := db.RunCommand(context.Background(), bson.D{{"ping", 1}}).Err()
+	if err != nil {
+		log.Printf("Connection failed to %s: %v", databaseName, err)
+		return nil, fmt.Errorf("cannot connect to database %s: %v", databaseName, err)
+	}
+
 	coll := db.Collection(collection)
 	cursor, err := coll.Find(context.Background(), query)
 	if err != nil {
-		return nil, err
+		log.Printf("Query failed: %v", err)
+		return nil, fmt.Errorf("query failed: %v", err)
 	}
 	defer cursor.Close(context.Background())
 
 	var results []bson.M
 	err = cursor.All(context.Background(), &results)
 	if err != nil {
+		log.Printf("Result parsing failed: %v", err)
 		return nil, err
 	}
 
+	log.Printf("Query successful: %d records found", len(results))
 	return results, nil
+}
+
+// Helper function to format query for logging
+func formatQueryForLog(query map[string]interface{}) string {
+	if len(query) == 0 {
+		return "{}"
+	}
+
+	// Simple JSON-like formatting for readability
+	result := "{"
+	first := true
+	for k, v := range query {
+		if !first {
+			result += ", "
+		}
+		result += fmt.Sprintf(`"%s": "%v"`, k, v)
+		first = false
+	}
+	result += "}"
+	return result
 }
