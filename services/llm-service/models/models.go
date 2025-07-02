@@ -60,17 +60,27 @@ type LLMResponse struct {
 
 // ServiceStatus represents the status of the LLM service
 type ServiceStatus struct {
-	Service    string            `json:"service"`
-	Version    string            `json:"version"`
-	Status     string            `json:"status"`
-	Timestamp  time.Time         `json:"timestamp"`
-	Connection ServiceConnection `json:"connection"`
+	Service        string            `json:"service"`
+	Version        string            `json:"version"`
+	Status         string            `json:"status"`
+	Timestamp      time.Time         `json:"timestamp"`
+	Connection     ServiceConnection `json:"connection"`
+	LLMModel       ModelStatus       `json:"llmModel"`
+	EmbeddingModel ModelStatus       `json:"embeddingModel"`
 }
 
 type ServiceConnection struct {
 	MongoDB  bool `json:"mongodb"`
 	RabbitMQ bool `json:"rabbitmq"`
 	LLMModel bool `json:"llmModel"`
+}
+
+// ModelStatus represents the status of a model (LLM or embedding)
+type ModelStatus struct {
+	Status   string `json:"status"`
+	Model    string `json:"model"`
+	BaseURL  string `json:"baseUrl"`
+	Provider string `json:"provider"`
 }
 
 // ChatSession represents a chat session

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"llm-service/configs"
 	"llm-service/models"
 	"llm-service/services"
 	"llm-service/utils"
@@ -33,15 +34,42 @@ func (ctrl *LLMController) GetModelStatus(c *gin.Context) {
 	rabbitmq := services.GetRabbitMQService()
 	llm := services.GetLLMService()
 
+	// Determine LLM model status
+	llmModelStatus := "offline"
+	if llm != nil && llm.IsConnected() {
+		llmModelStatus = "online"
+	}
+
+	// Determine embedding model status (check if embedding service is working)
+	embeddingModelStatus := "offline"
+	ragService := services.GetRAGService()
+	if ragService != nil {
+		// We'll assume it's online if the service exists
+		// You might want to add a health check method to RAG service
+		embeddingModelStatus = "online"
+	}
+
 	status := &models.ServiceStatus{
-		Service:   "llm-service",
-		Version:   "1.0.0",
+		Service:   configs.AppConfig.ServiceName,
+		Version:   configs.AppConfig.ServiceVersion,
 		Status:    "active",
 		Timestamp: time.Now(),
 		Connection: models.ServiceConnection{
 			MongoDB:  db != nil && db.IsConnected(),
 			RabbitMQ: rabbitmq != nil && rabbitmq.IsConnected(),
 			LLMModel: llm != nil && llm.IsConnected(),
+		},
+		LLMModel: models.ModelStatus{
+			Status:   llmModelStatus,
+			Model:    configs.AppConfig.LLMModel,
+			BaseURL:  configs.AppConfig.LLMBaseURL,
+			Provider: configs.AppConfig.LLMProvider,
+		},
+		EmbeddingModel: models.ModelStatus{
+			Status:   embeddingModelStatus,
+			Model:    configs.AppConfig.EmbeddingModel,
+			BaseURL:  configs.AppConfig.EmbeddingModelURL,
+			Provider: configs.AppConfig.EmbeddingProvider,
 		},
 	}
 

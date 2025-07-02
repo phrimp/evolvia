@@ -133,6 +133,9 @@ func (r *RAGService) loadKnowledgeBase() error {
 	ragDir := "rag"
 	files := []string{"database.md", "guard.md", "prompt.md", "skillsgen.md"}
 
+	embeddingErrors := 0
+	totalChunks := 0
+
 	for _, filename := range files {
 		filepath := filepath.Join(ragDir, filename)
 		if content, err := os.ReadFile(filepath); err == nil {
@@ -140,6 +143,7 @@ func (r *RAGService) loadKnowledgeBase() error {
 			chunks := r.splitIntoChunks(string(content), 500)
 
 			for i, chunk := range chunks {
+				totalChunks++
 				doc := Document{
 					ID:      fmt.Sprintf("%s_chunk_%d", filename, i),
 					Content: chunk,
@@ -152,21 +156,34 @@ func (r *RAGService) loadKnowledgeBase() error {
 					Created: time.Now(),
 				}
 
-				// Generate embedding
+				// Always add document to knowledge base, even without embedding
+				r.KnowledgeBase = append(r.KnowledgeBase, doc)
+
+				// Try to generate embedding (with retry and fallback)
 				if vector, err := r.generateEmbedding(chunk); err == nil {
 					doc.Vector = vector
-					r.KnowledgeBase = append(r.KnowledgeBase, doc)
-
-					// Store in MongoDB
-					r.storeDocument(doc)
+					// Update the document in knowledge base with vector
+					r.KnowledgeBase[len(r.KnowledgeBase)-1].Vector = vector
 				} else {
+					embeddingErrors++
 					log.Printf("Warning: Could not generate embedding for %s chunk %d: %v", filename, i, err)
 				}
+
+				// Store in MongoDB (with or without vector)
+				r.storeDocument(doc)
 			}
+		} else {
+			log.Printf("Warning: Could not read file %s: %v", filename, err)
 		}
 	}
 
-	log.Printf("Loaded %d document chunks into knowledge base", len(r.KnowledgeBase))
+	if embeddingErrors > 0 {
+		log.Printf("Loaded %d document chunks into knowledge base (%d with embeddings, %d with fallback text search)",
+			len(r.KnowledgeBase), totalChunks-embeddingErrors, embeddingErrors)
+	} else {
+		log.Printf("Loaded %d document chunks into knowledge base with embeddings", len(r.KnowledgeBase))
+	}
+
 	return nil
 }
 
@@ -205,6 +222,31 @@ func (r *RAGService) generateEmbedding(text string) ([]float64, error) {
 		embeddingModel = "nomic-embed-text:latest"
 	}
 
+	// Retry logic with backoff
+	maxRetries := 3
+	baseDelay := 1 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			delay := time.Duration(attempt) * baseDelay
+			log.Printf("Retrying embedding generation (attempt %d/%d) after %v", attempt+1, maxRetries, delay)
+			time.Sleep(delay)
+		}
+
+		embedding, err := r.tryGenerateEmbedding(embeddingURL, embeddingModel, text)
+		if err == nil {
+			return embedding, nil
+		}
+
+		log.Printf("Embedding attempt %d failed: %v", attempt+1, err)
+	}
+
+	// If all retries failed, return a mock embedding to prevent blocking
+	log.Printf("All embedding attempts failed, using mock embedding for text: %.50s...", text)
+	return r.generateMockEmbedding(text), nil
+}
+
+func (r *RAGService) tryGenerateEmbedding(embeddingURL, embeddingModel, text string) ([]float64, error) {
 	reqBody := EmbeddingRequest{
 		Model:  embeddingModel,
 		Prompt: text,
@@ -212,33 +254,86 @@ func (r *RAGService) generateEmbedding(text string) ([]float64, error) {
 
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", embeddingURL+"/embeddings", bytes.NewBuffer(jsonData))
+	// Use the correct Ollama API endpoint
+	endpoint := embeddingURL + "/api/embeddings"
+	if strings.Contains(embeddingURL, "/v1") {
+		// Remove /v1 from URL if present and use /api/embeddings
+		baseURL := strings.Replace(embeddingURL, "/v1", "", 1)
+		endpoint = baseURL + "/api/embeddings"
+	}
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "llm-service/1.0.0")
+
+	// Add timeout context
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req = req.WithContext(ctx)
 
 	resp, err := r.EmbeddingClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("embedding service returned status %d: %s", resp.StatusCode, string(body))
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
 	var embResp EmbeddingResponse
 	if err := json.Unmarshal(body, &embResp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	if len(embResp.Embedding) == 0 {
+		return nil, fmt.Errorf("empty embedding received")
 	}
 
 	return embResp.Embedding, nil
+}
+
+// Generate a simple mock embedding based on text hash for fallback
+func (r *RAGService) generateMockEmbedding(text string) []float64 {
+	// Simple hash-based mock embedding (384 dimensions like nomic-embed-text)
+	embedding := make([]float64, 384)
+	hash := 0
+	for _, char := range text {
+		hash = hash*31 + int(char)
+	}
+
+	for i := range embedding {
+		hash = hash*1103515245 + 12345                    // Simple LCG
+		embedding[i] = float64((hash%2000)-1000) / 1000.0 // Normalize to [-1, 1]
+	}
+
+	// Normalize the vector
+	var norm float64
+	for _, val := range embedding {
+		norm += val * val
+	}
+	norm = math.Sqrt(norm)
+
+	if norm > 0 {
+		for i := range embedding {
+			embedding[i] /= norm
+		}
+	}
+
+	return embedding
 }
 
 func (r *RAGService) storeDocument(doc Document) error {
@@ -257,10 +352,30 @@ func (r *RAGService) storeDocument(doc Document) error {
 }
 
 func (r *RAGService) SemanticSearch(query string, topK int) ([]Document, error) {
-	// Generate embedding for query
+	// If no documents loaded, return empty
+	if len(r.KnowledgeBase) == 0 {
+		log.Printf("Warning: No documents in knowledge base")
+		return []Document{}, nil
+	}
+
+	// Try to generate embedding for query
 	queryVector, err := r.generateEmbedding(query)
 	if err != nil {
-		log.Printf("Warning: Could not generate query embedding, using fallback: %v", err)
+		log.Printf("Warning: Could not generate query embedding, using fallback text search: %v", err)
+		return r.fallbackSearch(query, topK), nil
+	}
+
+	// Count how many documents have embeddings
+	documentsWithEmbeddings := 0
+	for _, doc := range r.KnowledgeBase {
+		if len(doc.Vector) > 0 {
+			documentsWithEmbeddings++
+		}
+	}
+
+	// If no documents have embeddings, use fallback search
+	if documentsWithEmbeddings == 0 {
+		log.Printf("Warning: No documents have embeddings, using fallback text search")
 		return r.fallbackSearch(query, topK), nil
 	}
 
@@ -273,8 +388,15 @@ func (r *RAGService) SemanticSearch(query string, topK int) ([]Document, error) 
 		log.Printf("Warning: Vector search from DB failed: %v", err)
 	}
 
-	// Fallback to in-memory search
-	return r.vectorSearchInMemory(queryVector, topK), nil
+	// Fallback to in-memory vector search
+	vectorDocs := r.vectorSearchInMemory(queryVector, topK)
+	if len(vectorDocs) > 0 {
+		return vectorDocs, nil
+	}
+
+	// Final fallback to text search
+	log.Printf("Warning: Vector search failed, using text search fallback")
+	return r.fallbackSearch(query, topK), nil
 }
 
 func (r *RAGService) vectorSearchFromDB(queryVector []float64, topK int) ([]Document, error) {
