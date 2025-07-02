@@ -816,6 +816,91 @@ services:
       - "traefik.http.routers.input-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
+  llm-service:
+    user: "0:0"
+    build:
+      context: .
+      dockerfile: services/llm-service/Dockerfile
+    container_name: llm-service
+    restart: unless-stopped
+    environment:
+      # Server Configuration
+      - PORT=${LLM_SERVICE_PORT:-8080}
+      - GIN_MODE=${GIN_MODE:-debug}
+      - SERVICE_NAME=${LLM_SERVICE_NAME:-llm-service}
+      - SERVICE_ADDRESS=${LLM_SERVICE_ADDRESS:-llm-service}
+      - SERVICE_VERSION=${LLM_SERVICE_VERSION:-1.0.0}
+      - HOSTNAME=${LLM_SERVICE_HOSTNAME:-llm}
+      - HOST=${HOST:-0.0.0.0}
+
+      # Consul Configuration
+      - CONSUL_ADDRESS=consul-server:${CONSUL_HTTP_PORT:-8500}
+      - CONSUL_PORT=${CONSUL_HTTP_PORT:-8500}
+
+      # MongoDB Configuration
+      - MONGO_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
+      - MONGODB_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
+
+      # RabbitMQ Configuration
+      - RABBITMQ_URI=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/}
+      - RABBITMQ_EXCHANGE=${LLM_RABBITMQ_EXCHANGE:-llm.events}
+      - RABBITMQ_QUEUE=${LLM_RABBITMQ_QUEUE:-llm-service-events}
+
+      # LLM Configuration
+      - LLM_API_KEY=${LLM_API_KEY:-none}
+      - LLM_BASE_URL=${LLM_BASE_URL:-http://localhost:11434/v1}
+      - LLM_MODEL=${LLM_MODEL:-qwen3:1.7b}
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.7}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-1000}
+
+      # Embedding Configuration
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-none}
+      - EMBEDDING_MODEL_URL=${EMBEDDING_MODEL_URL:-http://localhost:11434/v1}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-nomic-embed-text:latest}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-ollama}
+
+      # JWT Configuration
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ISSUER=${JWT_ISSUER:-llm-service}
+      - TOKEN_EXPIRY_TIME=${TOKEN_EXPIRY_TIME:-24}
+
+      # RAG Configuration
+      - RAG_ENABLED=${RAG_ENABLED:-true}
+      - RAG_MAX_RESULTS=${RAG_MAX_RESULTS:-10}
+      - RAG_SIMILARITY_THRESHOLD=${RAG_SIMILARITY_THRESHOLD:-0.7}
+
+      # Service Discovery
+      - LLM_SERVICE_NAME=${LLM_SERVICE_NAME:-llm-service}
+      - LLM_SERVICE_ADDRESS=${LLM_SERVICE_ADDRESS:-llm-service}
+    networks:
+      - consul-net
+      - traefik-net
+    volumes:
+      - ./logs/llm-service:/var/log/llm-service
+    depends_on:
+      - consul-server
+      - traefik
+      - mongodb
+      - rabbitmq
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.llm-service.loadbalancer.server.port=8080"
+      - "traefik.http.routers.llm-service-public.service=llm-service"
+      - "traefik.http.routers.llm-service-secure.service=llm-service"
+      # Public routes with CORS
+      - "traefik.http.routers.llm-service-public.rule=PathPrefix(`/public/llm`)"
+      - "traefik.http.routers.llm-service-public.middlewares=global-cors@docker"
+      # Protected routes with CORS and auth
+      - "traefik.http.routers.llm-service-secure.rule=PathPrefix(`/protected/llm`)"
+      - "traefik.http.routers.llm-service-secure.middlewares=global-cors@docker,auth-middleware"
+      - "traefik.docker.network=microservices_template_traefik-net"
+
 networks:
   consul-net:
     driver: bridge
