@@ -38,12 +38,19 @@ func (h *PermissionHanlder) Maintenance(c fiber.Ctx) error {
 	hasPermission := false
 	if userPermissions != "" {
 		permissions := strings.SplitSeq(userPermissions, ",")
+		// Check for any permission that would allow viewing roles
 		for perm := range permissions {
-			if strings.HasPrefix(perm, "admin") || perm == "admin" {
+			if perm == "read" || strings.HasPrefix(perm, "role:") || perm == "admin" {
 				hasPermission = true
 				break
 			}
 		}
+	}
+
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "You don't have permission to view permissions",
+		})
 	}
 
 	if !hasPermission {
@@ -76,28 +83,11 @@ func (h *PermissionHanlder) GetAllPermission(c fiber.Ctx) error {
 
 	// Check if user has permission to view roles
 	hasPermission := false
-	required_permission := "maintenance:admin"
 	if userPermissions != "" {
-		permissions := strings.Split(userPermissions, ",")
-
-		for _, perm := range permissions {
-			// Trim whitespace from permission
-			perm = strings.TrimSpace(perm)
-
-			// Check for exact match
-			if perm == required_permission {
-				hasPermission = true
-				break
-			}
-
-			// Check for admin privileges (admin has all permissions)
-			if strings.HasPrefix(perm, "admin") {
-				hasPermission = true
-				break
-			}
-
-			// Check for hierarchical permissions (e.g., read:plan:all includes read:plan)
-			if strings.Contains(perm, ":all") && strings.Contains(required_permission, strings.Replace(perm, ":all", "", 1)) {
+		permissions := strings.SplitSeq(userPermissions, ",")
+		// Check for any permission that would allow viewing roles
+		for perm := range permissions {
+			if perm == "read" || strings.HasPrefix(perm, "role:") || perm == "admin" {
 				hasPermission = true
 				break
 			}
