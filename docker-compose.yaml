@@ -53,6 +53,9 @@ services:
       - TRAEFIK_PROVIDERS_CONSUL=true
       - TRAEFIK_PROVIDERS_CONSUL_ENDPOINTS=http://consul-server:8500
       - TRAEFIK_PROVIDERS_CONSUL_ROOTKEY=${TRAEFIK_CONSUL_ROOTKEY:-traefik}
+      - TRAEFIK_METRICS_PROMETHEUS=true
+      - TRAEFIK_METRICS_PROMETHEUS_ADDENTRYPOINTSLABELS=true
+      - TRAEFIK_METRICS_PROMETHEUS_ADDSERVICESLABELS=true
     labels:
       - "traefik.enable=true"
       # Define CORS middleware with proper naming
@@ -173,6 +176,7 @@ services:
     ports:
       - "${RABBITMQ_PORT:-5672}:5672"
       - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+      - "15692:15692"
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
@@ -184,6 +188,7 @@ services:
       bash -c "
         mkdir -p /var/log/rabbitmq &&
         chmod 777 /var/log/rabbitmq &&
+        echo '[rabbitmq_management,rabbitmq_prometheus].' > /etc/rabbitmq/enabled_plugins &&
         rabbitmq-server
       "
     networks:
@@ -201,6 +206,60 @@ services:
       - "traefik.http.services.rabbitmq-ui.loadbalancer.server.port=15672"
       - "traefik.http.middlewares.rabbitmq-ui-prefix.stripprefix.prefixes=/rabbitmq"
       - "traefik.http.routers.rabbitmq-ui.middlewares=rabbitmq-ui-prefix"
+      - "traefik.docker.network=microservices_template_traefik-net"
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - consul-net
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=PathPrefix(`/prometheus`)"
+      - "traefik.http.routers.prometheus.service=prometheus"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      - "traefik.http.middlewares.prometheus-strip.stripprefix.prefixes=/prometheus"
+      - "traefik.http.routers.prometheus.middlewares=prometheus-strip,global-cors@docker"
+      - "traefik.docker.network=microservices_template_traefik-net"
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - consul-net
+      - traefik-net
+    depends_on:
+      - prometheus
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.service=grafana"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.grafana-strip.stripprefix.prefixes=/grafana"
+      - "traefik.http.routers.grafana.middlewares=grafana-strip,global-cors@docker"
       - "traefik.docker.network=microservices_template_traefik-net"
 
   auth-service:
@@ -914,3 +973,5 @@ volumes:
   redis_data:
   minio_data:
   rabbitmq_data:
+  prometheus_data:
+  grafana_data:
