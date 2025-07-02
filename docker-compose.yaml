@@ -213,24 +213,26 @@ services:
     container_name: prometheus
     restart: unless-stopped
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=200h'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-200h}'
       - '--web.enable-lifecycle'
+      - '--web.external-url=${PROMETHEUS_EXTERNAL_URL:-http://localhost:9090}'
+      - '--log.level=${PROMETHEUS_LOG_LEVEL:-info}'
     networks:
       - consul-net
       - traefik-net
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prometheus.rule=PathPrefix(`/prometheus`)"
+      - "traefik.enable=${PROMETHEUS_TRAEFIK_ENABLED:-true}"
+      - "traefik.http.routers.prometheus.rule=PathPrefix(`${PROMETHEUS_PATH:-/prometheus}`)"
       - "traefik.http.routers.prometheus.service=prometheus"
-      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
-      - "traefik.http.middlewares.prometheus-strip.stripprefix.prefixes=/prometheus"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=${PROMETHEUS_PORT:-9090}"
+      - "traefik.http.middlewares.prometheus-strip.stripprefix.prefixes=${PROMETHEUS_PATH:-/prometheus}"
       - "traefik.http.routers.prometheus.middlewares=prometheus-strip,global-cors@docker"
       - "traefik.docker.network=microservices_template_traefik-net"
 
@@ -239,13 +241,20 @@ services:
     container_name: grafana
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/grafana/
-      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=${GRAFANA_ALLOW_SIGNUP:-false}
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-%(protocol)s://%(domain)s:%(http_port)s/grafana/}
+      - GF_SERVER_SERVE_FROM_SUB_PATH=${GRAFANA_SERVE_FROM_SUB_PATH:-true}
+      - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN:-localhost}
+      - GF_ANALYTICS_REPORTING_ENABLED=${GRAFANA_ANALYTICS:-false}
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=${GRAFANA_CHECK_UPDATES:-false}
+      - GF_INSTALL_PLUGINS=${GRAFANA_PLUGINS:-}
+      - GF_AUTH_ANONYMOUS_ENABLED=${GRAFANA_ANONYMOUS_ENABLED:-false}
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=${GRAFANA_ANONYMOUS_ROLE:-Viewer}
+      - GF_SECURITY_ALLOW_EMBEDDING=${GRAFANA_ALLOW_EMBEDDING:-false}
     volumes:
       - grafana_data:/var/lib/grafana
     networks:
@@ -254,11 +263,11 @@ services:
     depends_on:
       - prometheus
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
+      - "traefik.enable=${GRAFANA_TRAEFIK_ENABLED:-true}"
+      - "traefik.http.routers.grafana.rule=PathPrefix(`${GRAFANA_PATH:-/grafana}`)"
       - "traefik.http.routers.grafana.service=grafana"
-      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
-      - "traefik.http.middlewares.grafana-strip.stripprefix.prefixes=/grafana"
+      - "traefik.http.services.grafana.loadbalancer.server.port=${GRAFANA_PORT:-3000}"
+      - "traefik.http.middlewares.grafana-strip.stripprefix.prefixes=${GRAFANA_PATH:-/grafana}"
       - "traefik.http.routers.grafana.middlewares=grafana-strip,global-cors@docker"
       - "traefik.docker.network=microservices_template_traefik-net"
 
