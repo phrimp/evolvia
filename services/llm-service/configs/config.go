@@ -18,6 +18,10 @@ type Config struct {
 	LLMBaseURL           string
 	LLMModel             string
 	LLMProvider          string
+	EmbeddingAPIKey      string
+	EmbeddingModelURL    string
+	EmbeddingModel       string
+	EmbeddingProvider    string
 	JWTSecret            string
 	ServiceName          string
 	ServiceVersion       string
@@ -42,6 +46,10 @@ func LoadConfig() {
 		LLMBaseURL:           getEnvOrDefault("LLM_BASE_URL", "http://localhost:11434/v1"),
 		LLMModel:             getEnvOrDefault("LLM_MODEL", "qwen3:1.7b"),
 		LLMProvider:          getEnvOrDefault("LLM_PROVIDER", "ollama"),
+		EmbeddingAPIKey:      getEnvOrDefault("EMBEDDING_API_KEY", "none"),
+		EmbeddingModelURL:    getEnvOrDefault("EMBEDDING_MODEL_URL", "http://localhost:11434/v1"),
+		EmbeddingModel:       getEnvOrDefault("EMBEDDING_MODEL", "nomic-embed-text:latest"),
+		EmbeddingProvider:    getEnvOrDefault("EMBEDDING_PROVIDER", "ollama"),
 		JWTSecret:            getEnvOrDefault("JWT_SECRET", "your-jwt-secret-key"),
 		ServiceName:          getEnvOrDefault("SERVICE_NAME", "llm-service"),
 		ServiceVersion:       getEnvOrDefault("SERVICE_VERSION", "1.0.0"),
