@@ -48,10 +48,14 @@ func initServices() error {
 	}
 
 	// Initialize RabbitMQ
-	if err := services.InitRabbitMQ(); err != nil {
-		log.Printf("Warning: Failed to connect to RabbitMQ: %v", err)
+	if configs.AppConfig.RabbitMQEnabled {
+		if err := services.InitRabbitMQ(); err != nil {
+			log.Printf("Warning: Failed to connect to RabbitMQ: %v", err)
+		} else {
+			log.Println("RabbitMQ connected successfully")
+		}
 	} else {
-		log.Println("RabbitMQ connected successfully")
+		log.Println("RabbitMQ disabled in configuration")
 	}
 
 	// Initialize RAG Service
@@ -187,11 +191,18 @@ func authMiddleware() gin.HandlerFunc {
 }
 
 func registerService() {
+	if !configs.AppConfig.RabbitMQEnabled {
+		log.Println("Skipping service registration - RabbitMQ is disabled")
+		return
+	}
+
 	if rabbitmq := services.GetRabbitMQService(); rabbitmq != nil {
 		if err := rabbitmq.PublishServiceRegistration(); err != nil {
 			log.Printf("Warning: Failed to register service: %v", err)
 		} else {
 			log.Println("Service registered successfully")
 		}
+	} else {
+		log.Println("Skipping service registration - RabbitMQ not connected")
 	}
 }

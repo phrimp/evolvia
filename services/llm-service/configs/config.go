@@ -14,6 +14,7 @@ type Config struct {
 	MongoDatabase        string
 	MongoProfileDatabase string
 	RabbitMQURI          string
+	RabbitMQEnabled      bool
 	LLMAPIKey            string
 	LLMBaseURL           string
 	LLMModel             string
@@ -42,12 +43,13 @@ func LoadConfig() {
 		MongoDatabase:        "llm_service",
 		MongoProfileDatabase: "profile_service",
 		RabbitMQURI:          getEnvOrDefault("RABBITMQ_URI", "amqp://guest:guest@localhost:5672/"),
+		RabbitMQEnabled:      getEnvOrDefault("RABBITMQ_ENABLED", "true") == "true",
 		LLMAPIKey:            getEnvOrDefault("LLM_API_KEY", ""),
 		LLMBaseURL:           getEnvOrDefault("LLM_BASE_URL", "http://localhost:11434/v1"),
 		LLMModel:             getEnvOrDefault("LLM_MODEL", "qwen3:1.7b"),
 		LLMProvider:          getEnvOrDefault("LLM_PROVIDER", "ollama"),
 		EmbeddingAPIKey:      getEnvOrDefault("EMBEDDING_API_KEY", "none"),
-		EmbeddingModelURL:    getEnvOrDefault("EMBEDDING_MODEL_URL", "http://localhost:11434/v1"),
+		EmbeddingModelURL:    getEnvOrDefault("EMBEDDING_MODEL_URL", "http://localhost:11434"),
 		EmbeddingModel:       getEnvOrDefault("EMBEDDING_MODEL", "nomic-embed-text:latest"),
 		EmbeddingProvider:    getEnvOrDefault("EMBEDDING_PROVIDER", "ollama"),
 		JWTSecret:            getEnvOrDefault("JWT_SECRET", "your-jwt-secret-key"),
