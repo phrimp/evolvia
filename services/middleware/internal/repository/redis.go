@@ -64,3 +64,11 @@ func (us *RedisRepo) GetInt(ctx context.Context, key string) int64 {
 	}
 	return value
 }
+
+func (r *RedisRepo) DeleteKey(ctx context.Context, key string) error {
+	result := r.client.Del(ctx, key)
+	if result.Err() != nil {
+		return fmt.Errorf("error deleting key %s: %w", key, result.Err())
+	}
+	return nil
+}

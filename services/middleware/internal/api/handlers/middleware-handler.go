@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"log"
+	"middleware/internal/repository"
 	"middleware/internal/services"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 )
@@ -21,6 +23,53 @@ func NewMiddlewareHandler(sessionService *services.SessionService) *MiddlewareHa
 
 func (h *MiddlewareHandler) RegisterRoutes(app *fiber.App) {
 	app.Get("/auth/validate", h.ValidateToken)
+	app.Post("/auth/maintenance", h.Maintenance)
+}
+
+func (h *MiddlewareHandler) Maintenance(c fiber.Ctx) error {
+	userID := c.Get("X-User-ID")
+	userPermissions := c.Get("X-User-Permissions")
+
+	hasPermission := false
+	if userPermissions != "" {
+		permissions := strings.SplitSeq(userPermissions, ",")
+		// Check for any permission that would allow viewing roles
+		for perm := range permissions {
+			if perm == "read" || strings.HasPrefix(perm, "role:") || perm == "admin" {
+				hasPermission = true
+				break
+			}
+		}
+	}
+
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "You don't have permission to view permissions",
+		})
+	}
+
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "You don't have enough permission",
+		})
+	}
+
+	log.Printf("User %s request system maintenance", userID)
+
+	var maintenance_status bool
+
+	err := repository.Redis_repo.GetStructCached(c.Context(), "maintenance", &maintenance_status)
+	if err != nil {
+		repository.Redis_repo.SaveStructCached(c.Context(), "maintenance", true, 24000*time.Hour)
+		maintenance_status = true
+	} else {
+		repository.Redis_repo.DeleteKey(c.Context(), "maintenance")
+		maintenance_status = false
+	}
+
+	return c.JSON(fiber.Map{
+		"System Maintenance Status": maintenance_status,
+	})
 }
 
 func (h *MiddlewareHandler) ValidateToken(c fiber.Ctx) error {
