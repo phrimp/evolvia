@@ -27,35 +27,6 @@ func (h *MiddlewareHandler) RegisterRoutes(app *fiber.App) {
 }
 
 func (h *MiddlewareHandler) Maintenance(c fiber.Ctx) error {
-	userID := c.Get("X-User-ID")
-	userPermissions := c.Get("X-User-Permissions")
-
-	hasPermission := false
-	if userPermissions != "" {
-		permissions := strings.SplitSeq(userPermissions, ",")
-		// Check for any permission that would allow viewing roles
-		for perm := range permissions {
-			if perm == "read" || strings.HasPrefix(perm, "role:") || perm == "admin" {
-				hasPermission = true
-				break
-			}
-		}
-	}
-
-	if !hasPermission {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "You don't have permission to view permissions",
-		})
-	}
-
-	if !hasPermission {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "You don't have enough permission",
-		})
-	}
-
-	log.Printf("User %s request system maintenance", userID)
-
 	var maintenance_status bool
 
 	err := repository.Redis_repo.GetStructCached(c.Context(), "maintenance", &maintenance_status)
