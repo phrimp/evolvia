@@ -137,6 +137,9 @@ func setupRoutes() *gin.Engine {
 			// Chat with the model (requires session ID in URL path)
 			model.POST("/:sessionId/chat", llmController.Chat)
 
+			// Streaming chat with the model
+			model.POST("/:sessionId/stream", llmController.ChatStream)
+
 			// Get chat history
 			model.GET("/history/:sessionId", llmController.GetChatHistory)
 		}

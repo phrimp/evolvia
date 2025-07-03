@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -52,9 +53,11 @@ func (l *LLMService) IsConnected() bool {
 }
 
 type ChatCompletionRequest struct {
-	Model    string                  `json:"model"`
-	Messages []ChatCompletionMessage `json:"messages"`
-	Stream   bool                    `json:"stream"`
+	Model       string                  `json:"model"`
+	Messages    []ChatCompletionMessage `json:"messages"`
+	Stream      bool                    `json:"stream"`
+	Temperature *float64                `json:"temperature,omitempty"`
+	MaxTokens   *int                    `json:"max_tokens,omitempty"`
 }
 
 type ChatCompletionMessage struct {
@@ -204,4 +207,192 @@ func (l *LLMService) sendChatRequest(request ChatCompletionRequest) (*ChatComple
 		return nil, err
 	}
 	return &response, nil
+}
+
+// ProcessChatStream processes chat message and returns streaming response
+func (l *LLMService) ProcessChatStream(userMessage string, userID string, responseChan chan models.StreamChunk) {
+	defer close(responseChan)
+
+	// Get RAG service
+	rag := GetRAGService()
+	if rag == nil {
+		responseChan <- models.StreamChunk{
+			Content:   "",
+			IsEnd:     true,
+			Error:     "RAG service not available",
+			Timestamp: time.Now(),
+		}
+		return
+	}
+
+	// Load prompts from RAG files
+	systemPrompt := rag.GetSystemPrompt()
+	guardPrompt := rag.GetGuardPrompt()
+	ragContext := rag.BuildRAGContext(userID, userMessage)
+
+	// Combine prompts
+	fullSystemPrompt := fmt.Sprintf("%s\n\n%s\n\n%s", guardPrompt, systemPrompt, ragContext)
+
+	log.Printf("Sending streaming LLM request for user: %s, message: %s", userID, userMessage)
+
+	// Try to send streaming request to LLM
+	err := l.sendStreamingLLMRequest(userMessage, fullSystemPrompt, responseChan)
+	if err != nil {
+		log.Printf("LLM streaming service failed: %v", err)
+		log.Printf("Falling back to non-streaming response")
+
+		// Fallback to regular response and simulate streaming
+		fallbackResponse := l.generateFallbackResponse(userMessage, ragContext)
+		l.simulateStreaming(fallbackResponse.Message, responseChan)
+	}
+}
+
+func (l *LLMService) sendStreamingLLMRequest(userMessage, systemPrompt string, responseChan chan models.StreamChunk) error {
+	// Prepare chat request with streaming enabled
+	messages := []ChatCompletionMessage{
+		{
+			Role:    "system",
+			Content: systemPrompt,
+		},
+		{
+			Role:    "user",
+			Content: userMessage,
+		},
+	}
+
+	request := ChatCompletionRequest{
+		Model:    l.Model,
+		Messages: messages,
+		Stream:   true, // Enable streaming
+	}
+
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %v", err)
+	}
+
+	log.Printf("Making streaming request to: %s", l.BaseURL+"/chat/completions")
+	req, err := http.NewRequest("POST", l.BaseURL+"/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Cache-Control", "no-cache")
+	if l.APIKey != "" && l.APIKey != "none" {
+		req.Header.Set("Authorization", "Bearer "+l.APIKey)
+	}
+
+	resp, err := l.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("streaming request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("LLM API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	log.Printf("Started receiving streaming response...")
+
+	// Use a scanner to read line by line more reliably
+	scanner := bufio.NewScanner(resp.Body)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		if line == "" {
+			continue
+		}
+
+		if line == "data: [DONE]" {
+			responseChan <- models.StreamChunk{
+				Content:   "",
+				IsEnd:     true,
+				Timestamp: time.Now(),
+			}
+			return nil
+		}
+
+		if strings.HasPrefix(line, "data: ") {
+			data := line[6:] // Remove "data: " prefix
+			if data == "[DONE]" {
+				responseChan <- models.StreamChunk{
+					Content:   "",
+					IsEnd:     true,
+					Timestamp: time.Now(),
+				}
+				return nil
+			}
+
+			var streamResp models.StreamingResponse
+			if err := json.Unmarshal([]byte(data), &streamResp); err != nil {
+				log.Printf("Failed to parse streaming response: %v", err)
+				continue
+			}
+
+			if len(streamResp.Choices) > 0 {
+				content := streamResp.Choices[0].Delta.Content
+				if content != "" {
+					responseChan <- models.StreamChunk{
+						Content:   content,
+						IsEnd:     false,
+						Timestamp: time.Now(),
+					}
+				}
+
+				if streamResp.Choices[0].FinishReason != nil {
+					responseChan <- models.StreamChunk{
+						Content:   "",
+						IsEnd:     true,
+						Timestamp: time.Now(),
+					}
+					return nil
+				}
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading streaming response: %v", err)
+	}
+
+	// If we reach here without seeing [DONE], send end signal
+	responseChan <- models.StreamChunk{
+		Content:   "",
+		IsEnd:     true,
+		Timestamp: time.Now(),
+	}
+
+	return nil
+}
+
+func (l *LLMService) simulateStreaming(message string, responseChan chan models.StreamChunk) {
+	words := strings.Fields(message)
+
+	for i, word := range words {
+		// Add space before word (except first word)
+		content := word
+		if i > 0 {
+			content = " " + word
+		}
+
+		responseChan <- models.StreamChunk{
+			Content:   content,
+			IsEnd:     false,
+			Timestamp: time.Now(),
+		}
+
+		// Small delay to simulate typing
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// Send end signal
+	responseChan <- models.StreamChunk{
+		Content:   "",
+		IsEnd:     true,
+		Timestamp: time.Now(),
+	}
 }
