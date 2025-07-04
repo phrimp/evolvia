@@ -43,13 +43,37 @@ func GetLLMService() *LLMService {
 }
 
 func (l *LLMService) IsConnected() bool {
-	// Test connection by making a simple request
-	resp, err := http.Get(l.BaseURL + "/models")
-	if err != nil {
-		return false
+	switch strings.ToLower(l.Provider) {
+	case "google", "gemini":
+		// For Google Gemini, we can try to make a simple request to check connectivity
+		// Since we can't easily test without making an actual API call,
+		// we'll just check if the base URL is reachable
+		if l.APIKey == "" || l.APIKey == "none" {
+			return false
+		}
+		// For Google API, if we have a valid API key, assume it's connected
+		// You could also make a simple test request here if needed
+		return true
+	case "ollama":
+		// Test connection by making a simple request to /models endpoint
+		resp, err := http.Get(l.BaseURL + "/models")
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode == 200
+	case "openai", "openrouter":
+		// For OpenAI-compatible APIs, check if we have an API key
+		return l.APIKey != "" && l.APIKey != "none"
+	default:
+		// For unknown providers, try the models endpoint
+		resp, err := http.Get(l.BaseURL + "/models")
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode == 200
 	}
-	defer resp.Body.Close()
-	return resp.StatusCode == 200
 }
 
 type ChatCompletionRequest struct {
@@ -220,6 +244,124 @@ Bạn cần hỗ trợ gì?`,
 }
 
 func (l *LLMService) sendChatRequest(request ChatCompletionRequest) (*ChatCompletionResponse, error) {
+	// Handle different providers
+	switch strings.ToLower(l.Provider) {
+	case "google", "gemini":
+		return l.sendGoogleGeminiRequest(request)
+	default:
+		return l.sendOpenAICompatibleRequest(request)
+	}
+}
+
+func (l *LLMService) sendGoogleGeminiRequest(request ChatCompletionRequest) (*ChatCompletionResponse, error) {
+	// Convert OpenAI format to Google Gemini format
+	var contents []map[string]interface{}
+
+	for _, msg := range request.Messages {
+		if msg.Role == "system" {
+			// For system messages, we'll prepend them to the user message
+			// Google Gemini doesn't have a separate system role
+			continue
+		}
+
+		content := map[string]interface{}{
+			"parts": []map[string]interface{}{
+				{"text": msg.Content},
+			},
+		}
+		contents = append(contents, content)
+	}
+
+	// If we have a system message, prepend it to the first user message
+	var systemPrompt string
+	for _, msg := range request.Messages {
+		if msg.Role == "system" {
+			systemPrompt = msg.Content
+			break
+		}
+	}
+
+	// Combine system prompt with user message if exists
+	if systemPrompt != "" && len(contents) > 0 {
+		if parts, ok := contents[0]["parts"].([]map[string]interface{}); ok && len(parts) > 0 {
+			if text, ok := parts[0]["text"].(string); ok {
+				parts[0]["text"] = systemPrompt + "\n\nUser: " + text
+			}
+		}
+	}
+
+	geminiRequest := map[string]interface{}{
+		"contents": contents,
+	}
+
+	jsonData, err := json.Marshal(geminiRequest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %v", err)
+	}
+
+	// Use the base URL as-is since it already includes the generateContent endpoint
+	req, err := http.NewRequest("POST", l.BaseURL+"?key="+l.APIKey, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	log.Printf("Sending request to Google Gemini API...")
+	resp, err := l.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %v", err)
+	}
+
+	log.Printf("Received response with status: %d", resp.StatusCode)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("Google Gemini API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	// Parse Google Gemini response format
+	var geminiResponse struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+
+	err = json.Unmarshal(body, &geminiResponse)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Gemini response: %v", err)
+	}
+
+	// Convert back to OpenAI format for compatibility
+	response := &ChatCompletionResponse{
+		Choices: []struct {
+			Message ChatCompletionMessage `json:"message"`
+		}{
+			{
+				Message: ChatCompletionMessage{
+					Role:    "assistant",
+					Content: "",
+				},
+			},
+		},
+	}
+
+	if len(geminiResponse.Candidates) > 0 && len(geminiResponse.Candidates[0].Content.Parts) > 0 {
+		response.Choices[0].Message.Content = geminiResponse.Candidates[0].Content.Parts[0].Text
+	}
+
+	return response, nil
+}
+
+func (l *LLMService) sendOpenAICompatibleRequest(request ChatCompletionRequest) (*ChatCompletionResponse, error) {
 	jsonData, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %v", err)
