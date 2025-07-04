@@ -135,6 +135,30 @@ func (db *DatabaseService) GetChatSession(sessionID string) (*models.ChatSession
 	return &session, nil
 }
 
+func (db *DatabaseService) GetUserSessions(userID string, limit int) ([]models.ChatSession, error) {
+	collection := db.Database.Collection("chat_sessions")
+
+	filter := bson.M{"userId": userID, "isActive": true}
+	opts := options.Find().SetSort(bson.D{bson.E{Key: "updatedAt", Value: -1}}) // Sort by most recent first
+
+	if limit > 0 {
+		opts.SetLimit(int64(limit))
+	}
+
+	cursor, err := collection.Find(context.Background(), filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+
+	var sessions []models.ChatSession
+	if err = cursor.All(context.Background(), &sessions); err != nil {
+		return nil, err
+	}
+
+	return sessions, nil
+}
+
 func (db *DatabaseService) ValidateSession(sessionID, userID string) bool {
 	session, err := db.GetChatSession(sessionID)
 	if err != nil {

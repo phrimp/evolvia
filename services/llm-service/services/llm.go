@@ -72,6 +72,11 @@ type ChatCompletionResponse struct {
 }
 
 func (l *LLMService) ProcessChat(userMessage string, userID string) (*models.LLMResponse, error) {
+	// Debug logging
+	log.Printf("=== ProcessChat Debug ===")
+	log.Printf("UserID: %s", userID)
+	log.Printf("Message: %s", userMessage)
+
 	// Get RAG service
 	rag := GetRAGService()
 	if rag == nil {
@@ -82,6 +87,10 @@ func (l *LLMService) ProcessChat(userMessage string, userID string) (*models.LLM
 	systemPrompt := rag.GetSystemPrompt()
 	guardPrompt := rag.GetGuardPrompt()
 	ragContext := rag.BuildRAGContext(userID, userMessage)
+
+	// Debug RAG context
+	log.Printf("RAG Context length: %d chars", len(ragContext))
+	log.Printf("RAG Context preview: %.300s...", ragContext)
 
 	// Combine prompts
 	fullSystemPrompt := fmt.Sprintf("%s\n\n%s\n\n%s", guardPrompt, systemPrompt, ragContext)
@@ -134,35 +143,78 @@ func (l *LLMService) sendLLMRequest(userMessage, systemPrompt string) (*ChatComp
 func (l *LLMService) generateFallbackResponse(userMessage, ragContext string) *models.LLMResponse {
 	lowerMessage := strings.ToLower(userMessage)
 
-	// Simple keyword-based responses
-	if strings.Contains(lowerMessage, "tên") {
-		if strings.Contains(ragContext, "Tên:") {
-			// Extract name from RAG context
-			lines := strings.Split(ragContext, "\n")
-			for _, line := range lines {
-				if strings.Contains(line, "Tên:") {
-					return &models.LLMResponse{
-						Message:   "Dựa trên thông tin trong hệ thống: " + strings.TrimSpace(line),
-						Timestamp: time.Now(),
-					}
+	// Debug log để xem ragContext có dữ liệu không
+	log.Printf("RAG Context preview: %.200s...", ragContext)
+
+	// Check if we have user data in RAG context
+	if strings.Contains(ragContext, "THÔNG TIN NGƯỜI DÙNG") {
+		// Có dữ liệu người dùng - AI có thể trả lời chi tiết
+
+		if strings.Contains(lowerMessage, "tài khoản") || strings.Contains(lowerMessage, "thông tin") {
+			return &models.LLMResponse{
+				Message: fmt.Sprintf(`Xin chào! Tôi đã tìm thấy thông tin tài khoản của bạn trong hệ thống:
+
+%s
+
+Bạn có muốn biết thêm chi tiết về phần nào không? Tôi có thể giúp bạn với:
+• Thông tin cá nhân (tên, email, số điện thoại)
+• Lịch sử giao dịch và thanh toán
+• Cài đặt tài khoản
+• Bảo mật tài khoản
+
+Vui lòng cho tôi biết bạn cần hỗ trợ gì!`, ragContext),
+				Timestamp: time.Now(),
+			}
+		}
+
+		if strings.Contains(lowerMessage, "tên") {
+			nameInfo := l.extractNameFromContext(ragContext)
+			if nameInfo != "" {
+				return &models.LLMResponse{
+					Message:   nameInfo,
+					Timestamp: time.Now(),
 				}
 			}
 		}
-		return &models.LLMResponse{
-			Message:   "Xin lỗi, tôi không thể truy xuất thông tin tên của bạn lúc này. Vui lòng thử lại sau.",
-			Timestamp: time.Now(),
+
+		if strings.Contains(lowerMessage, "email") {
+			emailInfo := l.extractEmailFromContext(ragContext)
+			if emailInfo != "" {
+				return &models.LLMResponse{
+					Message:   emailInfo,
+					Timestamp: time.Now(),
+				}
+			}
+			return &models.LLMResponse{
+				Message:   "Tôi đã tìm thấy thông tin email của bạn trong hệ thống. Để bảo mật, bạn có muốn tôi hiển thị một phần thông tin email không?",
+				Timestamp: time.Now(),
+			}
 		}
 	}
 
-	if strings.Contains(lowerMessage, "email") {
+	// Không có user context hoặc userID = anonymous
+	if strings.Contains(lowerMessage, "tài khoản") || strings.Contains(lowerMessage, "thông tin") {
 		return &models.LLMResponse{
-			Message:   "Để xem thông tin email, bạn có thể kiểm tra trong phần cài đặt tài khoản.",
+			Message: `Để truy cập thông tin tài khoản, bạn cần đăng nhập trước. 
+
+🔐 **Vui lòng:**
+1. Đăng nhập với tài khoản của bạn
+2. Cung cấp JWT token hợp lệ trong header Authorization
+
+Sau khi đăng nhập, tôi sẽ có thể truy xuất và hiển thị đầy đủ thông tin tài khoản của bạn một cách an toàn.
+
+💡 **Tôi có thể giúp bạn với:**
+• Hướng dẫn đăng nhập
+• Hỗ trợ kỹ thuật
+• Thông tin dịch vụ
+
+Bạn cần hỗ trợ gì?`,
 			Timestamp: time.Now(),
 		}
 	}
 
 	return &models.LLMResponse{
-		Message:   "Xin lỗi, dịch vụ AI đang gặp sự cố. Tôi có thể giúp bạn với:\n- Thông tin tài khoản\n- Lịch sử đơn hàng\n- Hỗ trợ kỹ thuật\n\nBạn muốn hỗ trợ gì?",
+		Message:   "Xin lỗi, dịch vụ AI đang gặp sự cố. Tôi có thể giúp bạn với:\n- Thông tin tài khoản (cần đăng nhập)\n- Hỗ trợ kỹ thuật\n- Hướng dẫn sử dụng\n\nBạn muốn hỗ trợ gì?",
 		Timestamp: time.Now(),
 	}
 }
@@ -395,4 +447,112 @@ func (l *LLMService) simulateStreaming(message string, responseChan chan models.
 		IsEnd:     true,
 		Timestamp: time.Now(),
 	}
+}
+
+// extractNameFromContext extracts name information from RAG context
+func (l *LLMService) extractNameFromContext(ragContext string) string {
+	// Check for various name fields that might exist in the database
+	nameFields := []string{"name", "fullName", "full_name", "firstName", "first_name", "lastName", "last_name", "displayName", "display_name"}
+
+	// First try to find structured data (JSON-like format)
+	lines := strings.Split(ragContext, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Check for various name formats in the data
+		for _, field := range nameFields {
+			// Check for key:value format (like "name: John Doe")
+			if strings.Contains(strings.ToLower(line), field+":") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					name := strings.TrimSpace(parts[1])
+					if name != "" && name != "null" && name != "undefined" {
+						return fmt.Sprintf("Tên của bạn là: %s", name)
+					}
+				}
+			}
+
+			// Check for JSON-like format
+			if strings.Contains(strings.ToLower(line), `"`+field+`"`) {
+				// Try to extract value after the field name
+				fieldPattern := `"` + field + `"`
+				if idx := strings.Index(strings.ToLower(line), fieldPattern); idx != -1 {
+					remaining := line[idx+len(fieldPattern):]
+					if colonIdx := strings.Index(remaining, ":"); colonIdx != -1 {
+						valueStart := colonIdx + 1
+						value := strings.TrimSpace(remaining[valueStart:])
+						// Remove quotes and trailing comma if present
+						value = strings.Trim(value, `"`)
+						if commaIdx := strings.Index(value, ","); commaIdx != -1 {
+							value = value[:commaIdx]
+						}
+						value = strings.TrimSpace(value)
+						if value != "" && value != "null" && value != "undefined" {
+							return fmt.Sprintf("Tên của bạn là: %s", value)
+						}
+					}
+				}
+			}
+		}
+
+		// Also check for Vietnamese format
+		if strings.Contains(strings.ToLower(line), "tên:") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				name := strings.TrimSpace(parts[1])
+				if name != "" && name != "null" && name != "undefined" {
+					return fmt.Sprintf("Tên của bạn là: %s", name)
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+// extractEmailFromContext extracts email information from RAG context
+func (l *LLMService) extractEmailFromContext(ragContext string) string {
+	// Check for various email fields that might exist in the database
+	emailFields := []string{"email", "emailAddress", "email_address", "userEmail", "user_email", "contactEmail"}
+
+	lines := strings.Split(ragContext, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Check for various email formats in the data
+		for _, field := range emailFields {
+			// Check for key:value format (like "email: user@example.com")
+			if strings.Contains(strings.ToLower(line), field+":") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					email := strings.TrimSpace(parts[1])
+					if email != "" && email != "null" && email != "undefined" && strings.Contains(email, "@") {
+						return fmt.Sprintf("Email của bạn là: %s", email)
+					}
+				}
+			}
+
+			// Check for JSON-like format
+			if strings.Contains(strings.ToLower(line), `"`+field+`"`) {
+				fieldPattern := `"` + field + `"`
+				if idx := strings.Index(strings.ToLower(line), fieldPattern); idx != -1 {
+					remaining := line[idx+len(fieldPattern):]
+					if colonIdx := strings.Index(remaining, ":"); colonIdx != -1 {
+						valueStart := colonIdx + 1
+						value := strings.TrimSpace(remaining[valueStart:])
+						value = strings.Trim(value, `"`)
+						if commaIdx := strings.Index(value, ","); commaIdx != -1 {
+							value = value[:commaIdx]
+						}
+						value = strings.TrimSpace(value)
+						if value != "" && value != "null" && value != "undefined" && strings.Contains(value, "@") {
+							return fmt.Sprintf("Email của bạn là: %s", value)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return ""
 }

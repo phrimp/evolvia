@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -148,9 +149,17 @@ func (ctrl *LLMController) Chat(c *gin.Context) {
 		fmt.Printf("JWT parse error: %v\n", err)
 		// Allow anonymous users
 		userID = "anonymous"
+	} else if userID == "" {
+		fmt.Printf("No token provided, using anonymous user\n")
+		userID = "anonymous"
 	}
 
-	fmt.Printf("Chat request - SessionID: %s, UserID: %s\n", sessionID, userID)
+	// Debug log with detailed info
+	fmt.Printf("=== CHAT REQUEST DEBUG ===\n")
+	fmt.Printf("Authorization Header: %s\n", c.GetHeader("Authorization"))
+	fmt.Printf("Extracted UserID: '%s' (length: %d)\n", userID, len(userID))
+	fmt.Printf("SessionID: %s\n", sessionID)
+	fmt.Printf("Message: %s\n", request.Message)
 
 	// Validate session exists and belongs to user
 	db := services.GetDatabaseService()
@@ -386,5 +395,53 @@ func (ctrl *LLMController) ExecuteQuery(c *gin.Context) {
 		"collection": request.Collection,
 		"results":    results,
 		"count":      len(results),
+	})
+}
+
+// GET /protected/llm/user/sessions
+func (ctrl *LLMController) GetUserSessions(c *gin.Context) {
+	// Get user ID from JWT token
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		utils.UnauthorizedResponse(c, "Invalid or missing token")
+		return
+	}
+
+	if userID == "" {
+		utils.UnauthorizedResponse(c, "Token is required for this endpoint")
+		return
+	}
+
+	// Get limit from query parameter (optional)
+	limitStr := c.DefaultQuery("limit", "20") // Default to 20 sessions
+	limit := 20
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+			if limit > 100 { // Cap at 100 to prevent excessive queries
+				limit = 100
+			}
+		}
+	}
+
+	// Get database service
+	db := services.GetDatabaseService()
+	if db == nil || !db.IsConnected() {
+		utils.InternalErrorResponse(c, "Database service not available", nil)
+		return
+	}
+
+	// Get user sessions
+	sessions, err := db.GetUserSessions(userID, limit)
+	if err != nil {
+		utils.InternalErrorResponse(c, "Failed to retrieve user sessions", err)
+		return
+	}
+
+	utils.SuccessResponse(c, "User sessions retrieved successfully", gin.H{
+		"userId":   userID,
+		"sessions": sessions,
+		"count":    len(sessions),
+		"limit":    limit,
 	})
 }

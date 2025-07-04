@@ -152,14 +152,8 @@ func setupRoutes() *gin.Engine {
 	protected := r.Group("/protected/llm")
 	protected.Use(authMiddleware())
 	{
-		// Add protected endpoints here if needed
-		protected.GET("/user/sessions", func(c *gin.Context) {
-			userID, _ := c.Get("userID")
-			utils.SuccessResponse(c, "User sessions", gin.H{
-				"userId":  userID,
-				"message": "This is a protected endpoint",
-			})
-		})
+		// Get all sessions for authenticated user
+		protected.GET("/user/sessions", llmController.GetUserSessions)
 	}
 
 	return r
