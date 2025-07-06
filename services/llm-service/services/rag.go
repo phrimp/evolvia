@@ -92,20 +92,8 @@ func InitRAGService() error {
 	} else {
 		log.Printf("Schema discovery successful: %d databases found", len(schema))
 
-		// Convert schema to JSON for better readability
-		schemaJSON, err := json.MarshalIndent(schema, "", "  ")
-		if err != nil {
-			log.Printf("Error formatting schema as JSON: %v", err)
-			// Fallback to simple format
-			for dbName, collections := range schema {
-				log.Printf("  %s: %d collections", dbName, len(collections))
-				for collName, fields := range collections {
-					log.Printf("    %s: %d fields", collName, len(fields))
-				}
-			}
-		} else {
-			log.Printf("Database Schema:\n%s", string(schemaJSON))
-		}
+		// Log schema in clean JSON format for easier viewing
+		ragService.LogDatabaseSchemaJSON()
 	}
 
 	log.Println("RAG Service initialized successfully")
@@ -821,48 +809,28 @@ func (r *RAGService) buildComprehensiveUserContext(userID string, userMessage st
 
 	log.Printf("Schema discovered: %d databases", len(schema))
 
-	// Log detailed schema information
-	log.Printf("=== DETAILED DATABASE SCHEMA ===")
-	for dbName, collections := range schema {
-		log.Printf("📂 Database: %s (%d collections)", dbName, len(collections))
-		for collName, fields := range collections {
-			log.Printf("  📋 Collection: %s (%d fields)", collName, len(fields))
-			if len(fields) > 0 {
-				// Log first 10 fields to avoid overwhelming logs
-				displayFields := fields
-				if len(fields) > 10 {
-					displayFields = fields[:10]
-					log.Printf("    Fields: %s... (showing first 10 of %d)", strings.Join(displayFields, ", "), len(fields))
-				} else {
-					log.Printf("    Fields: %s", strings.Join(displayFields, ", "))
-				}
-			} else {
-				log.Printf("    Fields: (none discovered)")
-			}
-		}
-	}
-	log.Printf("=== END SCHEMA LOGGING ===")
+	// Log schema as JSON for better readability
+	schemaJSON, _ := json.MarshalIndent(schema, "", "  ")
+	log.Printf("Database schema: %s", string(schemaJSON))
 
 	contextParts = append(contextParts, "\n=== THÔNG TIN NGƯỜI DÙNG ===")
 
 	foundData := false
 
 	// Query databases based on detected intent
-	log.Printf("=== AI DATABASE QUERY ANALYSIS ===")
-	log.Printf("User Query: %s", userMessage)
-	log.Printf("Detected Intent: %s", intent)
+	log.Printf("Query intent: %s, user: %s", intent, userMessage)
 
 	switch intent {
 	case "personal_info":
-		log.Printf("Querying for PERSONAL INFO...")
+		log.Printf("Querying personal info...")
 		// Focus on profile and auth services for personal information
 		for _, dbName := range []string{"profile_service", "auth_service"} {
 			if collections, exists := schema[dbName]; exists {
-				for collName, fields := range collections {
-					log.Printf("→ Accessing %s.%s (fields: %s)", dbName, collName, strings.Join(fields, ", "))
+				for collName := range collections {
+					log.Printf("Accessing %s.%s", dbName, collName)
 					results, err := r.ExecuteCustomQuery(userID, dbName, collName, map[string]interface{}{})
 					if err == nil && len(results) > 0 {
-						log.Printf("  ✓ Found %d records", len(results))
+						log.Printf("Found %d records in %s.%s", len(results), dbName, collName)
 						foundData = true
 						contextParts = append(contextParts, fmt.Sprintf("\n--- %s.%s ---", dbName, collName))
 						limit := 3
@@ -873,23 +841,21 @@ func (r *RAGService) buildComprehensiveUserContext(userID string, userMessage st
 							formattedData := r.formatBSONData(results[i])
 							contextParts = append(contextParts, formattedData)
 						}
-					} else {
-						log.Printf("  ✗ No data found")
 					}
 				}
 			}
 		}
 
 	case "payment_history":
-		log.Printf("Querying for PAYMENT HISTORY...")
+		log.Printf("Querying payment history...")
 		// Focus on payment and billing services
 		for _, dbName := range []string{"payos_service", "billing_management_service"} {
 			if collections, exists := schema[dbName]; exists {
-				for collName, fields := range collections {
-					log.Printf("→ Accessing %s.%s (fields: %s)", dbName, collName, strings.Join(fields, ", "))
+				for collName := range collections {
+					log.Printf("Accessing %s.%s", dbName, collName)
 					results, err := r.ExecuteCustomQuery(userID, dbName, collName, map[string]interface{}{})
 					if err == nil && len(results) > 0 {
-						log.Printf("  ✓ Found %d records", len(results))
+						log.Printf("Found %d records in %s.%s", len(results), dbName, collName)
 						foundData = true
 						contextParts = append(contextParts, fmt.Sprintf("\n--- %s.%s ---", dbName, collName))
 						limit := 5
@@ -900,22 +866,20 @@ func (r *RAGService) buildComprehensiveUserContext(userID string, userMessage st
 							formattedData := r.formatBSONData(results[i])
 							contextParts = append(contextParts, formattedData)
 						}
-					} else {
-						log.Printf("  ✗ No data found")
 					}
 				}
 			}
 		}
 
 	case "chat_history":
-		log.Printf("Querying for CHAT HISTORY...")
+		log.Printf("Querying chat history...")
 		// Focus on LLM service
 		if collections, exists := schema["llm_service"]; exists {
-			for collName, fields := range collections {
-				log.Printf("→ Accessing llm_service.%s (fields: %s)", collName, strings.Join(fields, ", "))
+			for collName := range collections {
+				log.Printf("Accessing llm_service.%s", collName)
 				results, err := r.ExecuteCustomQuery(userID, "llm_service", collName, map[string]interface{}{})
 				if err == nil && len(results) > 0 {
-					log.Printf("  ✓ Found %d records", len(results))
+					log.Printf("Found %d records in llm_service.%s", len(results), collName)
 					foundData = true
 					contextParts = append(contextParts, fmt.Sprintf("\n--- llm_service.%s ---", collName))
 					limit := 5
@@ -926,21 +890,19 @@ func (r *RAGService) buildComprehensiveUserContext(userID string, userMessage st
 						formattedData := r.formatBSONData(results[i])
 						contextParts = append(contextParts, formattedData)
 					}
-				} else {
-					log.Printf("  ✗ No data found")
 				}
 			}
 		}
 
 	case "learning_progress":
-		log.Printf("Querying for LEARNING PROGRESS...")
+		log.Printf("Querying learning progress...")
 		// Focus on knowledge service
 		if collections, exists := schema["knowledge_service"]; exists {
-			for collName, fields := range collections {
-				log.Printf("→ Accessing knowledge_service.%s (fields: %s)", collName, strings.Join(fields, ", "))
+			for collName := range collections {
+				log.Printf("Accessing knowledge_service.%s", collName)
 				results, err := r.ExecuteCustomQuery(userID, "knowledge_service", collName, map[string]interface{}{})
 				if err == nil && len(results) > 0 {
-					log.Printf("  ✓ Found %d records", len(results))
+					log.Printf("Found %d records in knowledge_service.%s", len(results), collName)
 					foundData = true
 					contextParts = append(contextParts, fmt.Sprintf("\n--- knowledge_service.%s ---", collName))
 					limit := 5
@@ -951,28 +913,26 @@ func (r *RAGService) buildComprehensiveUserContext(userID string, userMessage st
 						formattedData := r.formatBSONData(results[i])
 						contextParts = append(contextParts, formattedData)
 					}
-				} else {
-					log.Printf("  ✗ No data found")
 				}
 			}
 		}
 
 	default:
-		log.Printf("Performing GENERAL QUERY across all databases...")
+		log.Printf("Performing general query across all databases...")
 		// For general questions or unknown intents, query all relevant databases
 		for dbName, collections := range schema {
-			log.Printf("→ Scanning database: %s (%d collections)", dbName, len(collections))
+			log.Printf("Scanning database: %s (%d collections)", dbName, len(collections))
 
-			for collName, fields := range collections {
-				log.Printf("  → Accessing %s.%s (fields: %s)", dbName, collName, strings.Join(fields, ", "))
+			for collName := range collections {
+				log.Printf("Accessing %s.%s", dbName, collName)
 				results, err := r.ExecuteCustomQuery(userID, dbName, collName, map[string]interface{}{})
 				if err != nil {
-					log.Printf("    ✗ Query failed: %v", err)
+					log.Printf("Query failed for %s.%s: %v", dbName, collName, err)
 					continue
 				}
 
 				if len(results) > 0 {
-					log.Printf("    ✓ Found %d records", len(results))
+					log.Printf("Found %d records in %s.%s", len(results), dbName, collName)
 					foundData = true
 					contextParts = append(contextParts, fmt.Sprintf("\n--- %s.%s ---", dbName, collName))
 
@@ -985,31 +945,26 @@ func (r *RAGService) buildComprehensiveUserContext(userID string, userMessage st
 					for i := 0; i < limit; i++ {
 						formattedData := r.formatBSONData(results[i])
 						contextParts = append(contextParts, formattedData)
-						log.Printf("Record %d: %s", i+1, formattedData)
 					}
-				} else {
-					log.Printf("    ✗ No data found")
 				}
 			}
 		}
 	}
 
-	log.Printf("=== END AI DATABASE QUERY ANALYSIS ===")
+	log.Printf("Query completed. Found user data: %v, Intent: %s", foundData, intent)
 
 	// Add schema information for AI reference (condensed version)
-	contextParts = append(contextParts, "\n=== DATABASES KHÁM PHÁ ===")
+	contextParts = append(contextParts, "\n=== DATABASES DISCOVERED ===")
 	for dbName, collections := range schema {
 		var collNames []string
 		for collName := range collections {
 			collNames = append(collNames, collName)
 		}
-		contextParts = append(contextParts, fmt.Sprintf("📂 %s: %s", dbName, strings.Join(collNames, ", ")))
+		contextParts = append(contextParts, fmt.Sprintf("%s: %s", dbName, strings.Join(collNames, ", ")))
 	}
 
 	finalContext := strings.Join(contextParts, "\n")
 	log.Printf("Final context length: %d chars", len(finalContext))
-	log.Printf("Found user data: %v", foundData)
-	log.Printf("Intent-based query successful for: %s", intent)
 
 	if len(contextParts) <= 2 { // Only header and schema
 		return ""
@@ -1361,13 +1316,13 @@ func (r *RAGService) GetDatabaseSchema() string {
 	}
 
 	var schemaParts []string
-	schemaParts = append(schemaParts, "=== CẤU TRÚC DATABASE HOÀN CHỈNH ===")
+	schemaParts = append(schemaParts, "COMPLETE DATABASE STRUCTURE")
 
 	for dbName, collections := range schema {
-		schemaParts = append(schemaParts, fmt.Sprintf("\n🗄️ DATABASE: %s", dbName))
+		schemaParts = append(schemaParts, fmt.Sprintf("\nDatabase: %s", dbName))
 
 		for collName, fields := range collections {
-			schemaParts = append(schemaParts, fmt.Sprintf("  📋 Collection: %s", collName))
+			schemaParts = append(schemaParts, fmt.Sprintf("  Collection: %s", collName))
 
 			// Group fields by type for better readability
 			basicFields := []string{}
@@ -1479,40 +1434,93 @@ func (r *RAGService) GetDatabaseInfo() string {
 
 	schema, err := r.GetCachedDatabaseSchema()
 	if err != nil {
-		return fmt.Sprintf("❌ Không thể truy cập thông tin database: %v", err)
+		return fmt.Sprintf("Error: Cannot access database info: %v", err)
 	}
 
-	infoParts = append(infoParts, "🗄️ === THÔNG TIN DATABASE TOÀN DIỆN ===")
+	infoParts = append(infoParts, "DATABASE INFORMATION")
 
 	totalCollections := 0
 	totalFields := 0
 
 	for dbName, collections := range schema {
-		infoParts = append(infoParts, fmt.Sprintf("\n📂 %s (%d collections):", dbName, len(collections)))
+		infoParts = append(infoParts, fmt.Sprintf("\nDatabase: %s (%d collections)", dbName, len(collections)))
 
 		for collName, fields := range collections {
 			totalCollections++
 			totalFields += len(fields)
 
-			infoParts = append(infoParts, fmt.Sprintf("  📋 %s: %d fields", collName, len(fields)))
+			infoParts = append(infoParts, fmt.Sprintf("  Collection: %s (%d fields)", collName, len(fields)))
 
 			// Show sample fields (first 5)
 			sampleFields := fields
 			if len(sampleFields) > 5 {
 				sampleFields = sampleFields[:5]
-				infoParts = append(infoParts, fmt.Sprintf("    Fields: %s...", strings.Join(sampleFields, ", ")))
+				infoParts = append(infoParts, fmt.Sprintf("    Fields: %s... (showing first 5 of %d)", strings.Join(sampleFields, ", "), len(fields)))
 			} else if len(sampleFields) > 0 {
 				infoParts = append(infoParts, fmt.Sprintf("    Fields: %s", strings.Join(sampleFields, ", ")))
 			}
 		}
 	}
 
-	infoParts = append(infoParts, fmt.Sprintf("\n📊 TỔNG KẾT: %d databases, %d collections, %d total fields",
+	infoParts = append(infoParts, fmt.Sprintf("\nSummary: %d databases, %d collections, %d total fields",
 		len(schema), totalCollections, totalFields))
-	infoParts = append(infoParts, fmt.Sprintf("🕒 Schema cache updated: %s ago",
+	infoParts = append(infoParts, fmt.Sprintf("Last updated: %s ago",
 		time.Since(lastSchemaUpdate).Round(time.Second)))
 
 	return strings.Join(infoParts, "\n")
+}
+
+// GetDatabaseInfoJSON returns comprehensive database information in clean JSON format
+func (r *RAGService) GetDatabaseInfoJSON() (string, error) {
+	schema, err := r.GetCachedDatabaseSchema()
+	if err != nil {
+		return "", fmt.Errorf("cannot access database info: %v", err)
+	}
+
+	// Create a structured response
+	response := map[string]interface{}{
+		"databases": make(map[string]interface{}),
+		"summary": map[string]interface{}{
+			"total_databases":   len(schema),
+			"total_collections": 0,
+			"total_fields":      0,
+			"last_updated":      lastSchemaUpdate.Format(time.RFC3339),
+		},
+	}
+
+	totalCollections := 0
+	totalFields := 0
+
+	for dbName, collections := range schema {
+		dbInfo := map[string]interface{}{
+			"collections":      make(map[string]interface{}),
+			"collection_count": len(collections),
+		}
+
+		for collName, fields := range collections {
+			totalCollections++
+			totalFields += len(fields)
+
+			collInfo := map[string]interface{}{
+				"field_count": len(fields),
+				"fields":      fields,
+			}
+			dbInfo["collections"].(map[string]interface{})[collName] = collInfo
+		}
+
+		response["databases"].(map[string]interface{})[dbName] = dbInfo
+	}
+
+	// Update summary
+	response["summary"].(map[string]interface{})["total_collections"] = totalCollections
+	response["summary"].(map[string]interface{})["total_fields"] = totalFields
+
+	jsonData, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal JSON: %v", err)
+	}
+
+	return string(jsonData), nil
 }
 
 // SearchFieldsInSchema searches for fields containing specific keywords across all databases
@@ -1941,4 +1949,53 @@ func (r *RAGService) classifyIntentKeyword(message string) string {
 	}
 
 	return "general_question"
+}
+
+// LogDatabaseSchemaJSON logs the database schema in clean JSON format
+func (r *RAGService) LogDatabaseSchemaJSON() {
+	jsonSchema, err := r.GetDatabaseInfoJSON()
+	if err != nil {
+		log.Printf("Error getting database schema JSON: %v", err)
+		return
+	}
+
+	log.Printf("Database Schema JSON:\n%s", jsonSchema)
+}
+
+// LogDatabaseSchemaClean logs the database schema without emojis
+func (r *RAGService) LogDatabaseSchemaClean() {
+	schema, err := r.DiscoverDatabaseSchema()
+	if err != nil {
+		log.Printf("Error discovering database schema: %v", err)
+		return
+	}
+
+	log.Printf("Database Schema (%d databases):", len(schema))
+
+	totalCollections := 0
+	totalFields := 0
+
+	for dbName, collections := range schema {
+		log.Printf("Database: %s (%d collections)", dbName, len(collections))
+
+		for collName, fields := range collections {
+			totalCollections++
+			totalFields += len(fields)
+
+			log.Printf("  Collection: %s (%d fields)", collName, len(fields))
+
+			// Show first 10 fields
+			displayFields := fields
+			if len(displayFields) > 10 {
+				displayFields = displayFields[:10]
+				log.Printf("    Fields: %s... (showing first 10 of %d)", strings.Join(displayFields, ", "), len(fields))
+			} else if len(displayFields) > 0 {
+				log.Printf("    Fields: %s", strings.Join(displayFields, ", "))
+			} else {
+				log.Printf("    Fields: (none discovered)")
+			}
+		}
+	}
+
+	log.Printf("Summary: %d databases, %d collections, %d total fields", len(schema), totalCollections, totalFields)
 }

@@ -97,9 +97,7 @@ type ChatCompletionResponse struct {
 
 func (l *LLMService) ProcessChat(userMessage string, userID string) (*models.LLMResponse, error) {
 	// Debug logging
-	log.Printf("=== ProcessChat Debug ===")
-	log.Printf("UserID: %s", userID)
-	log.Printf("Message: %s", userMessage)
+	log.Printf("[DEBUG] ProcessChat - UserID: %s, Message: %s", userID, userMessage)
 
 	// Get RAG service
 	rag := GetRAGService()
@@ -113,24 +111,24 @@ func (l *LLMService) ProcessChat(userMessage string, userID string) (*models.LLM
 	ragContext := rag.BuildRAGContext(userID, userMessage)
 
 	// Debug RAG context
-	log.Printf("RAG Context length: %d chars", len(ragContext))
-	log.Printf("RAG Context preview: %.300s...", ragContext)
+	log.Printf("[DEBUG] RAG Context length: %d chars", len(ragContext))
+	log.Printf("[DEBUG] RAG Context preview: %.300s...", ragContext)
 
 	// Combine prompts
 	fullSystemPrompt := fmt.Sprintf("%s\n\n%s\n\n%s", guardPrompt, systemPrompt, ragContext)
 
 	// Let LLM decide based on guard prompt - don't pre-filter with keywords
 	// Try to send request to LLM
-	log.Printf("Sending LLM request for user: %s, message: %s", userID, userMessage)
+	log.Printf("[DEBUG] Sending LLM request for user: %s", userID)
 	response, err := l.sendLLMRequest(userMessage, fullSystemPrompt)
 	if err != nil {
-		log.Printf("LLM service failed: %v", err)
-		log.Printf("Falling back to default response")
+		log.Printf("[DEBUG] LLM service failed: %v", err)
+		log.Printf("[DEBUG] Falling back to default response")
 		// Return fallback response based on RAG context
 		return l.generateFallbackResponse(userMessage, ragContext), nil
 	}
 
-	log.Printf("LLM response received successfully")
+	log.Printf("[DEBUG] LLM response received successfully")
 
 	// Process response
 	llmResponse := &models.LLMResponse{
@@ -168,7 +166,7 @@ func (l *LLMService) generateFallbackResponse(userMessage, ragContext string) *m
 	lowerMessage := strings.ToLower(userMessage)
 
 	// Debug log để xem ragContext có dữ liệu không
-	log.Printf("RAG Context preview: %.200s...", ragContext)
+	log.Printf("[DEBUG] RAG Context preview: %.200s...", ragContext)
 
 	// Check if we have user data in RAG context
 	if strings.Contains(ragContext, "THÔNG TIN NGƯỜI DÙNG") {
@@ -321,7 +319,7 @@ func (l *LLMService) sendGoogleGeminiRequest(request ChatCompletionRequest) (*Ch
 
 	log.Printf("Received response with status: %d", resp.StatusCode)
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Google Gemini API error (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("google Gemini API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	// Parse Google Gemini response format
@@ -427,21 +425,51 @@ func (l *LLMService) ProcessChatStream(userMessage string, userID string, respon
 	// Combine prompts
 	fullSystemPrompt := fmt.Sprintf("%s\n\n%s\n\n%s", guardPrompt, systemPrompt, ragContext)
 
-	log.Printf("Sending streaming LLM request for user: %s, message: %s", userID, userMessage)
+	log.Printf("[DEBUG] Sending streaming LLM request for user: %s", userID)
 
 	// Try to send streaming request to LLM
 	err := l.sendStreamingLLMRequest(userMessage, fullSystemPrompt, responseChan)
 	if err != nil {
-		log.Printf("LLM streaming service failed: %v", err)
-		log.Printf("Falling back to non-streaming response")
+		log.Printf("[DEBUG] LLM streaming service failed: %v", err)
+		log.Printf("[DEBUG] Falling back to non-streaming response")
 
-		// Fallback to regular response and simulate streaming
-		fallbackResponse := l.generateFallbackResponse(userMessage, ragContext)
-		l.simulateStreaming(fallbackResponse.Message, responseChan)
+		// Try to get a regular response first
+		response, regularErr := l.sendLLMRequest(userMessage, fullSystemPrompt)
+		if regularErr != nil {
+			log.Printf("[DEBUG] Regular LLM request also failed: %v", regularErr)
+			// Fallback to default response and simulate streaming
+			fallbackResponse := l.generateFallbackResponse(userMessage, ragContext)
+			l.simulateStreaming(fallbackResponse.Message, responseChan)
+		} else {
+			// Use the successful regular response and simulate streaming
+			log.Printf("[DEBUG] Regular LLM request succeeded, simulating streaming")
+			l.simulateStreaming(response.Choices[0].Message.Content, responseChan)
+		}
 	}
 }
 
 func (l *LLMService) sendStreamingLLMRequest(userMessage, systemPrompt string, responseChan chan models.StreamChunk) error {
+	// Check provider first - some providers don't support streaming
+	switch strings.ToLower(l.Provider) {
+	case "google", "gemini":
+		// Google Gemini doesn't support streaming in the same way
+		// Fall back to regular request and simulate streaming
+		log.Printf("[DEBUG] Google Gemini provider - using simulated streaming")
+		return fmt.Errorf("provider %s doesn't support true streaming", l.Provider)
+	case "ollama":
+		// Ollama supports streaming
+		return l.sendOpenAIStreamingRequest(userMessage, systemPrompt, responseChan)
+	case "openai", "openrouter":
+		// OpenAI and OpenRouter support streaming
+		return l.sendOpenAIStreamingRequest(userMessage, systemPrompt, responseChan)
+	default:
+		// Try OpenAI-compatible streaming for unknown providers
+		log.Printf("[DEBUG] Unknown provider %s - trying OpenAI-compatible streaming", l.Provider)
+		return l.sendOpenAIStreamingRequest(userMessage, systemPrompt, responseChan)
+	}
+}
+
+func (l *LLMService) sendOpenAIStreamingRequest(userMessage, systemPrompt string, responseChan chan models.StreamChunk) error {
 	// Prepare chat request with streaming enabled
 	messages := []ChatCompletionMessage{
 		{
@@ -465,7 +493,7 @@ func (l *LLMService) sendStreamingLLMRequest(userMessage, systemPrompt string, r
 		return fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	log.Printf("Making streaming request to: %s", l.BaseURL+"/chat/completions")
+	log.Printf("[DEBUG] Making streaming request to: %s", l.BaseURL+"/chat/completions")
 	req, err := http.NewRequest("POST", l.BaseURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %v", err)
@@ -489,7 +517,7 @@ func (l *LLMService) sendStreamingLLMRequest(userMessage, systemPrompt string, r
 		return fmt.Errorf("LLM API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	log.Printf("Started receiving streaming response...")
+	log.Printf("[DEBUG] Started receiving streaming response...")
 
 	// Use a scanner to read line by line more reliably
 	scanner := bufio.NewScanner(resp.Body)
@@ -523,7 +551,7 @@ func (l *LLMService) sendStreamingLLMRequest(userMessage, systemPrompt string, r
 
 			var streamResp models.StreamingResponse
 			if err := json.Unmarshal([]byte(data), &streamResp); err != nil {
-				log.Printf("Failed to parse streaming response: %v", err)
+				log.Printf("[DEBUG] Failed to parse streaming response: %v", err)
 				continue
 			}
 

@@ -445,3 +445,55 @@ func (ctrl *LLMController) GetUserSessions(c *gin.Context) {
 		"limit":    limit,
 	})
 }
+
+// GET /public/llm/schema
+func (ctrl *LLMController) GetDatabaseSchema(c *gin.Context) {
+	ragService := services.GetRAGService()
+	if ragService == nil {
+		utils.ErrorResponse(c, 500, "RAG service not available", nil)
+		return
+	}
+
+	// Get the format parameter (json or text)
+	format := c.DefaultQuery("format", "json")
+
+	if format == "json" {
+		jsonSchema, err := ragService.GetDatabaseInfoJSON()
+		if err != nil {
+			utils.ErrorResponse(c, 500, "Failed to get database schema", err)
+			return
+		}
+
+		// Return raw JSON response
+		c.Header("Content-Type", "application/json")
+		c.String(200, jsonSchema)
+		return
+	} else {
+		// Return text format
+		textSchema := ragService.GetDatabaseInfo()
+		utils.SuccessResponse(c, "Database schema retrieved successfully", gin.H{
+			"schema": textSchema,
+		})
+		return
+	}
+}
+
+// GET /public/llm/schema/log - trigger schema logging
+func (ctrl *LLMController) LogDatabaseSchema(c *gin.Context) {
+	ragService := services.GetRAGService()
+	if ragService == nil {
+		utils.ErrorResponse(c, 500, "RAG service not available", nil)
+		return
+	}
+
+	// Get the format parameter
+	format := c.DefaultQuery("format", "clean")
+
+	if format == "json" {
+		ragService.LogDatabaseSchemaJSON()
+		utils.SuccessResponse(c, "Database schema logged in JSON format", nil)
+	} else {
+		ragService.LogDatabaseSchemaClean()
+		utils.SuccessResponse(c, "Database schema logged in clean format", nil)
+	}
+}

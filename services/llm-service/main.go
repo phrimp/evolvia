@@ -128,6 +128,10 @@ func setupRoutes() *gin.Engine {
 		// Model status endpoint
 		public.GET("/model", llmController.GetModelStatus)
 
+		// Database schema endpoint
+		public.GET("/schema", llmController.GetDatabaseSchema)
+		public.GET("/schema/log", llmController.LogDatabaseSchema)
+
 		// Model interaction endpoints
 		model := public.Group("/model")
 		{

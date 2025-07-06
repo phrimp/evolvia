@@ -162,12 +162,11 @@ func (db *DatabaseService) GetUserSessions(userID string, limit int) ([]models.C
 func (db *DatabaseService) ValidateSession(sessionID, userID string) bool {
 	session, err := db.GetChatSession(sessionID)
 	if err != nil {
-		log.Printf("Session validation failed - session not found: %v", err)
+		log.Printf("[DEBUG] Session validation failed: not found: %v", err)
 		return false
 	}
 
-	log.Printf("🔍 Validating session: sessionID=%s, requestUserID=%s, sessionUserID=%s",
-		sessionID, userID, session.UserID)
+	log.Printf("[DEBUG] Validating session: sessionID=%s, requestUserID=%s, sessionUserID=%s", sessionID, userID, session.UserID)
 
 	// Allow session access if:
 	// 1. Session is active AND
@@ -178,9 +177,9 @@ func (db *DatabaseService) ValidateSession(sessionID, userID string) bool {
 			userID == "anonymous")
 
 	if !isValid {
-		log.Printf("Session validation failed - userID mismatch or inactive session")
+		log.Printf("[DEBUG] Session validation failed: userID mismatch or inactive session")
 	} else {
-		log.Printf("Session validation passed")
+		log.Printf("[DEBUG] Session validation passed")
 	}
 
 	return isValid
