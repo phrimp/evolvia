@@ -125,8 +125,41 @@ Các endpoint yêu cầu JWT token trong header:
 Authorization: Bearer <jwt_token>
 ```
 
+#### Get User Sessions
+
 ```
-GET /protected/llm/user/sessions
+GET /protected/llm/user/sessions?limit=20
+```
+
+Lấy danh sách tất cả session chat của user hiện tại.
+
+**Query Parameters:**
+
+- `limit` (optional): Số lượng session tối đa trả về (mặc định: 20, tối đa: 100)
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "User sessions retrieved successfully",
+  "data": {
+    "userId": "user123",
+    "sessions": [
+      {
+        "id": "ObjectId",
+        "sessionId": "session_uuid",
+        "userId": "user123",
+        "title": "Chat về sản phẩm",
+        "createdAt": "2025-01-01T00:00:00Z",
+        "updatedAt": "2025-01-01T00:30:00Z",
+        "isActive": true
+      }
+    ],
+    "count": 5,
+    "limit": 20
+  }
+}
 ```
 
 ## 🔐 Authentication

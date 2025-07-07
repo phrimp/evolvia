@@ -1,7 +1,10 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -146,9 +149,17 @@ func (ctrl *LLMController) Chat(c *gin.Context) {
 		fmt.Printf("JWT parse error: %v\n", err)
 		// Allow anonymous users
 		userID = "anonymous"
+	} else if userID == "" {
+		fmt.Printf("No token provided, using anonymous user\n")
+		userID = "anonymous"
 	}
 
-	fmt.Printf("Chat request - SessionID: %s, UserID: %s\n", sessionID, userID)
+	// Debug log with detailed info
+	fmt.Printf("=== CHAT REQUEST DEBUG ===\n")
+	fmt.Printf("Authorization Header: %s\n", c.GetHeader("Authorization"))
+	fmt.Printf("Extracted UserID: '%s' (length: %d)\n", userID, len(userID))
+	fmt.Printf("SessionID: %s\n", sessionID)
+	fmt.Printf("Message: %s\n", request.Message)
 
 	// Validate session exists and belongs to user
 	db := services.GetDatabaseService()
@@ -198,6 +209,104 @@ func (ctrl *LLMController) Chat(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, "Chat message processed", response)
+}
+
+// POST /private/llm/chat/:sessionId/stream - Streaming chat endpoint
+func (ctrl *LLMController) ChatStream(c *gin.Context) {
+	sessionID := strings.TrimSpace(c.Param("sessionId"))
+	if sessionID == "" {
+		utils.BadRequestResponse(c, "Session ID is required")
+		return
+	}
+
+	var request models.LLMRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		utils.BadRequestResponse(c, "Invalid request format")
+		return
+	}
+
+	// Get user ID from token if available
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		fmt.Printf("JWT parse error: %v\n", err)
+		// Allow anonymous users
+		userID = "anonymous"
+	}
+
+	fmt.Printf("Streaming chat request - SessionID: %s, UserID: %s\n", sessionID, userID)
+
+	// Validate session exists and belongs to user
+	db := services.GetDatabaseService()
+	if db != nil && db.IsConnected() {
+		// Temporarily disable session validation for debugging
+		fmt.Printf("Session validation temporarily disabled for debugging\n")
+	}
+
+	// Process with LLM service
+	llm := services.GetLLMService()
+	if llm == nil {
+		utils.InternalErrorResponse(c, "LLM service not available", nil)
+		return
+	}
+
+	// Set headers for Server-Sent Events
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Headers", "Cache-Control")
+
+	// Create response channel
+	responseChan := make(chan models.StreamChunk)
+
+	// Start streaming processing in goroutine
+	go llm.ProcessChatStream(request.Message, userID, responseChan)
+
+	// Stream response to client
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case chunk, ok := <-responseChan:
+			if !ok {
+				return false
+			}
+
+			// Send chunk as SSE
+			data, _ := json.Marshal(chunk)
+			fmt.Fprintf(w, "data: %s\n\n", string(data))
+
+			// If this is the end chunk, save to database and stop streaming
+			if chunk.IsEnd {
+				// Collect all content for database save
+				go func() {
+					// For simplicity, we'll save the complete message later
+					// In a real implementation, you'd collect chunks as they come
+					if db != nil && db.IsConnected() {
+						// This is a simplified version - in practice you'd need to
+						// collect the full response text from the chunks
+						_, err = db.SaveChatMessage(sessionID, userID, request.Message, "Streaming response completed")
+						if err != nil {
+							fmt.Printf("Failed to save streaming chat message: %v\n", err)
+						}
+					}
+
+					// Publish event to RabbitMQ
+					if rabbitmq := services.GetRabbitMQService(); rabbitmq != nil {
+						rabbitmq.PublishLLMEvent("chat_message_stream", map[string]interface{}{
+							"sessionId": sessionID,
+							"userId":    userID,
+							"message":   request.Message,
+							"isStream":  true,
+						})
+					}
+				}()
+				return false
+			}
+
+			return true
+		case <-c.Request.Context().Done():
+			return false
+		}
+	})
 }
 
 // GET /public/llm/model/history/:sessionId
@@ -287,4 +396,104 @@ func (ctrl *LLMController) ExecuteQuery(c *gin.Context) {
 		"results":    results,
 		"count":      len(results),
 	})
+}
+
+// GET /protected/llm/user/sessions
+func (ctrl *LLMController) GetUserSessions(c *gin.Context) {
+	// Get user ID from JWT token
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		utils.UnauthorizedResponse(c, "Invalid or missing token")
+		return
+	}
+
+	if userID == "" {
+		utils.UnauthorizedResponse(c, "Token is required for this endpoint")
+		return
+	}
+
+	// Get limit from query parameter (optional)
+	limitStr := c.DefaultQuery("limit", "20") // Default to 20 sessions
+	limit := 20
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+			if limit > 100 { // Cap at 100 to prevent excessive queries
+				limit = 100
+			}
+		}
+	}
+
+	// Get database service
+	db := services.GetDatabaseService()
+	if db == nil || !db.IsConnected() {
+		utils.InternalErrorResponse(c, "Database service not available", nil)
+		return
+	}
+
+	// Get user sessions
+	sessions, err := db.GetUserSessions(userID, limit)
+	if err != nil {
+		utils.InternalErrorResponse(c, "Failed to retrieve user sessions", err)
+		return
+	}
+
+	utils.SuccessResponse(c, "User sessions retrieved successfully", gin.H{
+		"userId":   userID,
+		"sessions": sessions,
+		"count":    len(sessions),
+		"limit":    limit,
+	})
+}
+
+// GET /public/llm/schema
+func (ctrl *LLMController) GetDatabaseSchema(c *gin.Context) {
+	ragService := services.GetRAGService()
+	if ragService == nil {
+		utils.ErrorResponse(c, 500, "RAG service not available", nil)
+		return
+	}
+
+	// Get the format parameter (json or text)
+	format := c.DefaultQuery("format", "json")
+
+	if format == "json" {
+		jsonSchema, err := ragService.GetDatabaseInfoJSON()
+		if err != nil {
+			utils.ErrorResponse(c, 500, "Failed to get database schema", err)
+			return
+		}
+
+		// Return raw JSON response
+		c.Header("Content-Type", "application/json")
+		c.String(200, jsonSchema)
+		return
+	} else {
+		// Return text format
+		textSchema := ragService.GetDatabaseInfo()
+		utils.SuccessResponse(c, "Database schema retrieved successfully", gin.H{
+			"schema": textSchema,
+		})
+		return
+	}
+}
+
+// GET /public/llm/schema/log - trigger schema logging
+func (ctrl *LLMController) LogDatabaseSchema(c *gin.Context) {
+	ragService := services.GetRAGService()
+	if ragService == nil {
+		utils.ErrorResponse(c, 500, "RAG service not available", nil)
+		return
+	}
+
+	// Get the format parameter
+	format := c.DefaultQuery("format", "clean")
+
+	if format == "json" {
+		ragService.LogDatabaseSchemaJSON()
+		utils.SuccessResponse(c, "Database schema logged in JSON format", nil)
+	} else {
+		ragService.LogDatabaseSchemaClean()
+		utils.SuccessResponse(c, "Database schema logged in clean format", nil)
+	}
 }

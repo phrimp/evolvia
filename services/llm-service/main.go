@@ -11,6 +11,7 @@ import (
 	"llm-service/services"
 	"llm-service/utils"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -79,7 +80,14 @@ func setupRoutes() *gin.Engine {
 	r := gin.Default()
 
 	// Add CORS middleware
-	r.Use(corsMiddleware())
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000", "https://evolvia.phrimp.io.vn"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	// Add logging middleware
 	r.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
@@ -120,6 +128,10 @@ func setupRoutes() *gin.Engine {
 		// Model status endpoint
 		public.GET("/model", llmController.GetModelStatus)
 
+		// Database schema endpoint
+		public.GET("/schema", llmController.GetDatabaseSchema)
+		public.GET("/schema/log", llmController.LogDatabaseSchema)
+
 		// Model interaction endpoints
 		model := public.Group("/model")
 		{
@@ -128,6 +140,9 @@ func setupRoutes() *gin.Engine {
 
 			// Chat with the model (requires session ID in URL path)
 			model.POST("/:sessionId/chat", llmController.Chat)
+
+			// Streaming chat with the model
+			model.POST("/:sessionId/stream", llmController.ChatStream)
 
 			// Get chat history
 			model.GET("/history/:sessionId", llmController.GetChatHistory)
@@ -141,33 +156,11 @@ func setupRoutes() *gin.Engine {
 	protected := r.Group("/protected/llm")
 	protected.Use(authMiddleware())
 	{
-		// Add protected endpoints here if needed
-		protected.GET("/user/sessions", func(c *gin.Context) {
-			userID, _ := c.Get("userID")
-			utils.SuccessResponse(c, "User sessions", gin.H{
-				"userId":  userID,
-				"message": "This is a protected endpoint",
-			})
-		})
+		// Get all sessions for authenticated user
+		protected.GET("/user/sessions", llmController.GetUserSessions)
 	}
 
 	return r
-}
-
-func corsMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
-		c.Next()
-	}
 }
 
 func authMiddleware() gin.HandlerFunc {

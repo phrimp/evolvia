@@ -104,3 +104,27 @@ type ChatMessage struct {
 	Role      string             `bson:"role" json:"role"` // "user" or "assistant"
 	CreatedAt time.Time          `bson:"createdAt" json:"createdAt"`
 }
+
+// StreamingResponse represents a single chunk in a streaming response
+type StreamingResponse struct {
+	ID      string `json:"id,omitempty"`
+	Object  string `json:"object"`
+	Created int64  `json:"created,omitempty"`
+	Model   string `json:"model,omitempty"`
+	Choices []struct {
+		Index int `json:"index"`
+		Delta struct {
+			Role    string `json:"role,omitempty"`
+			Content string `json:"content,omitempty"`
+		} `json:"delta"`
+		FinishReason *string `json:"finish_reason"`
+	} `json:"choices"`
+}
+
+// StreamChunk represents a chunk of streamed data
+type StreamChunk struct {
+	Content   string    `json:"content"`
+	IsEnd     bool      `json:"isEnd"`
+	Error     string    `json:"error,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
+}
