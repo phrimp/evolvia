@@ -70,6 +70,20 @@ func (s *UserSkillService) AddUserSkill(ctx context.Context, userSkill *models.U
 		return nil, fmt.Errorf("user already has this skill")
 	}
 
+	now := time.Now()
+	userSkill.BloomsAssessment = models.BloomsTaxonomyAssessment{
+		Remember:    0.0,
+		Understand:  0.0,
+		Apply:       0.0,
+		Analyze:     0.0,
+		Evaluate:    0.0,
+		Create:      0.0,
+		LastUpdated: now,
+	}
+
+	log.Printf("Initializing new user skill with zero Bloom's assessment for user %s, skill %s",
+		userSkill.UserID.Hex(), userSkill.SkillID.Hex())
+
 	return s.userSkillRepo.Create(ctx, userSkill)
 }
 
@@ -371,4 +385,203 @@ type UserSkillMatrix struct {
 	Total      int                                       `json:"total"`
 	Verified   int                                       `json:"verified"`
 	LastUpdate time.Time                                 `json:"last_update"`
+}
+
+func (s *UserSkillService) UpdateBloomsAssessment(ctx context.Context, userID, skillID bson.ObjectID, assessment *models.BloomsTaxonomyAssessment) error {
+	// Validate assessment scores (0-100)
+	if err := s.validateBloomsAssessment(assessment); err != nil {
+		return fmt.Errorf("invalid Bloom's assessment: %w", err)
+	}
+
+	// Verify user skill exists
+	existing, err := s.userSkillRepo.GetByUserAndSkill(ctx, userID, skillID)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return fmt.Errorf("user skill not found")
+	}
+
+	return s.userSkillRepo.UpdateBloomsAssessment(ctx, userID, skillID, assessment)
+}
+
+func (s *UserSkillService) GetBloomsAssessment(ctx context.Context, userID, skillID bson.ObjectID) (*models.BloomsTaxonomyAssessment, error) {
+	userSkill, err := s.userSkillRepo.GetUserSkillWithBlooms(ctx, userID, skillID)
+	if err != nil {
+		return nil, err
+	}
+	if userSkill == nil {
+		return nil, fmt.Errorf("user skill not found")
+	}
+
+	// Handle case where Bloom's assessment might not be initialized (legacy data)
+	assessment := &userSkill.BloomsAssessment
+
+	if assessment.LastUpdated.IsZero() {
+		assessment = &models.BloomsTaxonomyAssessment{
+			Remember:    0.0,
+			Understand:  0.0,
+			Apply:       0.0,
+			Analyze:     0.0,
+			Evaluate:    0.0,
+			Create:      0.0,
+			LastUpdated: time.Now(),
+		}
+
+		log.Printf("Legacy user skill found without Bloom's assessment, returning zeros for user %s, skill %s",
+			userID.Hex(), skillID.Hex())
+	}
+
+	return assessment, nil
+}
+
+// GetBloomsAnalytics returns aggregated Bloom's data for a user
+func (s *UserSkillService) GetBloomsAnalytics(ctx context.Context, userID bson.ObjectID) (*repository.BloomsAnalytics, error) {
+	return s.userSkillRepo.GetBloomsAnalytics(ctx, userID)
+}
+
+// CalculateSkillLevelFromBlooms determines skill level based on Bloom's assessment
+func (s *UserSkillService) CalculateSkillLevelFromBlooms(assessment *models.BloomsTaxonomyAssessment) models.SkillLevel {
+	overallScore := assessment.GetOverallScore()
+
+	// Define thresholds for skill levels based on Bloom's taxonomy
+	switch {
+	case overallScore >= 80 && assessment.Create >= 70:
+		return models.SkillLevelExpert
+	case overallScore >= 65 && assessment.Evaluate >= 60:
+		return models.SkillLevelAdvanced
+	case overallScore >= 50 && assessment.Apply >= 60:
+		return models.SkillLevelIntermediate
+	case overallScore >= 30:
+		return models.SkillLevelBeginner
+	default:
+		return models.SkillLevelBeginner
+	}
+}
+
+func (s *UserSkillService) GetRecommendedFocusArea(ctx context.Context, userID, skillID bson.ObjectID) (string, error) {
+	assessment, err := s.GetBloomsAssessment(ctx, userID, skillID)
+	if err != nil {
+		return "", err
+	}
+
+	// For completely unassessed skills, start with fundamentals
+	if assessment.GetOverallScore() == 0.0 {
+		return "remember", nil
+	}
+
+	// Find the weakest area that should be developed next
+	weakestArea := assessment.GetWeakestArea()
+
+	// If no weak areas (all are assessed), recommend next logical progression
+	if weakestArea == "" {
+		// Follow Bloom's hierarchy - recommend next level if current is strong
+		if assessment.Remember >= 70 && assessment.Understand < 70 {
+			return "understand", nil
+		}
+		if assessment.Understand >= 70 && assessment.Apply < 70 {
+			return "apply", nil
+		}
+		if assessment.Apply >= 70 && assessment.Analyze < 70 {
+			return "analyze", nil
+		}
+		if assessment.Analyze >= 70 && assessment.Evaluate < 70 {
+			return "evaluate", nil
+		}
+		if assessment.Evaluate >= 70 && assessment.Create < 70 {
+			return "create", nil
+		}
+
+		// If all levels are strong, recommend maintaining current level
+		return assessment.GetPrimaryStrength(), nil
+	}
+
+	return weakestArea, nil
+}
+
+// GetUsersWithBloomsExpertise finds users with high proficiency in specific Bloom's level
+func (s *UserSkillService) GetUsersWithBloomsExpertise(ctx context.Context, skillID bson.ObjectID, bloomsLevel string, minScore float64, limit int) ([]*models.UserSkill, error) {
+	// Validate Bloom's level
+	validLevels := []string{"remember", "understand", "apply", "analyze", "evaluate", "create"}
+	isValid := false
+	for _, level := range validLevels {
+		if level == bloomsLevel {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		return nil, fmt.Errorf("invalid Bloom's level: %s", bloomsLevel)
+	}
+
+	// Verify skill exists
+	skill, err := s.skillRepo.GetByID(ctx, skillID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify skill existence: %w", err)
+	}
+	if skill == nil {
+		return nil, fmt.Errorf("skill not found")
+	}
+
+	if limit <= 0 {
+		limit = 10
+	}
+
+	return s.userSkillRepo.GetUsersWithBloomsLevel(ctx, skillID, bloomsLevel, minScore, limit)
+}
+
+// validateBloomsAssessment ensures all scores are within valid range
+func (s *UserSkillService) validateBloomsAssessment(assessment *models.BloomsTaxonomyAssessment) error {
+	if assessment == nil {
+		return fmt.Errorf("assessment cannot be nil")
+	}
+
+	scores := map[string]float64{
+		"remember":   assessment.Remember,
+		"understand": assessment.Understand,
+		"apply":      assessment.Apply,
+		"analyze":    assessment.Analyze,
+		"evaluate":   assessment.Evaluate,
+		"create":     assessment.Create,
+	}
+
+	for level, score := range scores {
+		if score < 0 || score > 100 {
+			return fmt.Errorf("%s score must be between 0 and 100, got: %.2f", level, score)
+		}
+	}
+
+	return nil
+}
+
+// Auto-update skill level based on Bloom's assessment (optional helper)
+func (s *UserSkillService) UpdateSkillLevelFromBlooms(ctx context.Context, userID, skillID bson.ObjectID) error {
+	assessment, err := s.GetBloomsAssessment(ctx, userID, skillID)
+	if err != nil {
+		return err
+	}
+
+	newLevel := s.CalculateSkillLevelFromBlooms(assessment)
+
+	// Update the user skill level
+	updates := &UserSkillUpdate{
+		Level: newLevel,
+	}
+
+	_, err = s.UpdateUserSkill(ctx, userID, skillID, updates)
+	return err
+}
+
+func (s *UserSkillService) HasBloomsAssessment(ctx context.Context, userID, skillID bson.ObjectID) (bool, error) {
+	assessment, err := s.GetBloomsAssessment(ctx, userID, skillID)
+	if err != nil {
+		return false, err
+	}
+
+	// Check if any score is greater than 0 or if last_updated is not zero
+	hasData := assessment.Remember > 0 || assessment.Understand > 0 || assessment.Apply > 0 ||
+		assessment.Analyze > 0 || assessment.Evaluate > 0 || assessment.Create > 0 ||
+		!assessment.LastUpdated.IsZero()
+
+	return hasData, nil
 }

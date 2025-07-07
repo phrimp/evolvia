@@ -173,17 +173,114 @@ type SkillGraph struct {
 
 // UserSkill represents a user's skill proficiency
 type UserSkill struct {
-	ID              bson.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-	UserID          bson.ObjectID `bson:"user_id" json:"user_id"`
-	SkillID         bson.ObjectID `bson:"skill_id" json:"skill_id"`
-	Level           SkillLevel    `bson:"level" json:"level"`
-	Confidence      float64       `bson:"confidence" json:"confidence"`
-	YearsExperience int           `bson:"years_experience" json:"years_experience"`
-	LastUsed        *time.Time    `bson:"last_used,omitempty" json:"last_used,omitempty"`
-	Verified        bool          `bson:"verified" json:"verified"`
-	Endorsements    int           `bson:"endorsements" json:"endorsements"`
-	CreatedAt       time.Time     `bson:"created_at" json:"created_at"`
-	UpdatedAt       time.Time     `bson:"updated_at" json:"updated_at"`
+	ID               bson.ObjectID            `bson:"_id,omitempty" json:"id,omitempty"`
+	UserID           bson.ObjectID            `bson:"user_id" json:"user_id"`
+	SkillID          bson.ObjectID            `bson:"skill_id" json:"skill_id"`
+	Level            SkillLevel               `bson:"level" json:"level"`
+	Confidence       float64                  `bson:"confidence" json:"confidence"`
+	YearsExperience  int                      `bson:"years_experience" json:"years_experience"`
+	LastUsed         *time.Time               `bson:"last_used,omitempty" json:"last_used,omitempty"`
+	Verified         bool                     `bson:"verified" json:"verified"`
+	Endorsements     int                      `bson:"endorsements" json:"endorsements"`
+	BloomsAssessment BloomsTaxonomyAssessment `bson:"blooms_assessment" json:"blooms_assessment"`
+	CreatedAt        time.Time                `bson:"created_at" json:"created_at"`
+	UpdatedAt        time.Time                `bson:"updated_at" json:"updated_at"`
+}
+
+type BloomsTaxonomyAssessment struct {
+	Remember    float64   `bson:"remember" json:"remember"`     // Recalling facts and terminology
+	Understand  float64   `bson:"understand" json:"understand"` // Explaining concepts
+	Apply       float64   `bson:"apply" json:"apply"`           // Implementing and using knowledge
+	Analyze     float64   `bson:"analyze" json:"analyze"`       // Breaking down complex problems
+	Evaluate    float64   `bson:"evaluate" json:"evaluate"`     // Assessing and comparing solutions
+	Create      float64   `bson:"create" json:"create"`         // Building original projects/solutions
+	LastUpdated time.Time `bson:"last_updated" json:"last_updated"`
+}
+
+// GetOverallScore calculates weighted average across all Bloom's levels
+func (b *BloomsTaxonomyAssessment) GetOverallScore() float64 {
+	// Weight higher cognitive levels more heavily
+	weights := map[string]float64{
+		"remember":   0.10,
+		"understand": 0.15,
+		"apply":      0.20,
+		"analyze":    0.20,
+		"evaluate":   0.20,
+		"create":     0.15,
+	}
+
+	total := b.Remember*weights["remember"] +
+		b.Understand*weights["understand"] +
+		b.Apply*weights["apply"] +
+		b.Analyze*weights["analyze"] +
+		b.Evaluate*weights["evaluate"] +
+		b.Create*weights["create"]
+
+	return total
+}
+
+// GetPrimaryStrength returns the Bloom's level with highest score
+func (b *BloomsTaxonomyAssessment) GetPrimaryStrength() string {
+	scores := map[string]float64{
+		"remember":   b.Remember,
+		"understand": b.Understand,
+		"apply":      b.Apply,
+		"analyze":    b.Analyze,
+		"evaluate":   b.Evaluate,
+		"create":     b.Create,
+	}
+
+	var maxLevel string
+	var maxScore float64
+	for level, score := range scores {
+		if score > maxScore {
+			maxScore = score
+			maxLevel = level
+		}
+	}
+
+	// If all scores are zero, return empty string
+	if maxScore == 0 {
+		return ""
+	}
+
+	return maxLevel
+}
+
+func (b *BloomsTaxonomyAssessment) GetWeakestArea() string {
+	scores := map[string]float64{
+		"remember":   b.Remember,
+		"understand": b.Understand,
+		"apply":      b.Apply,
+		"analyze":    b.Analyze,
+		"evaluate":   b.Evaluate,
+		"create":     b.Create,
+	}
+
+	// Check if all scores are zero (not assessed yet)
+	allZero := true
+	for _, score := range scores {
+		if score > 0 {
+			allZero = false
+			break
+		}
+	}
+
+	// If never assessed, recommend starting with fundamentals
+	if allZero {
+		return "remember"
+	}
+
+	var minLevel string
+	minScore := 100.0
+	for level, score := range scores {
+		if score >= 0 && score < minScore { // Include zeros for assessed skills
+			minScore = score
+			minLevel = level
+		}
+	}
+
+	return minLevel
 }
 
 // MongoDB indexes for optimal performance

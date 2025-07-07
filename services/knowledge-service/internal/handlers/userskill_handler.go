@@ -48,6 +48,13 @@ func (h *UserSkillHandler) RegisterRoutes(app *fiber.App) {
 	protectedGroup.Get("/user/:userID/matrix", h.GetUserSkillMatrix, utils.OwnerPermissionRequired(""))
 	protectedGroup.Get("/user/:userID/gaps/:targetSkillID", h.GetSkillGaps, utils.OwnerPermissionRequired(""))
 
+	protectedGroup.Put("/user/:userID/skill/:skillID/blooms", h.UpdateBloomsAssessment, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userID/skill/:skillID/blooms", h.GetBloomsAssessment, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userID/blooms-analytics", h.GetBloomsAnalytics, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userID/skill/:skillID/focus-area", h.GetRecommendedFocusArea, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/skill/:skillID/blooms-experts/:bloomsLevel", h.GetBloomsExperts, utils.PermissionRequired(middleware.ReadUserSkillPermission))
+	protectedGroup.Patch("/user/:userID/skill/:skillID/auto-level", h.UpdateSkillLevelFromBlooms, utils.OwnerPermissionRequired(""))
+
 	// Batch operations - require admin permissions
 	protectedGroup.Post("/batch", h.BatchAddUserSkills, utils.PermissionRequired(middleware.AdminUserSkillPermission))
 }
@@ -730,5 +737,313 @@ func (h *UserSkillHandler) BatchAddUserSkills(c fiber.Ctx) error {
 		"data": fiber.Map{
 			"count": len(userSkills),
 		},
+	})
+}
+
+func (h *UserSkillHandler) UpdateBloomsAssessment(c fiber.Ctx) error {
+	userIDStr := c.Params("userID")
+	skillIDStr := c.Params("skillID")
+
+	if userIDStr == "" || skillIDStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID and Skill ID are required",
+		})
+	}
+
+	userID, err := bson.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	skillID, err := bson.ObjectIDFromHex(skillIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid skill ID format",
+		})
+	}
+
+	var assessment models.BloomsTaxonomyAssessment
+	if err := c.Bind().Body(&assessment); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = h.userSkillService.UpdateBloomsAssessment(ctx, userID, skillID, &assessment)
+	if err != nil {
+		log.Printf("Failed to update Bloom's assessment for user %s skill %s: %v", userIDStr, skillIDStr, err)
+
+		if strings.Contains(err.Error(), "not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "User skill not found",
+			})
+		}
+
+		if strings.Contains(err.Error(), "invalid") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to update Bloom's assessment",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Bloom's assessment updated successfully",
+		"data": fiber.Map{
+			"assessment": assessment,
+		},
+	})
+}
+
+// GetBloomsAssessment retrieves Bloom's taxonomy scores for a user skill
+func (h *UserSkillHandler) GetBloomsAssessment(c fiber.Ctx) error {
+	userIDStr := c.Params("userID")
+	skillIDStr := c.Params("skillID")
+
+	if userIDStr == "" || skillIDStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID and Skill ID are required",
+		})
+	}
+
+	userID, err := bson.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	skillID, err := bson.ObjectIDFromHex(skillIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid skill ID format",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	assessment, err := h.userSkillService.GetBloomsAssessment(ctx, userID, skillID)
+	if err != nil {
+		log.Printf("Failed to get Bloom's assessment for user %s skill %s: %v", userIDStr, skillIDStr, err)
+
+		if strings.Contains(err.Error(), "not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "User skill not found",
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve Bloom's assessment",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"assessment":       assessment,
+			"overall_score":    assessment.GetOverallScore(),
+			"primary_strength": assessment.GetPrimaryStrength(),
+			"weakest_area":     assessment.GetWeakestArea(),
+		},
+	})
+}
+
+// GetBloomsAnalytics retrieves aggregated Bloom's data for a user
+func (h *UserSkillHandler) GetBloomsAnalytics(c fiber.Ctx) error {
+	userIDStr := c.Params("userID")
+	if userIDStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID is required",
+		})
+	}
+
+	userID, err := bson.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	analytics, err := h.userSkillService.GetBloomsAnalytics(ctx, userID)
+	if err != nil {
+		log.Printf("Failed to get Bloom's analytics for user %s: %v", userIDStr, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve Bloom's analytics",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"analytics": analytics,
+		},
+	})
+}
+
+// GetRecommendedFocusArea suggests which Bloom's level to focus on next
+func (h *UserSkillHandler) GetRecommendedFocusArea(c fiber.Ctx) error {
+	userIDStr := c.Params("userID")
+	skillIDStr := c.Params("skillID")
+
+	if userIDStr == "" || skillIDStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID and Skill ID are required",
+		})
+	}
+
+	userID, err := bson.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	skillID, err := bson.ObjectIDFromHex(skillIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid skill ID format",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	focusArea, err := h.userSkillService.GetRecommendedFocusArea(ctx, userID, skillID)
+	if err != nil {
+		log.Printf("Failed to get recommended focus area for user %s skill %s: %v", userIDStr, skillIDStr, err)
+
+		if strings.Contains(err.Error(), "not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "User skill not found",
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get recommended focus area",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"recommended_focus": focusArea,
+		},
+	})
+}
+
+// GetBloomsExperts finds users with high proficiency in specific Bloom's level
+func (h *UserSkillHandler) GetBloomsExperts(c fiber.Ctx) error {
+	skillIDStr := c.Params("skillID")
+	bloomsLevel := c.Params("bloomsLevel")
+
+	if skillIDStr == "" || bloomsLevel == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Skill ID and Bloom's level are required",
+		})
+	}
+
+	skillID, err := bson.ObjectIDFromHex(skillIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid skill ID format",
+		})
+	}
+
+	minScore, _ := strconv.ParseFloat(c.Query("minScore", "70"), 64)
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+
+	if limit < 1 || limit > 50 {
+		limit = 10
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	experts, err := h.userSkillService.GetUsersWithBloomsExpertise(ctx, skillID, bloomsLevel, minScore, limit)
+	if err != nil {
+		log.Printf("Failed to get Bloom's experts for skill %s level %s: %v", skillIDStr, bloomsLevel, err)
+
+		if strings.Contains(err.Error(), "skill not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Skill not found",
+			})
+		}
+
+		if strings.Contains(err.Error(), "invalid") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve experts",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"experts":      experts,
+			"skill_id":     skillID,
+			"blooms_level": bloomsLevel,
+			"min_score":    minScore,
+			"count":        len(experts),
+		},
+	})
+}
+
+// UpdateSkillLevelFromBlooms automatically updates skill level based on Bloom's assessment
+func (h *UserSkillHandler) UpdateSkillLevelFromBlooms(c fiber.Ctx) error {
+	userIDStr := c.Params("userID")
+	skillIDStr := c.Params("skillID")
+
+	if userIDStr == "" || skillIDStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID and Skill ID are required",
+		})
+	}
+
+	userID, err := bson.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	skillID, err := bson.ObjectIDFromHex(skillIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid skill ID format",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = h.userSkillService.UpdateSkillLevelFromBlooms(ctx, userID, skillID)
+	if err != nil {
+		log.Printf("Failed to update skill level from Bloom's for user %s skill %s: %v", userIDStr, skillIDStr, err)
+
+		if strings.Contains(err.Error(), "not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "User skill not found",
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to update skill level",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Skill level updated based on Bloom's assessment",
 	})
 }

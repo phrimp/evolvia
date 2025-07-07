@@ -427,3 +427,139 @@ type UserSkillListOptions struct {
 	MinConfidence float64
 	VerifiedOnly  bool
 }
+
+func (r *UserSkillRepository) UpdateBloomsAssessment(ctx context.Context, userID, skillID bson.ObjectID, assessment *models.BloomsTaxonomyAssessment) error {
+	filter := bson.M{
+		"user_id":  userID,
+		"skill_id": skillID,
+	}
+
+	assessment.LastUpdated = time.Now()
+
+	update := bson.M{
+		"$set": bson.M{
+			"blooms_assessment": assessment,
+			"updated_at":        time.Now(),
+		},
+	}
+
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update Bloom's assessment: %w", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("user skill not found")
+	}
+
+	return nil
+}
+
+func (r *UserSkillRepository) GetUserSkillWithBlooms(ctx context.Context, userID, skillID bson.ObjectID) (*models.UserSkill, error) {
+	var userSkill models.UserSkill
+	filter := bson.M{
+		"user_id":  userID,
+		"skill_id": skillID,
+	}
+
+	err := r.collection.FindOne(ctx, filter).Decode(&userSkill)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get user skill with Bloom's assessment: %w", err)
+	}
+
+	return &userSkill, nil
+}
+
+func (r *UserSkillRepository) GetUsersWithBloomsLevel(ctx context.Context, skillID bson.ObjectID, bloomsLevel string, minScore float64, limit int) ([]*models.UserSkill, error) {
+	filter := bson.M{
+		"skill_id": skillID,
+		fmt.Sprintf("blooms_assessment.%s", bloomsLevel): bson.M{"$gte": minScore},
+	}
+
+	findOpts := options.Find().
+		SetSort(bson.M{fmt.Sprintf("blooms_assessment.%s", bloomsLevel): -1}).
+		SetLimit(int64(limit))
+
+	cursor, err := r.collection.Find(ctx, filter, findOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find users with Bloom's level: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var userSkills []*models.UserSkill
+	for cursor.Next(ctx) {
+		var userSkill models.UserSkill
+		if err := cursor.Decode(&userSkill); err != nil {
+			return nil, fmt.Errorf("failed to decode user skill: %w", err)
+		}
+		userSkills = append(userSkills, &userSkill)
+	}
+
+	return userSkills, nil
+}
+
+func (r *UserSkillRepository) GetBloomsAnalytics(ctx context.Context, userID bson.ObjectID) (*BloomsAnalytics, error) {
+	pipeline := []bson.M{
+		{"$match": bson.M{"user_id": userID}},
+		{"$group": bson.M{
+			"_id":            nil,
+			"avg_remember":   bson.M{"$avg": "$blooms_assessment.remember"},
+			"avg_understand": bson.M{"$avg": "$blooms_assessment.understand"},
+			"avg_apply":      bson.M{"$avg": "$blooms_assessment.apply"},
+			"avg_analyze":    bson.M{"$avg": "$blooms_assessment.analyze"},
+			"avg_evaluate":   bson.M{"$avg": "$blooms_assessment.evaluate"},
+			"avg_create":     bson.M{"$avg": "$blooms_assessment.create"},
+			"total_skills":   bson.M{"$sum": 1},
+		}},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Bloom's analytics: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var result struct {
+		AvgRemember   float64 `bson:"avg_remember"`
+		AvgUnderstand float64 `bson:"avg_understand"`
+		AvgApply      float64 `bson:"avg_apply"`
+		AvgAnalyze    float64 `bson:"avg_analyze"`
+		AvgEvaluate   float64 `bson:"avg_evaluate"`
+		AvgCreate     float64 `bson:"avg_create"`
+		TotalSkills   int     `bson:"total_skills"`
+	}
+
+	if cursor.Next(ctx) {
+		if err := cursor.Decode(&result); err != nil {
+			return nil, fmt.Errorf("failed to decode analytics: %w", err)
+		}
+	}
+
+	analytics := &BloomsAnalytics{
+		UserID: userID,
+		AverageAssessment: models.BloomsTaxonomyAssessment{
+			Remember:    result.AvgRemember,
+			Understand:  result.AvgUnderstand,
+			Apply:       result.AvgApply,
+			Analyze:     result.AvgAnalyze,
+			Evaluate:    result.AvgEvaluate,
+			Create:      result.AvgCreate,
+			LastUpdated: time.Now(),
+		},
+		TotalSkillsAssessed: result.TotalSkills,
+		GeneratedAt:         time.Now(),
+	}
+
+	return analytics, nil
+}
+
+// BloomsAnalytics represents aggregated Bloom's taxonomy data for a user
+type BloomsAnalytics struct {
+	UserID              bson.ObjectID                   `bson:"user_id" json:"user_id"`
+	AverageAssessment   models.BloomsTaxonomyAssessment `bson:"average_assessment" json:"average_assessment"`
+	TotalSkillsAssessed int                             `bson:"total_skills_assessed" json:"total_skills_assessed"`
+	GeneratedAt         time.Time                       `bson:"generated_at" json:"generated_at"`
+}
