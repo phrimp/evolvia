@@ -182,7 +182,7 @@ func ProcessFeaturesForEvent(features []models.Feature) []FeatureDetail {
 // GenerateRoleMetadata creates role metadata for plan events
 func GenerateRoleMetadata(plan *models.Plan, eventFeatures []FeatureDetail) *RoleCreationMetadata {
 	// Generate suggested role name
-	roleName := fmt.Sprintf("%s-plan-role", strings.ToLower(string(plan.PlanType)))
+	roleName := fmt.Sprintf("%s-plan-role-%s", strings.ToLower(string(plan.PlanType)), plan.ID.Hex())
 
 	// Collect all permissions and create feature permission map
 	var allPermissions []string
@@ -280,6 +280,19 @@ func CreatePlanUpdatedEvent(plan *models.Plan, changedFields []string, oldValues
 		OldValues:     oldValues,
 		NewValues:     newValues,
 		RoleMetadata:  roleMetadata,
+	}
+}
+
+func CreatePlanDeletedEvent(plan *models.Plan) *PlanEvent {
+	eventFeatures := ProcessFeaturesForEvent(plan.Features)
+	roleMetadata := GenerateRoleMetadata(plan, eventFeatures)
+	return &PlanEvent{
+		EventType: EventTypePlanDeleted,
+		PlanID:    plan.ID.Hex(),
+		PlanType:  plan.PlanType,
+		Timestamp: time.Now().Unix(),
+
+		RoleMetadata: roleMetadata,
 	}
 }
 

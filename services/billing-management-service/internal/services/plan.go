@@ -235,15 +235,12 @@ func (s *PlanService) DeletePlan(ctx context.Context, planID string) error {
 	}
 
 	// Publish plan deleted event
-	planEvent := &event.PlanEvent{
-		EventType: event.EventTypePlanDeleted,
-		PlanID:    plan.ID.Hex(),
-		PlanType:  plan.PlanType,
-		Timestamp: time.Now().Unix(),
-	}
+	planEvent := event.CreatePlanDeletedEvent(plan)
 
 	if err := s.publisher.PublishPlanEvent(planEvent); err != nil {
-		log.Printf("Failed to publish plan deleted event: %v", err)
+		log.Printf("Failed to publish plan created event: %v", err)
+	} else {
+		log.Printf("Published plan deleted event with id: %s", planEvent.PlanID)
 	}
 
 	return nil
