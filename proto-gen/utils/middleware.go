@@ -27,13 +27,13 @@ func PermissionRequired(required_permission string) fiber.Handler {
 				}
 
 				// Check for admin privileges (admin has all permissions)
-				if strings.HasPrefix(perm, "admin") {
+				if strings.Contains(perm, "admin") {
 					hasPermission = true
 					break
 				}
 
 				// Check for manager privileges for certain operations
-				if strings.HasPrefix(perm, "manager") {
+				if strings.Contains(perm, "manager") {
 					// Managers can perform most operations except system-level ones
 					if !strings.Contains(required_permission, "admin") &&
 						!strings.Contains(required_permission, "process:billing:operations") {
@@ -90,7 +90,7 @@ func OwnerPermissionRequired(userID string) fiber.Handler {
 					permissions := strings.Split(userPermissions, ",")
 					for _, perm := range permissions {
 						perm = strings.TrimSpace(perm)
-						if strings.HasPrefix(perm, "admin") || strings.HasPrefix(perm, "manager") {
+						if strings.Contains(perm, "admin") || strings.Contains(perm, "manager") {
 							hasPermission = true
 							break
 						}
@@ -125,7 +125,7 @@ func RequireAnyPermission(required_permissions ...string) fiber.Handler {
 				userPerm = strings.TrimSpace(userPerm)
 
 				// Check for admin privileges
-				if strings.HasPrefix(userPerm, "admin") {
+				if strings.Contains(userPerm, "admin") {
 					hasPermission = true
 					break
 				}
@@ -167,7 +167,7 @@ func RequireAllPermissions(required_permissions ...string) fiber.Handler {
 			// Check for admin privileges first
 			for _, userPerm := range permissions {
 				userPerm = strings.TrimSpace(userPerm)
-				if strings.HasPrefix(userPerm, "admin") {
+				if strings.Contains(userPerm, "admin") {
 					return c.Next()
 				}
 			}
