@@ -123,9 +123,9 @@ func (l *LLMService) ProcessChat(userMessage string, userID string) (*models.LLM
 	response, err := l.sendLLMRequest(userMessage, fullSystemPrompt)
 	if err != nil {
 		log.Printf("[DEBUG] LLM service failed: %v", err)
-		log.Printf("[DEBUG] Falling back to default response")
-		// Return fallback response based on RAG context
-		return l.generateFallbackResponse(userMessage, ragContext), nil
+		log.Printf("[DEBUG] Falling back to intelligent response")
+		// Return intelligent fallback response based on RAG context and user query
+		return l.generateIntelligentFallbackResponse(userMessage, ragContext, userID), nil
 	}
 
 	log.Printf("[DEBUG] LLM response received successfully")
@@ -162,19 +162,61 @@ func (l *LLMService) sendLLMRequest(userMessage, systemPrompt string) (*ChatComp
 	return l.sendChatRequest(request)
 }
 
-func (l *LLMService) generateFallbackResponse(userMessage, ragContext string) *models.LLMResponse {
+// generateIntelligentFallbackResponse provides more intelligent responses based on user query and available context
+func (l *LLMService) generateIntelligentFallbackResponse(userMessage, ragContext, userID string) *models.LLMResponse {
 	lowerMessage := strings.ToLower(userMessage)
 
-	// Debug log để xem ragContext có dữ liệu không
-	log.Printf("[DEBUG] RAG Context preview: %.200s...", ragContext)
+	log.Printf("[DEBUG] Generating intelligent fallback for: %s", userMessage)
+	log.Printf("[DEBUG] RAG Context available: %v", strings.Contains(ragContext, "THÔNG TIN NGƯỜI DÙNG"))
 
 	// Check if we have user data in RAG context
-	if strings.Contains(ragContext, "THÔNG TIN NGƯỜI DÙNG") {
-		// Có dữ liệu người dùng - AI có thể trả lời chi tiết
+	hasUserData := strings.Contains(ragContext, "THÔNG TIN NGƯỜI DÙNG") ||
+		strings.Contains(ragContext, "user_id") ||
+		strings.Contains(ragContext, "userId")
 
+	if hasUserData {
+		// User is logged in and we have their data
+		log.Printf("[DEBUG] User data found, processing specific query")
+
+		// Handle name queries specifically
+		if strings.Contains(lowerMessage, "tên") || strings.Contains(lowerMessage, "tôi là ai") {
+			nameInfo := l.extractNameFromContext(ragContext)
+			if nameInfo != "" {
+				return &models.LLMResponse{
+					Message:   nameInfo,
+					Timestamp: time.Now(),
+				}
+			}
+
+			// If no name found in context, be more helpful
+			return &models.LLMResponse{
+				Message: `Tôi đã tìm thấy thông tin tài khoản của bạn trong hệ thống, nhưng chưa thể trích xuất tên cụ thể. 
+
+Có thể thông tin tên chưa được cập nhật đầy đủ. Bạn có muốn:
+• Cập nhật thông tin tên trong hồ sơ
+• Xem thông tin tài khoản hiện tại
+• Liên hệ hỗ trợ để cập nhật thông tin
+
+Tôi có thể giúp bạn thêm gì khác không?`,
+				Timestamp: time.Now(),
+			}
+		}
+
+		// Handle email queries
+		if strings.Contains(lowerMessage, "email") {
+			emailInfo := l.extractEmailFromContext(ragContext)
+			if emailInfo != "" {
+				return &models.LLMResponse{
+					Message:   emailInfo,
+					Timestamp: time.Now(),
+				}
+			}
+		}
+
+		// Handle general account info queries
 		if strings.Contains(lowerMessage, "tài khoản") || strings.Contains(lowerMessage, "thông tin") {
 			return &models.LLMResponse{
-				Message: fmt.Sprintf(`Xin chào! Tôi đã tìm thấy thông tin tài khoản của bạn trong hệ thống:
+				Message: fmt.Sprintf(`Tôi đã tìm thấy thông tin tài khoản của bạn trong hệ thống:
 
 %s
 
@@ -189,32 +231,44 @@ Vui lòng cho tôi biết bạn cần hỗ trợ gì!`, ragContext),
 			}
 		}
 
-		if strings.Contains(lowerMessage, "tên") {
-			nameInfo := l.extractNameFromContext(ragContext)
-			if nameInfo != "" {
-				return &models.LLMResponse{
-					Message:   nameInfo,
-					Timestamp: time.Now(),
-				}
-			}
-		}
+		// For other queries when user is logged in
+		return &models.LLMResponse{
+			Message: `Xin chào! Tôi đã nhận dạng được tài khoản của bạn trong hệ thống.
 
-		if strings.Contains(lowerMessage, "email") {
-			emailInfo := l.extractEmailFromContext(ragContext)
-			if emailInfo != "" {
-				return &models.LLMResponse{
-					Message:   emailInfo,
-					Timestamp: time.Now(),
-				}
-			}
-			return &models.LLMResponse{
-				Message:   "Tôi đã tìm thấy thông tin email của bạn trong hệ thống. Để bảo mật, bạn có muốn tôi hiển thị một phần thông tin email không?",
-				Timestamp: time.Now(),
-			}
+Tôi có thể giúp bạn với:
+• Thông tin tài khoản và hồ sơ cá nhân
+• Lịch sử giao dịch và đơn hàng
+• Cài đặt và bảo mật tài khoản
+• Hỗ trợ kỹ thuật
+• Hướng dẫn sử dụng dịch vụ
+
+Bạn muốn biết thông tin gì cụ thể?`,
+			Timestamp: time.Now(),
 		}
 	}
 
-	// Không có user context hoặc userID = anonymous
+	// User not logged in or no user data available
+	if strings.Contains(lowerMessage, "tên") || strings.Contains(lowerMessage, "tôi là ai") {
+		return &models.LLMResponse{
+			Message: `Để biết tên của bạn, tôi cần truy cập thông tin tài khoản của bạn. 
+
+🔐 **Vui lòng đăng nhập để tôi có thể:**
+• Truy xuất thông tin tên đầy đủ
+• Hiển thị thông tin tài khoản an toàn
+• Cung cấp hỗ trợ cá nhân hóa
+
+Sau khi đăng nhập, chỉ cần hỏi lại "Tên tôi là gì?" và tôi sẽ trả lời ngay!
+
+💡 **Hiện tại tôi có thể giúp bạn:**
+• Hướng dẫn đăng nhập
+• Thông tin dịch vụ Evolvia
+• Hỗ trợ kỹ thuật
+
+Bạn cần hỗ trợ gì?`,
+			Timestamp: time.Now(),
+		}
+	}
+
 	if strings.Contains(lowerMessage, "tài khoản") || strings.Contains(lowerMessage, "thông tin") {
 		return &models.LLMResponse{
 			Message: `Để truy cập thông tin tài khoản, bạn cần đăng nhập trước. 
@@ -235,8 +289,17 @@ Bạn cần hỗ trợ gì?`,
 		}
 	}
 
+	// Default response for other queries
 	return &models.LLMResponse{
-		Message:   "Xin lỗi, dịch vụ AI đang gặp sự cố. Tôi có thể giúp bạn với:\n- Thông tin tài khoản (cần đăng nhập)\n- Hỗ trợ kỹ thuật\n- Hướng dẫn sử dụng\n\nBạn muốn hỗ trợ gì?",
+		Message: `Chào bạn! Tôi là trợ lý AI của Evolvia. 
+
+Tôi có thể giúp bạn với:
+• Thông tin tài khoản (cần đăng nhập)
+• Hỗ trợ kỹ thuật
+• Hướng dẫn sử dụng dịch vụ
+• Thông tin về các tính năng Evolvia
+
+Bạn muốn hỗ trợ gì cụ thể?`,
 		Timestamp: time.Now(),
 	}
 }
@@ -437,8 +500,8 @@ func (l *LLMService) ProcessChatStream(userMessage string, userID string, respon
 		response, regularErr := l.sendLLMRequest(userMessage, fullSystemPrompt)
 		if regularErr != nil {
 			log.Printf("[DEBUG] Regular LLM request also failed: %v", regularErr)
-			// Fallback to default response and simulate streaming
-			fallbackResponse := l.generateFallbackResponse(userMessage, ragContext)
+			// Generate intelligent fallback response based on RAG context and user query
+			fallbackResponse := l.generateIntelligentFallbackResponse(userMessage, ragContext, userID)
 			l.simulateStreaming(fallbackResponse.Message, responseChan)
 		} else {
 			// Use the successful regular response and simulate streaming
