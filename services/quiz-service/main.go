@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"quiz-service/internal/db"
+	"quiz-service/internal/event"
 	"quiz-service/internal/handlers"
 	"quiz-service/internal/repository"
 	"quiz-service/internal/service"
@@ -23,6 +24,21 @@ func main() {
 		log.Fatal("MONGO_URI is required")
 	}
 	db.InitMongo(mongoURI)
+
+	// RabbitMQ event publisher
+	rabbitURL := os.Getenv("RABBITMQ_URI")
+	eventExchange := os.Getenv("RABBITMQ_EXCHANGE")
+	var publisher *event.EventPublisher
+	if rabbitURL != "" && eventExchange != "" {
+		var err error
+		publisher, err = event.NewEventPublisher(rabbitURL, eventExchange)
+		if err != nil {
+			log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+		}
+		defer publisher.Close()
+	} else {
+		log.Println("RabbitMQ not configured, public events will not be published")
+	}
 
 	r := gin.Default()
 
@@ -48,14 +64,39 @@ func main() {
 	resultHandler := handlers.NewResultHandler(resultService)
 	publicQuiz := r.Group("/public/quiz")
 	{
-		publicQuiz.GET("/", quizHandler.ListQuizzes)
-		publicQuiz.GET("/:id", quizHandler.GetQuiz)
-		publicQuiz.GET("/:id/results", resultHandler.GetResultsByQuiz)
+		publicQuiz.GET("/", func(c *gin.Context) {
+			quizHandler.ListQuizzes(c)
+			if publisher != nil {
+				publisher.Publish("quiz.list", nil)
+			}
+		})
+		publicQuiz.GET(":id", func(c *gin.Context) {
+			quizHandler.GetQuiz(c)
+			if publisher != nil {
+				publisher.Publish("quiz.get", gin.H{"id": c.Param("id")})
+			}
+		})
+		publicQuiz.GET(":id/results", func(c *gin.Context) {
+			resultHandler.GetResultsByQuiz(c)
+			if publisher != nil {
+				publisher.Publish("quiz.results", gin.H{"id": c.Param("id")})
+			}
+		})
 	}
 	publicQuestion := r.Group("/public/question")
 	{
-		publicQuestion.GET("/", questionHandler.ListQuestions)
-		publicQuestion.GET("/:id", questionHandler.GetQuestion)
+		publicQuestion.GET("/", func(c *gin.Context) {
+			questionHandler.ListQuestions(c)
+			if publisher != nil {
+				publisher.Publish("question.list", nil)
+			}
+		})
+		publicQuestion.GET(":id", func(c *gin.Context) {
+			questionHandler.GetQuestion(c)
+			if publisher != nil {
+				publisher.Publish("question.get", gin.H{"id": c.Param("id")})
+			}
+		})
 	}
 
 	// Protected routes
@@ -85,14 +126,34 @@ func main() {
 
 	publicSession := r.Group("/public/session")
 	{
-		publicSession.GET("/:id", sessionHandler.GetSession)
-		publicSession.GET("/:id/answers", answerHandler.GetAnswersBySession)
-		publicSession.GET("/:id/result", resultHandler.GetResultBySession)
+		publicSession.GET(":id", func(c *gin.Context) {
+			sessionHandler.GetSession(c)
+			if publisher != nil {
+				publisher.Publish("session.get", gin.H{"id": c.Param("id")})
+			}
+		})
+		publicSession.GET(":id/answers", func(c *gin.Context) {
+			answerHandler.GetAnswersBySession(c)
+			if publisher != nil {
+				publisher.Publish("session.answers", gin.H{"id": c.Param("id")})
+			}
+		})
+		publicSession.GET(":id/result", func(c *gin.Context) {
+			resultHandler.GetResultBySession(c)
+			if publisher != nil {
+				publisher.Publish("session.result", gin.H{"id": c.Param("id")})
+			}
+		})
 	}
 
 	publicUser := r.Group("/public/user")
 	{
-		publicUser.GET("/:id/results", resultHandler.GetResultsByUser)
+		publicUser.GET(":id/results", func(c *gin.Context) {
+			resultHandler.GetResultsByUser(c)
+			if publisher != nil {
+				publisher.Publish("user.results", gin.H{"id": c.Param("id")})
+			}
+		})
 	}
 
 	protectedResult := r.Group("/protected/result")
