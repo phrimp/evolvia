@@ -261,8 +261,11 @@ func CreatePlanCreatedEvent(plan *models.Plan) *PlanEvent {
 
 // CreatePlanUpdatedEvent creates an enhanced plan updated event
 func CreatePlanUpdatedEvent(plan *models.Plan, changedFields []string, oldValues, newValues map[string]any) *PlanEvent {
+	log.Println(plan.Features)
 	eventFeatures := ProcessFeaturesForEvent(plan.Features)
+	log.Println(eventFeatures)
 	roleMetadata := GenerateRoleMetadata(plan, eventFeatures)
+	log.Println(roleMetadata)
 
 	return &PlanEvent{
 		EventType:     EventTypePlanUpdated,
