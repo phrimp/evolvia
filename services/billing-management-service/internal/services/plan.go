@@ -110,6 +110,7 @@ func (s *PlanService) UpdatePlan(ctx context.Context, planID string, req *models
 	if planID == "" {
 		return nil, fmt.Errorf("plan ID is required")
 	}
+	fmt.Println(req)
 
 	objectID, err := bson.ObjectIDFromHex(planID)
 	if err != nil {
@@ -195,8 +196,8 @@ func (s *PlanService) UpdatePlan(ctx context.Context, planID string, req *models
 
 	// Publish plan updated event
 	planEvent := event.CreatePlanUpdatedEvent(&updatedPlan, changedFields, oldValues, newValues)
-	fmt.Println(savedPlan, "\n===========================")
-	fmt.Println(updatedPlan)
+	fmt.Println(savedPlan.Features, "\n===========================")
+	fmt.Println(updatedPlan.Features)
 
 	if err := s.publisher.PublishPlanEvent(planEvent); err != nil {
 		log.Printf("Failed to publish plan updated event: %v", err)
