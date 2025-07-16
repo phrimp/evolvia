@@ -86,7 +86,7 @@ func main() {
 		defer eventPublisher.Close()
 	}
 
-	eventConsumer, err := events.NewEventConsumer(rabbitmqURI, repository.Repositories_instance.RedisRepository, repository.Repositories_instance.UserAuthRepository, eventPublisher)
+	eventConsumer, err := events.NewEventConsumer(rabbitmqURI, repository.Repositories_instance.RedisRepository, repository.Repositories_instance.UserAuthRepository, repository.Repositories_instance.RoleRepository, repository.Repositories_instance.PermissionRepository, eventPublisher)
 	if err != nil {
 		log.Printf("Warning: Failed to initialize event consumer: %v", err)
 	} else {

@@ -28,6 +28,8 @@ type EventConsumer struct {
 	queueName      string
 	redisRepo      *repository.RedisRepo
 	userRepo       *repository.UserAuthRepository
+	roleRepo       *repository.RoleRepository
+	permissionRepo *repository.PermissionRepository
 	eventPublisher *EventPublisher
 	shutdown       chan struct{}
 	wg             sync.WaitGroup
@@ -52,12 +54,14 @@ type BindingConfig struct {
 }
 
 // NewEventConsumer creates a new event consumer
-func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRepo *repository.UserAuthRepository, eventPublisher *EventPublisher) (*EventConsumer, error) {
+func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRepo *repository.UserAuthRepository, roleRepo *repository.RoleRepository, permissionRepo *repository.PermissionRepository, eventPublisher *EventPublisher) (*EventConsumer, error) {
 	if rabbitURI == "" {
 		log.Println("Warning: RabbitMQ URI is empty, event consumption is disabled")
 		return &EventConsumer{
 			redisRepo:      redisRepo,
 			userRepo:       userRepo,
+			roleRepo:       roleRepo,
+			permissionRepo: permissionRepo,
 			eventPublisher: eventPublisher,
 			shutdown:       make(chan struct{}),
 			enabled:        false,
@@ -95,6 +99,8 @@ func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRep
 		queueName:      "auth-service-events",
 		redisRepo:      redisRepo,
 		userRepo:       userRepo,
+		roleRepo:       roleRepo,
+		permissionRepo: permissionRepo,
 		eventPublisher: eventPublisher,
 		shutdown:       make(chan struct{}),
 		enabled:        true,
@@ -120,6 +126,14 @@ func (c *EventConsumer) Start() error {
 		},
 		{
 			Name:       "google.events",
+			Type:       "topic",
+			Durable:    true,
+			AutoDelete: false,
+			Internal:   false,
+			NoWait:     false,
+		},
+		{
+			Name:       "billing.events",
 			Type:       "topic",
 			Durable:    true,
 			AutoDelete: false,
@@ -167,6 +181,11 @@ func (c *EventConsumer) Start() error {
 
 		// Google events
 		{Exchange: "google.events", RoutingKey: "google.login"},
+
+		// Billing events
+		{Exchange: "billing.events", RoutingKey: "plan.created"},
+		{Exchange: "billing.events", RoutingKey: "plan.updated"},
+		{Exchange: "billing.events", RoutingKey: "plan.deleted"},
 	}
 
 	// Bind the queue to all exchanges with their routing keys
@@ -228,15 +247,22 @@ func (c *EventConsumer) consume(msgs <-chan amqp091.Delivery) {
 			// Process the message
 			err := c.processMessage(msg)
 			if err != nil {
-				log.Printf("Error processing message: %v", err)
-				// Negative acknowledgement, requeue the message
-				if err := msg.Nack(false, true); err != nil {
-					log.Printf("Error NACKing message: %v", err)
+				// Log detailed error information for monitoring
+				log.Printf("FAILED to process message - Exchange: %s, RoutingKey: %s, Error: %v",
+					msg.Exchange, msg.RoutingKey, err)
+				log.Printf("Failed message body: %s", string(msg.Body))
+
+				// Acknowledge failed message to prevent infinite requeuing
+				// This removes the message from the queue permanently
+				if ackErr := msg.Ack(false); ackErr != nil {
+					log.Printf("Error acknowledging failed message: %v", ackErr)
+				} else {
+					log.Printf("Acknowledged and discarded failed message (routing key: %s)", msg.RoutingKey)
 				}
 			} else {
-				// Acknowledge the message
+				// Acknowledge successful message processing
 				if err := msg.Ack(false); err != nil {
-					log.Printf("Error ACKing message: %v", err)
+					log.Printf("Error acknowledging successful message: %v", err)
 				}
 			}
 		}
@@ -259,6 +285,14 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 	// Google events
 	case "google.login":
 		return c.handleGoogleLogin(msg.Body)
+
+	// Billing events
+	case "plan.created":
+		return c.handlePlanCreated(msg.Body)
+	case "plan.updated":
+		return c.handlePlanUpdated(msg.Body)
+	case "plan.deleted":
+		return c.handlePlanDeleted(msg.Body)
 
 	default:
 		log.Printf("Unknown routing key: %s from exchange: %s", routingKey, exchange)
@@ -343,6 +377,242 @@ func (c *EventConsumer) handleGoogleLogin(body []byte) error {
 			log.Printf("Published user created event for user: %s", user.Username)
 		}
 	}
+
+	return nil
+}
+
+func (c *EventConsumer) handlePlanCreated(body []byte) error {
+	var event PlanCreatedEvent
+	if err := json.Unmarshal(body, &event); err != nil {
+		return fmt.Errorf("failed to unmarshal plan created event: %w", err)
+	}
+
+	log.Printf("Plan created event received: PlanID=%s, PlanName=%s", event.PlanID, event.PlanName)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Check if role metadata exists
+	if event.RoleMetadata == nil {
+		log.Printf("No role metadata in plan created event for plan %s, skipping role creation", event.PlanID)
+		return nil
+	}
+
+	roleMetadata := event.RoleMetadata
+
+	// Check if role already exists
+	existingRole, err := c.roleRepo.FindByName(ctx, roleMetadata.SuggestedRoleName)
+	if err == nil && existingRole != nil {
+		log.Printf("Role %s already exists, skipping creation", roleMetadata.SuggestedRoleName)
+		return nil
+	}
+
+	// Validate that all permissions exist
+	validPermissions := make([]string, 0, len(roleMetadata.AllPermissions))
+
+	for _, permission := range roleMetadata.AllPermissions {
+		_, err := c.permissionRepo.FindAvailablePermission(ctx, permission)
+		if err != nil {
+			log.Printf("Warning: Permission '%s' not found in system, skipping", permission)
+			continue
+		}
+		validPermissions = append(validPermissions, permission)
+	}
+
+	if len(validPermissions) == 0 {
+		log.Printf("No valid permissions found for plan %s, skipping role creation", event.PlanID)
+		return nil
+	}
+
+	// Create the role using repository directly
+	log.Printf("Creating role '%s' with %d permissions for plan %s",
+		roleMetadata.SuggestedRoleName, len(validPermissions), event.PlanID)
+
+	currentTime := int(time.Now().Unix())
+	role := &models.Role{
+		Name:        roleMetadata.SuggestedRoleName,
+		Description: roleMetadata.RoleDescription,
+		Permissions: validPermissions,
+		IsSystem:    false, // Not a system role
+		CreatedAt:   currentTime,
+		UpdatedAt:   currentTime,
+	}
+
+	createdRole, err := c.roleRepo.Create(ctx, role)
+	if err != nil {
+		return fmt.Errorf("failed to create role for plan %s: %w", event.PlanID, err)
+	}
+
+	log.Printf("Successfully created role '%s' (ID: %s) for plan %s with permissions: %v",
+		createdRole.Name, createdRole.ID.Hex(), event.PlanID, validPermissions)
+
+	// Log feature-permission mapping for debugging
+	if len(roleMetadata.FeaturePermissionMap) > 0 {
+		log.Printf("Feature-Permission mapping for plan %s:", event.PlanID)
+		for feature, permissions := range roleMetadata.FeaturePermissionMap {
+			log.Printf("  - Feature '%s': %v", feature, permissions)
+		}
+	}
+
+	return nil
+}
+
+func (c *EventConsumer) handlePlanUpdated(body []byte) error {
+	var event PlanUpdatedEvent
+	if err := json.Unmarshal(body, &event); err != nil {
+		return fmt.Errorf("failed to unmarshal plan updated event: %w", err)
+	}
+
+	log.Printf("Plan updated event received: PlanID=%s, PlanName=%s, ChangedFields=%v",
+		event.PlanID, event.PlanName, event.ChangedFields)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Check if role metadata exists
+	if event.RoleMetadata == nil {
+		log.Printf("No role metadata in plan updated event for plan %s, skipping role update", event.PlanID)
+		return nil
+	}
+
+	roleMetadata := event.RoleMetadata
+
+	// Find the existing role for this plan
+	existingRole, err := c.roleRepo.FindByName(ctx, roleMetadata.SuggestedRoleName)
+	if err != nil {
+		log.Printf("Role %s not found for plan %s, skipping update: %v",
+			roleMetadata.SuggestedRoleName, event.PlanID, err)
+		return nil
+	}
+
+	// Validate that all new permissions exist
+	validPermissions := make([]string, 0, len(roleMetadata.AllPermissions))
+
+	for _, permission := range roleMetadata.AllPermissions {
+		_, err := c.permissionRepo.FindAvailablePermission(ctx, permission)
+		if err != nil {
+			log.Printf("Warning: Permission '%s' not found in system, skipping", permission)
+			continue
+		}
+		validPermissions = append(validPermissions, permission)
+	}
+
+	// Check if permissions actually changed
+	if permissionsEqual(existingRole.Permissions, validPermissions) {
+		log.Printf("No permission changes detected for role %s (plan %s), skipping update",
+			existingRole.Name, event.PlanID)
+		return nil
+	}
+
+	// Update only the permissions and timestamp
+	log.Printf("Updating permissions for role '%s' (plan %s): %d -> %d permissions",
+		existingRole.Name, event.PlanID, len(existingRole.Permissions), len(validPermissions))
+
+	existingRole.Permissions = validPermissions
+	existingRole.UpdatedAt = int(time.Now().Unix())
+
+	err = c.roleRepo.Update(ctx, existingRole)
+	if err != nil {
+		return fmt.Errorf("failed to update role for plan %s: %w", event.PlanID, err)
+	}
+
+	log.Printf("Successfully updated role '%s' (ID: %s) for plan %s with new permissions: %v",
+		existingRole.Name, existingRole.ID.Hex(), event.PlanID, validPermissions)
+
+	// Log feature-permission mapping for debugging
+	if len(roleMetadata.FeaturePermissionMap) > 0 {
+		log.Printf("Updated Feature-Permission mapping for plan %s:", event.PlanID)
+		for feature, permissions := range roleMetadata.FeaturePermissionMap {
+			log.Printf("  - Feature '%s': %v", feature, permissions)
+		}
+	}
+
+	return nil
+}
+
+func permissionsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	// Create maps for comparison
+	mapA := make(map[string]bool)
+	mapB := make(map[string]bool)
+
+	for _, perm := range a {
+		mapA[perm] = true
+	}
+
+	for _, perm := range b {
+		mapB[perm] = true
+	}
+
+	// Check if all permissions in A exist in B
+	for perm := range mapA {
+		if !mapB[perm] {
+			return false
+		}
+	}
+
+	// Check if all permissions in B exist in A
+	for perm := range mapB {
+		if !mapA[perm] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (c *EventConsumer) handlePlanDeleted(body []byte) error {
+	var event PlanDeletedEvent
+	if err := json.Unmarshal(body, &event); err != nil {
+		return fmt.Errorf("failed to unmarshal plan deleted event: %w", err)
+	}
+
+	log.Printf("Plan deleted event received: PlanID=%s, PlanName=%s", event.PlanID, event.PlanName)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Check if role metadata exists
+	if event.RoleMetadata == nil {
+		log.Printf("No role metadata in plan deleted event for plan %s, skipping role deletion", event.PlanID)
+		return nil
+	}
+
+	roleMetadata := event.RoleMetadata
+
+	// Find the existing role for this plan
+	existingRole, err := c.roleRepo.FindByName(ctx, roleMetadata.SuggestedRoleName)
+	if err != nil {
+		log.Printf("Role %s not found for deleted plan %s, nothing to delete: %v",
+			roleMetadata.SuggestedRoleName, event.PlanID, err)
+		return nil // Not an error - role might already be deleted
+	}
+
+	// Check if this is a system role (safety check)
+	if existingRole.IsSystem {
+		log.Printf("WARNING: Attempted to delete system role %s for plan %s - operation blocked",
+			existingRole.Name, event.PlanID)
+		return fmt.Errorf("cannot delete system role %s", existingRole.Name)
+	}
+
+	// Delete the role
+	log.Printf("Deleting role '%s' (ID: %s) for deleted plan %s",
+		existingRole.Name, existingRole.ID.Hex(), event.PlanID)
+
+	err = c.roleRepo.Delete(ctx, existingRole.ID)
+	if err != nil {
+		return fmt.Errorf("failed to delete role for plan %s: %w", event.PlanID, err)
+	}
+
+	log.Printf("Successfully deleted role '%s' for deleted plan %s (PlanName: %s)",
+		existingRole.Name, event.PlanID, event.PlanName)
+
+	// Log additional details for audit purposes
+	log.Printf("Deleted role details - Name: %s, Permissions: %v, Created: %d",
+		existingRole.Name, existingRole.Permissions, existingRole.CreatedAt)
 
 	return nil
 }

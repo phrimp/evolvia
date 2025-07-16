@@ -107,3 +107,59 @@ func (e *ProfileUpdatedEvent) ToJSON() ([]byte, error) {
 func generateEventID() string {
 	return time.Now().Format("20060102150405") + "-" + utils.GenerateRandomStringWithLength(6)
 }
+
+type PlanCreatedEvent struct {
+	EventType    string                `json:"eventType"`
+	PlanID       string                `json:"planId"`
+	PlanName     string                `json:"planName"`
+	PlanType     string                `json:"planType"`
+	Price        float64               `json:"price"`
+	Currency     string                `json:"currency"`
+	BillingCycle string                `json:"billingCycle"`
+	Features     []FeatureDetail       `json:"features"`
+	IsActive     bool                  `json:"isActive"`
+	TrialDays    int                   `json:"trialDays"`
+	Timestamp    int64                 `json:"timestamp"`
+	RoleMetadata *RoleCreationMetadata `json:"roleMetadata,omitempty"`
+}
+
+type FeatureDetail struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Enabled     bool     `json:"enabled"`
+	Permissions []string `json:"permissions"`
+}
+
+type RoleCreationMetadata struct {
+	SuggestedRoleName    string              `json:"suggestedRoleName"`
+	AllPermissions       []string            `json:"allPermissions"`
+	FeaturePermissionMap map[string][]string `json:"featurePermissionMap"`
+	RoleDescription      string              `json:"roleDescription"`
+}
+
+type PlanUpdatedEvent struct {
+	EventType     string                `json:"eventType"`
+	PlanID        string                `json:"planId"`
+	PlanName      string                `json:"planName"`
+	PlanType      string                `json:"planType"`
+	Price         float64               `json:"price"`
+	Currency      string                `json:"currency"`
+	BillingCycle  string                `json:"billingCycle"`
+	Features      []FeatureDetail       `json:"features"`
+	IsActive      bool                  `json:"isActive"`
+	TrialDays     int                   `json:"trialDays"`
+	Timestamp     int64                 `json:"timestamp"`
+	ChangedFields []string              `json:"changedFields,omitempty"`
+	OldValues     map[string]any        `json:"oldValues,omitempty"`
+	NewValues     map[string]any        `json:"newValues,omitempty"`
+	RoleMetadata  *RoleCreationMetadata `json:"roleMetadata,omitempty"`
+}
+
+type PlanDeletedEvent struct {
+	EventType    string                `json:"eventType"`
+	PlanID       string                `json:"planId"`
+	PlanName     string                `json:"planName"`
+	PlanType     string                `json:"planType"`
+	Timestamp    int64                 `json:"timestamp"`
+	RoleMetadata *RoleCreationMetadata `json:"roleMetadata,omitempty"`
+}
