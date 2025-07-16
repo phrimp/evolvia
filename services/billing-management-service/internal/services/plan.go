@@ -57,15 +57,13 @@ func (s *PlanService) CreatePlan(ctx context.Context, req *models.CreatePlanRequ
 	}
 
 	// Publish plan created event
-	planEvent := &event.PlanEvent{
-		EventType: event.EventTypePlanCreated,
-		PlanID:    createdPlan.ID.Hex(),
-		PlanType:  createdPlan.PlanType,
-		Timestamp: time.Now().Unix(),
-	}
+	planEvent := event.CreatePlanCreatedEvent(createdPlan)
 
 	if err := s.publisher.PublishPlanEvent(planEvent); err != nil {
 		log.Printf("Failed to publish plan created event: %v", err)
+	} else {
+		log.Printf("Published plan created event with %d features and %d total permissions",
+			len(planEvent.Features), len(planEvent.RoleMetadata.AllPermissions))
 	}
 
 	return createdPlan, nil
@@ -196,18 +194,16 @@ func (s *PlanService) UpdatePlan(ctx context.Context, planID string, req *models
 	}
 
 	// Publish plan updated event
-	planEvent := &event.PlanEvent{
-		EventType:     event.EventTypePlanUpdated,
-		PlanID:        savedPlan.ID.Hex(),
-		PlanType:      savedPlan.PlanType,
-		Timestamp:     time.Now().Unix(),
-		ChangedFields: changedFields,
-		OldValues:     oldValues,
-		NewValues:     newValues,
-	}
+	planEvent := event.CreatePlanUpdatedEvent(savedPlan, changedFields, oldValues, newValues)
 
 	if err := s.publisher.PublishPlanEvent(planEvent); err != nil {
 		log.Printf("Failed to publish plan updated event: %v", err)
+	} else {
+		log.Printf("Published plan updated event with changes: %v", changedFields)
+		if planEvent.RoleMetadata != nil {
+			log.Printf("Role metadata includes %d permissions across %d features",
+				len(planEvent.RoleMetadata.AllPermissions), len(planEvent.RoleMetadata.FeaturePermissionMap))
+		}
 	}
 
 	return savedPlan, nil

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/rabbitmq/amqp091-go"
@@ -140,156 +141,172 @@ func (p *EventPublisher) Close() error {
 	return nil
 }
 
-// Event factory functions for common events
+// Utility functions for processing features and permissions
 
-// CreatePlanCreatedEvent creates a plan created event
-func CreatePlanCreatedEvent(planID string, planType models.PlanType) *PlanEvent {
-	return &PlanEvent{
-		EventType: EventTypePlanCreated,
-		PlanID:    planID,
-		PlanType:  planType,
-		Timestamp: time.Now().Unix(),
+// ParseFeaturePermissions extracts permissions from feature description
+func ParseFeaturePermissions(description string) []string {
+	if description == "" {
+		return []string{}
+	}
+
+	// Split by comma and trim whitespace
+	permissions := strings.Split(description, ",")
+	var cleanPermissions []string
+
+	for _, perm := range permissions {
+		trimmed := strings.TrimSpace(perm)
+		if trimmed != "" {
+			cleanPermissions = append(cleanPermissions, trimmed)
+		}
+	}
+
+	return cleanPermissions
+}
+
+// ProcessFeaturesForEvent converts model features to event features with parsed permissions
+func ProcessFeaturesForEvent(features []models.Feature) []FeatureDetail {
+	eventFeatures := make([]FeatureDetail, len(features))
+
+	for i, feature := range features {
+		eventFeatures[i] = FeatureDetail{
+			Name:        feature.Name,
+			Description: feature.Description,
+			Enabled:     feature.Enabled,
+			Permissions: ParseFeaturePermissions(feature.Description),
+		}
+	}
+
+	return eventFeatures
+}
+
+// GenerateRoleMetadata creates role metadata for plan events
+func GenerateRoleMetadata(plan *models.Plan, eventFeatures []FeatureDetail) *RoleCreationMetadata {
+	// Generate suggested role name
+	roleName := fmt.Sprintf("%s-plan-role", strings.ToLower(string(plan.PlanType)))
+
+	// Collect all permissions and create feature permission map
+	var allPermissions []string
+	featurePermissionMap := make(map[string][]string)
+
+	for _, feature := range eventFeatures {
+		if feature.Enabled && len(feature.Permissions) > 0 {
+			featurePermissionMap[feature.Name] = feature.Permissions
+			allPermissions = append(allPermissions, feature.Permissions...)
+		}
+	}
+
+	// Remove duplicates from allPermissions
+	allPermissions = removeDuplicates(allPermissions)
+
+	// Generate role description
+	description := fmt.Sprintf("Auto-generated role for %s plan (%s) with %d permissions across %d features",
+		plan.Name, plan.PlanType, len(allPermissions), len(featurePermissionMap))
+
+	return &RoleCreationMetadata{
+		SuggestedRoleName:    roleName,
+		AllPermissions:       allPermissions,
+		FeaturePermissionMap: featurePermissionMap,
+		RoleDescription:      description,
 	}
 }
 
-// CreatePlanUpdatedEvent creates a plan updated event
-func CreatePlanUpdatedEvent(planID string, planType models.PlanType, changedFields []string, oldValues, newValues map[string]any) *PlanEvent {
+// GenerateUserRoleMetadata creates user role metadata for subscription events
+func GenerateUserRoleMetadata(planName string, planType models.PlanType, permissions []string) *UserRoleMetadata {
+	roleName := fmt.Sprintf("%s-plan-role", strings.ToLower(string(planType)))
+
+	return &UserRoleMetadata{
+		ShouldAssignRole: len(permissions) > 0,
+		RoleName:         roleName,
+		Permissions:      permissions,
+	}
+}
+
+// Helper function to remove duplicates
+func removeDuplicates(slice []string) []string {
+	keys := make(map[string]bool)
+	var result []string
+
+	for _, item := range slice {
+		if !keys[item] {
+			keys[item] = true
+			result = append(result, item)
+		}
+	}
+
+	return result
+}
+
+// Enhanced event factory functions
+
+// CreatePlanCreatedEvent creates an enhanced plan created event with feature details
+func CreatePlanCreatedEvent(plan *models.Plan) *PlanEvent {
+	eventFeatures := ProcessFeaturesForEvent(plan.Features)
+	roleMetadata := GenerateRoleMetadata(plan, eventFeatures)
+
+	return &PlanEvent{
+		EventType:    EventTypePlanCreated,
+		PlanID:       plan.ID.Hex(),
+		PlanName:     plan.Name,
+		PlanType:     plan.PlanType,
+		Price:        plan.Price,
+		Currency:     plan.Currency,
+		BillingCycle: plan.BillingCycle,
+		Features:     eventFeatures,
+		IsActive:     plan.IsActive,
+		TrialDays:    plan.TrialDays,
+		Timestamp:    time.Now().Unix(),
+		RoleMetadata: roleMetadata,
+	}
+}
+
+// CreatePlanUpdatedEvent creates an enhanced plan updated event
+func CreatePlanUpdatedEvent(plan *models.Plan, changedFields []string, oldValues, newValues map[string]any) *PlanEvent {
+	eventFeatures := ProcessFeaturesForEvent(plan.Features)
+	roleMetadata := GenerateRoleMetadata(plan, eventFeatures)
+
 	return &PlanEvent{
 		EventType:     EventTypePlanUpdated,
-		PlanID:        planID,
-		PlanType:      planType,
+		PlanID:        plan.ID.Hex(),
+		PlanName:      plan.Name,
+		PlanType:      plan.PlanType,
+		Price:         plan.Price,
+		Currency:      plan.Currency,
+		BillingCycle:  plan.BillingCycle,
+		Features:      eventFeatures,
+		IsActive:      plan.IsActive,
+		TrialDays:     plan.TrialDays,
 		Timestamp:     time.Now().Unix(),
 		ChangedFields: changedFields,
 		OldValues:     oldValues,
 		NewValues:     newValues,
+		RoleMetadata:  roleMetadata,
 	}
 }
 
-// CreatePlanDeletedEvent creates a plan deleted event
-func CreatePlanDeletedEvent(planID string, planType models.PlanType) *PlanEvent {
-	return &PlanEvent{
-		EventType: EventTypePlanDeleted,
-		PlanID:    planID,
-		PlanType:  planType,
-		Timestamp: time.Now().Unix(),
-	}
-}
+// CreateSubscriptionCreatedEvent creates an enhanced subscription created event
+func CreateSubscriptionCreatedEvent(subscription *models.Subscription, plan *models.Plan) *SubscriptionEvent {
+	eventFeatures := ProcessFeaturesForEvent(plan.Features)
 
-// CreatePlanActivatedEvent creates a plan activated event
-func CreatePlanActivatedEvent(planID string, planType models.PlanType) *PlanEvent {
-	return &PlanEvent{
-		EventType: EventTypePlanActivated,
-		PlanID:    planID,
-		PlanType:  planType,
-		Timestamp: time.Now().Unix(),
-		OldValues: map[string]any{"isActive": false},
-		NewValues: map[string]any{"isActive": true},
+	// Extract permissions from enabled features
+	var permissions []string
+	for _, feature := range eventFeatures {
+		if feature.Enabled {
+			permissions = append(permissions, feature.Permissions...)
+		}
 	}
-}
+	permissions = removeDuplicates(permissions)
 
-// CreatePlanDeactivatedEvent creates a plan deactivated event
-func CreatePlanDeactivatedEvent(planID string, planType models.PlanType) *PlanEvent {
-	return &PlanEvent{
-		EventType: EventTypePlanDeactivated,
-		PlanID:    planID,
-		PlanType:  planType,
-		Timestamp: time.Now().Unix(),
-		OldValues: map[string]any{"isActive": true},
-		NewValues: map[string]any{"isActive": false},
-	}
-}
+	userRoleMetadata := GenerateUserRoleMetadata(plan.Name, plan.PlanType, permissions)
 
-// CreateSubscriptionCreatedEvent creates a subscription created event
-func CreateSubscriptionCreatedEvent(subscriptionID, userID, planID string, status models.SubscriptionStatus) *SubscriptionEvent {
 	return &SubscriptionEvent{
-		EventType:      EventTypeSubscriptionCreated,
-		SubscriptionID: subscriptionID,
-		UserID:         userID,
-		PlanID:         planID,
-		Status:         status,
-		Timestamp:      time.Now().Unix(),
-	}
-}
-
-// CreateSubscriptionUpdatedEvent creates a subscription updated event
-func CreateSubscriptionUpdatedEvent(subscriptionID, userID, planID string, status models.SubscriptionStatus, changedFields []string, oldValues, newValues map[string]any) *SubscriptionEvent {
-	return &SubscriptionEvent{
-		EventType:      EventTypeSubscriptionUpdated,
-		SubscriptionID: subscriptionID,
-		UserID:         userID,
-		PlanID:         planID,
-		Status:         status,
-		Timestamp:      time.Now().Unix(),
-		ChangedFields:  changedFields,
-		OldValues:      oldValues,
-		NewValues:      newValues,
-	}
-}
-
-// CreateSubscriptionCanceledEvent creates a subscription canceled event
-func CreateSubscriptionCanceledEvent(subscriptionID, userID, planID string, oldStatus models.SubscriptionStatus, reason string) *SubscriptionEvent {
-	return &SubscriptionEvent{
-		EventType:      EventTypeSubscriptionCanceled,
-		SubscriptionID: subscriptionID,
-		UserID:         userID,
-		PlanID:         planID,
-		Status:         models.SubscriptionStatusCanceled,
-		Timestamp:      time.Now().Unix(),
-		OldValues:      map[string]any{"status": oldStatus},
-		NewValues:      map[string]any{"status": models.SubscriptionStatusCanceled, "reason": reason},
-	}
-}
-
-// CreateSubscriptionSuspendedEvent creates a subscription suspended event
-func CreateSubscriptionSuspendedEvent(subscriptionID, userID, planID string, oldStatus models.SubscriptionStatus, reason string) *SubscriptionEvent {
-	return &SubscriptionEvent{
-		EventType:      EventTypeSubscriptionSuspended,
-		SubscriptionID: subscriptionID,
-		UserID:         userID,
-		PlanID:         planID,
-		Status:         models.SubscriptionStatusSuspended,
-		Timestamp:      time.Now().Unix(),
-		OldValues:      map[string]any{"status": oldStatus},
-		NewValues:      map[string]any{"status": models.SubscriptionStatusSuspended, "reason": reason},
-	}
-}
-
-// CreateSubscriptionReactivatedEvent creates a subscription reactivated event
-func CreateSubscriptionReactivatedEvent(subscriptionID, userID, planID string) *SubscriptionEvent {
-	return &SubscriptionEvent{
-		EventType:      EventTypeSubscriptionReactivated,
-		SubscriptionID: subscriptionID,
-		UserID:         userID,
-		PlanID:         planID,
-		Status:         models.SubscriptionStatusActive,
-		Timestamp:      time.Now().Unix(),
-		OldValues:      map[string]any{"status": models.SubscriptionStatusSuspended},
-		NewValues:      map[string]any{"status": models.SubscriptionStatusActive},
-	}
-}
-
-// CreateSubscriptionRenewedEvent creates a subscription renewed event
-func CreateSubscriptionRenewedEvent(subscriptionID, userID, planID string) *SubscriptionEvent {
-	return &SubscriptionEvent{
-		EventType:      EventTypeSubscriptionRenewed,
-		SubscriptionID: subscriptionID,
-		UserID:         userID,
-		PlanID:         planID,
-		Status:         models.SubscriptionStatusActive,
-		Timestamp:      time.Now().Unix(),
-	}
-}
-
-// CreateTrialExpiredEvent creates a trial expired event
-func CreateTrialExpiredEvent(subscriptionID, userID, planID string, newStatus models.SubscriptionStatus) *SubscriptionEvent {
-	return &SubscriptionEvent{
-		EventType:      EventTypeTrialExpired,
-		SubscriptionID: subscriptionID,
-		UserID:         userID,
-		PlanID:         planID,
-		Status:         newStatus,
-		Timestamp:      time.Now().Unix(),
-		OldValues:      map[string]any{"status": models.SubscriptionStatusTrial},
-		NewValues:      map[string]any{"status": newStatus},
+		EventType:        EventTypeSubscriptionCreated,
+		SubscriptionID:   subscription.ID.Hex(),
+		UserID:           subscription.UserID,
+		PlanID:           subscription.PlanID.Hex(),
+		PlanName:         plan.Name,
+		PlanType:         plan.PlanType,
+		Status:           subscription.Status,
+		Timestamp:        time.Now().Unix(),
+		UserRoleMetadata: userRoleMetadata,
 	}
 }

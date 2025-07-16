@@ -651,6 +651,20 @@ func (s *SubscriptionService) validateCreateRequest(req *models.CreateSubscripti
 	return nil
 }
 
+func removeDuplicates(slice []string) []string {
+	keys := make(map[string]bool)
+	var result []string
+
+	for _, item := range slice {
+		if !keys[item] {
+			keys[item] = true
+			result = append(result, item)
+		}
+	}
+
+	return result
+}
+
 // HandlePaymentSuccess activates subscription when payment succeeds
 func (s *SubscriptionService) HandlePaymentSuccess(ctx context.Context, subscriptionID bson.ObjectID, orderCode string) error {
 	log.Printf("Handling payment success for subscription: %s (order: %s)", subscriptionID.Hex(), orderCode)
@@ -659,6 +673,12 @@ func (s *SubscriptionService) HandlePaymentSuccess(ctx context.Context, subscrip
 	subscription, err := s.subscriptionRepo.FindByID(ctx, subscriptionID)
 	if err != nil {
 		return fmt.Errorf("failed to find subscription %s: %w", subscriptionID.Hex(), err)
+	}
+
+	// Get plan to access features and permissions
+	plan, err := s.planRepo.FindByID(ctx, subscription.PlanID)
+	if err != nil {
+		return fmt.Errorf("failed to find plan for subscription %s: %w", subscriptionID.Hex(), err)
 	}
 
 	// Only update if not already active
@@ -674,23 +694,45 @@ func (s *SubscriptionService) HandlePaymentSuccess(ctx context.Context, subscrip
 		return fmt.Errorf("failed to activate subscription %s: %w", subscriptionID.Hex(), err)
 	}
 
-	// Publish subscription updated event
+	// Create enhanced subscription event with role assignment metadata
+	eventFeatures := event.ProcessFeaturesForEvent(plan.Features)
+	var permissions []string
+	for _, feature := range eventFeatures {
+		if feature.Enabled {
+			permissions = append(permissions, feature.Permissions...)
+		}
+	}
+	// Remove duplicates
+	permissions = removeDuplicates(permissions)
+
+	userRoleMetadata := event.GenerateUserRoleMetadata(plan.Name, plan.PlanType, permissions)
+
+	// Publish subscription updated event with role assignment info
 	subscriptionEvent := &event.SubscriptionEvent{
-		EventType:      event.EventTypeSubscriptionUpdated,
-		SubscriptionID: subscriptionID.Hex(),
-		UserID:         subscription.UserID,
-		PlanID:         subscription.PlanID.Hex(),
-		Status:         models.SubscriptionStatusActive,
-		Timestamp:      time.Now().Unix(),
-		OldValues:      map[string]any{"status": oldStatus},
-		NewValues:      map[string]any{"status": models.SubscriptionStatusActive, "orderCode": orderCode},
+		EventType:        event.EventTypeSubscriptionUpdated,
+		SubscriptionID:   subscriptionID.Hex(),
+		UserID:           subscription.UserID,
+		PlanID:           subscription.PlanID.Hex(),
+		PlanName:         plan.Name,
+		PlanType:         plan.PlanType,
+		Status:           models.SubscriptionStatusActive,
+		Timestamp:        time.Now().Unix(),
+		OldValues:        map[string]any{"status": oldStatus},
+		NewValues:        map[string]any{"status": models.SubscriptionStatusActive, "orderCode": orderCode},
+		UserRoleMetadata: userRoleMetadata,
 	}
 
 	if err := s.publisher.PublishSubscriptionEvent(subscriptionEvent); err != nil {
 		log.Printf("Failed to publish subscription updated event: %v", err)
+	} else {
+		log.Printf("Successfully activated subscription %s for order %s with role assignment metadata",
+			subscriptionID.Hex(), orderCode)
+		if userRoleMetadata.ShouldAssignRole {
+			log.Printf("User %s should be assigned role '%s' with permissions: %v",
+				subscription.UserID, userRoleMetadata.RoleName, userRoleMetadata.Permissions)
+		}
 	}
 
-	log.Printf("Successfully activated subscription %s for order %s", subscriptionID.Hex(), orderCode)
 	return nil
 }
 
