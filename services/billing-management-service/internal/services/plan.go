@@ -196,8 +196,6 @@ func (s *PlanService) UpdatePlan(ctx context.Context, planID string, req *models
 
 	// Publish plan updated event
 	planEvent := event.CreatePlanUpdatedEvent(&updatedPlan, changedFields, oldValues, newValues)
-	fmt.Println(savedPlan.Features, "\n===========================")
-	fmt.Println(updatedPlan.Features)
 
 	if err := s.publisher.PublishPlanEvent(planEvent); err != nil {
 		log.Printf("Failed to publish plan updated event: %v", err)

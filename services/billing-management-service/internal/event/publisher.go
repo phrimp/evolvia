@@ -211,8 +211,8 @@ func GenerateRoleMetadata(plan *models.Plan, eventFeatures []FeatureDetail) *Rol
 }
 
 // GenerateUserRoleMetadata creates user role metadata for subscription events
-func GenerateUserRoleMetadata(planName string, planType models.PlanType, permissions []string) *UserRoleMetadata {
-	roleName := fmt.Sprintf("%s-plan-role", strings.ToLower(string(planType)))
+func GenerateUserRoleMetadata(planName string, planType models.PlanType, permissions []string, planid string) *UserRoleMetadata {
+	roleName := fmt.Sprintf("%s-plan-role-%s", strings.ToLower(string(planType)), planid)
 
 	return &UserRoleMetadata{
 		ShouldAssignRole: len(permissions) > 0,
@@ -261,11 +261,8 @@ func CreatePlanCreatedEvent(plan *models.Plan) *PlanEvent {
 
 // CreatePlanUpdatedEvent creates an enhanced plan updated event
 func CreatePlanUpdatedEvent(plan *models.Plan, changedFields []string, oldValues, newValues map[string]any) *PlanEvent {
-	log.Println(plan.Features)
 	eventFeatures := ProcessFeaturesForEvent(plan.Features)
-	log.Println(eventFeatures)
 	roleMetadata := GenerateRoleMetadata(plan, eventFeatures)
-	log.Println(roleMetadata)
 
 	return &PlanEvent{
 		EventType:     EventTypePlanUpdated,
@@ -312,7 +309,7 @@ func CreateSubscriptionCreatedEvent(subscription *models.Subscription, plan *mod
 	}
 	permissions = removeDuplicates(permissions)
 
-	userRoleMetadata := GenerateUserRoleMetadata(plan.Name, plan.PlanType, permissions)
+	userRoleMetadata := GenerateUserRoleMetadata(plan.Name, plan.PlanType, permissions, plan.ID.Hex())
 
 	return &SubscriptionEvent{
 		EventType:        EventTypeSubscriptionCreated,

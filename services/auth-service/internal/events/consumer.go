@@ -29,6 +29,7 @@ type EventConsumer struct {
 	redisRepo      *repository.RedisRepo
 	userRepo       *repository.UserAuthRepository
 	roleRepo       *repository.RoleRepository
+	userRoleRepo   *repository.UserRoleRepository
 	permissionRepo *repository.PermissionRepository
 	eventPublisher *EventPublisher
 	shutdown       chan struct{}
@@ -54,13 +55,14 @@ type BindingConfig struct {
 }
 
 // NewEventConsumer creates a new event consumer
-func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRepo *repository.UserAuthRepository, roleRepo *repository.RoleRepository, permissionRepo *repository.PermissionRepository, eventPublisher *EventPublisher) (*EventConsumer, error) {
+func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRepo *repository.UserAuthRepository, roleRepo *repository.RoleRepository, permissionRepo *repository.PermissionRepository, userRoleRepo *repository.UserRoleRepository, eventPublisher *EventPublisher) (*EventConsumer, error) {
 	if rabbitURI == "" {
 		log.Println("Warning: RabbitMQ URI is empty, event consumption is disabled")
 		return &EventConsumer{
 			redisRepo:      redisRepo,
 			userRepo:       userRepo,
 			roleRepo:       roleRepo,
+			userRoleRepo:   userRoleRepo,
 			permissionRepo: permissionRepo,
 			eventPublisher: eventPublisher,
 			shutdown:       make(chan struct{}),
@@ -186,6 +188,7 @@ func (c *EventConsumer) Start() error {
 		{Exchange: "billing.events", RoutingKey: "plan.created"},
 		{Exchange: "billing.events", RoutingKey: "plan.updated"},
 		{Exchange: "billing.events", RoutingKey: "plan.deleted"},
+		{Exchange: "billing.events", RoutingKey: "subscription.updated"},
 	}
 
 	// Bind the queue to all exchanges with their routing keys
@@ -293,6 +296,9 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 		return c.handlePlanUpdated(msg.Body)
 	case "plan.deleted":
 		return c.handlePlanDeleted(msg.Body)
+
+	case "subscription.updated":
+		return c.handleSubscriptionUpdated(msg.Body)
 
 	default:
 		log.Printf("Unknown routing key: %s from exchange: %s", routingKey, exchange)
@@ -613,6 +619,92 @@ func (c *EventConsumer) handlePlanDeleted(body []byte) error {
 	// Log additional details for audit purposes
 	log.Printf("Deleted role details - Name: %s, Permissions: %v, Created: %d",
 		existingRole.Name, existingRole.Permissions, existingRole.CreatedAt)
+
+	return nil
+}
+
+func (c *EventConsumer) handleSubscriptionUpdated(body []byte) error {
+	var event SubscriptionEvent
+	if err := json.Unmarshal(body, &event); err != nil {
+		return fmt.Errorf("failed to unmarshal subscription updated event: %w", err)
+	}
+
+	log.Printf("Subscription updated event received: SubscriptionID=%s, UserID=%s, Status=%s",
+		event.SubscriptionID, event.UserID, event.Status)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Check if this is an activation (status change to active) with role metadata
+	if event.Status == "active" && event.UserRoleMetadata != nil && event.UserRoleMetadata.ShouldAssignRole {
+		return c.assignRoleToUser(ctx, &event)
+	}
+
+	log.Printf("No role assignment needed for subscription %s (status: %s)", event.SubscriptionID, event.Status)
+	return nil
+}
+
+// Helper method to assign role to user when subscription becomes active
+func (c *EventConsumer) assignRoleToUser(ctx context.Context, event *SubscriptionEvent) error {
+	log.Printf("Assigning role '%s' to user %s for active subscription %s",
+		event.UserRoleMetadata.RoleName, event.UserID, event.SubscriptionID)
+
+	// Find the user
+	userObjectID, err := bson.ObjectIDFromHex(event.UserID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	user, err := c.userRepo.FindByID(ctx, userObjectID)
+	if err != nil {
+		return fmt.Errorf("failed to find user %s: %w", event.UserID, err)
+	}
+	if user == nil {
+		return fmt.Errorf("user %s not found", event.UserID)
+	}
+
+	// Find the role
+	role, err := c.roleRepo.FindByName(ctx, event.UserRoleMetadata.RoleName)
+	if err != nil {
+		return fmt.Errorf("failed to find role %s: %w", event.UserRoleMetadata.RoleName, err)
+	}
+
+	// Check if user already has this role
+	existingUserRoles, err := c.userRoleRepo.FindByUserID(ctx, userObjectID)
+	if err != nil {
+		return fmt.Errorf("failed to get existing user roles: %w", err)
+	}
+
+	for _, userRole := range existingUserRoles {
+		if userRole.RoleID == role.ID && userRole.IsActive {
+			log.Printf("User %s already has role %s, skipping assignment", event.UserID, role.Name)
+			return nil
+		}
+	}
+
+	// Create user role assignment
+	systemID, _ := bson.ObjectIDFromHex("000000000000000000000000") // System assignment
+	currentTime := int(time.Now().Unix())
+
+	userRole := &models.UserRole{
+		ID:         bson.NewObjectID(),
+		UserID:     userObjectID,
+		RoleID:     role.ID,
+		ScopeType:  "subscription",   // Scope to subscription
+		ScopeID:    bson.NilObjectID, // Could store subscription ID if needed
+		AssignedBy: systemID,
+		AssignedAt: currentTime,
+		ExpiresAt:  0, // No expiration for subscription-based roles
+		IsActive:   true,
+	}
+
+	_, err = c.userRoleRepo.Create(ctx, userRole)
+	if err != nil {
+		return fmt.Errorf("failed to assign role %s to user %s: %w", role.Name, event.UserID, err)
+	}
+
+	log.Printf("Successfully assigned role '%s' to user %s for subscription %s with permissions: %v",
+		role.Name, event.UserID, event.SubscriptionID, event.UserRoleMetadata.Permissions)
 
 	return nil
 }

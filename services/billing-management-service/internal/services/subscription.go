@@ -705,7 +705,7 @@ func (s *SubscriptionService) HandlePaymentSuccess(ctx context.Context, subscrip
 	// Remove duplicates
 	permissions = removeDuplicates(permissions)
 
-	userRoleMetadata := event.GenerateUserRoleMetadata(plan.Name, plan.PlanType, permissions)
+	userRoleMetadata := event.GenerateUserRoleMetadata(plan.Name, plan.PlanType, permissions, plan.ID.Hex())
 
 	// Publish subscription updated event with role assignment info
 	subscriptionEvent := &event.SubscriptionEvent{

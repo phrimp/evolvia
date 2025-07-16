@@ -163,3 +163,27 @@ type PlanDeletedEvent struct {
 	Timestamp    int64                 `json:"timestamp"`
 	RoleMetadata *RoleCreationMetadata `json:"roleMetadata,omitempty"`
 }
+
+type SubscriptionEvent struct {
+	EventType      string         `json:"eventType"`
+	SubscriptionID string         `json:"subscriptionId"`
+	UserID         string         `json:"userId"`
+	PlanID         string         `json:"planId"`
+	PlanName       string         `json:"planName,omitempty"`
+	PlanType       string         `json:"planType,omitempty"`
+	Status         string         `json:"status"`
+	Timestamp      int64          `json:"timestamp"`
+	ChangedFields  []string       `json:"changedFields,omitempty"`
+	OldValues      map[string]any `json:"oldValues,omitempty"`
+	NewValues      map[string]any `json:"newValues,omitempty"`
+
+	// User role assignment metadata
+	UserRoleMetadata *UserRoleMetadata `json:"userRoleMetadata,omitempty"`
+}
+
+type UserRoleMetadata struct {
+	ShouldAssignRole bool     `json:"shouldAssignRole"`
+	RoleName         string   `json:"roleName"`
+	Permissions      []string `json:"permissions"`
+	PreviousRoles    []string `json:"previousRoles,omitempty"`
+}
