@@ -132,6 +132,9 @@ func setupRoutes() *gin.Engine {
 		public.GET("/schema", llmController.GetDatabaseSchema)
 		public.GET("/schema/log", llmController.LogDatabaseSchema)
 
+		// Skills extraction endpoint
+		public.POST("/skills-gen", llmController.SkillsGen)
+
 		// Model interaction endpoints
 		model := public.Group("/model")
 		{

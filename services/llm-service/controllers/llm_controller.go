@@ -1,3 +1,4 @@
+
 package controllers
 
 import (
@@ -20,6 +21,24 @@ type LLMController struct{}
 
 func NewLLMController() *LLMController {
 	return &LLMController{}
+}
+
+// POST /public/llm/skills-gen
+func (ctrl *LLMController) SkillsGen(c *gin.Context) {
+	var req models.SkillExtractionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequestResponse(c, "Invalid request format: content is required")
+		return
+	}
+
+	// Call the skill extraction service
+	resp, err := services.GenerateSkillsFromContent(req.Content)
+	if err != nil {
+		utils.InternalErrorResponse(c, "Failed to extract skills", err)
+		return
+	}
+
+	   utils.SuccessResponse(c, "Skills extracted successfully", resp)
 }
 
 // GET /public/llm/ping
