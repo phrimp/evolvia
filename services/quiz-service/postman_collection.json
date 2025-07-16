@@ -1,0 +1,312 @@
+{
+  "info": {
+    "name": "Quiz Service API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Quiz Public",
+      "item": [
+        {
+          "name": "List Quizzes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/quiz/",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "quiz", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Quiz",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/quiz/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "quiz", ":id"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Quiz Results",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/quiz/:id/results",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "quiz", ":id", "results"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Quiz Protected",
+      "item": [
+        {
+          "name": "Create Quiz",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/protected/quiz/",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "quiz", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Quiz",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/protected/quiz/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "quiz", ":id"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Quiz",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/protected/quiz/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "quiz", ":id"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Question Public",
+      "item": [
+        {
+          "name": "List Questions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/question/",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "question", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Question",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/question/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "question", ":id"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Question Protected",
+      "item": [
+        {
+          "name": "Create Question",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/protected/question/",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "question", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Question",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/protected/question/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "question", ":id"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Question",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/protected/question/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "question", ":id"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Question Ops",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/protected/question/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "question", "bulk"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Session Public",
+      "item": [
+        {
+          "name": "Get Session",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/session/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "session", ":id"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Session Answers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/session/:id/answers",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "session", ":id", "answers"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Session Result",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/session/:id/result",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "session", ":id", "result"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Session Protected",
+      "item": [
+        {
+          "name": "Create Session",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/protected/session/",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "session", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Answer",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/protected/session/:id/answer",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "session", ":id", "answer"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Next Question",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/protected/session/:id/next",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "session", ":id", "next"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Session",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/protected/session/:id/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "session", ":id", "submit"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Pause Session",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/protected/session/:id/pause",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "session", ":id", "pause"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Result Public",
+      "item": [
+        {
+          "name": "Get User Results",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/user/:id/results",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "user", ":id", "results"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Result Protected",
+      "item": [
+        {
+          "name": "Create Result",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/protected/result/",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "result", ""]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
