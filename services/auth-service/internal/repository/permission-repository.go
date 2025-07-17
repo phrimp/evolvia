@@ -28,12 +28,6 @@ var default_permissions []*models.Permission = []*models.Permission{
 	{Name: "update:admin", Description: "Update Permission for All resources", Category: "admin", IsSystem: false},
 	{Name: "delete:admin", Description: "Delete Permission for All resources", Category: "admin", IsSystem: false},
 
-	// Manager permissions (elevated but not full admin)
-	{Name: "read:manager", Description: "Read Permission for managed resources", Category: "manager", IsSystem: false},
-	{Name: "write:manager", Description: "Write Permission for managed resources", Category: "manager", IsSystem: false},
-	{Name: "update:manager", Description: "Update Permission for managed resources", Category: "manager", IsSystem: false},
-	{Name: "delete:manager", Description: "Delete Permission for managed resources", Category: "manager", IsSystem: false},
-
 	// Plan-specific permissions
 	{Name: "read:plan", Description: "Read Permission for Plan resources", Category: "plan", IsSystem: false},
 	{Name: "read:plan:all", Description: "Read All Permission for Plan resources", Category: "plan", IsSystem: false},
