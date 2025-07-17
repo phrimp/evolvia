@@ -18,7 +18,8 @@ export const webhookReceiverController = new Elysia({ prefix: "/webhook" })
       };
 
       // Extract order information
-      const orderCode = webhookData.data?.orderCode || "TEST_ORDER_" + Date.now();
+      const orderCodeRaw = webhookData.data?.orderCode || "TEST_ORDER_" + Date.now();
+      const orderCode = orderCodeRaw.toString();
       const amount = webhookData.data?.amount || 2000;
       const description = webhookData.desc || "Test payment";
 
@@ -27,6 +28,7 @@ export const webhookReceiverController = new Elysia({ prefix: "/webhook" })
       const paymentType = isSuccess ? 'PAYMENT_SUCCESS' : 'PAYMENT_FAILED';
 
       console.log(`Processing test webhook for order: ${orderCode} - Type: ${paymentType}`);
+      console.log(`DEBUG: orderCode type: ${typeof orderCode}, value: "${orderCode}"`);
 
       // Get transaction from MongoDB to retrieve subscription ID
       const transaction = await mongoDBHandler.getTransactionByOrderCode(orderCode);

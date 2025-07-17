@@ -21,7 +21,8 @@ export const paymentController = new Elysia({ prefix: "/payment" })
           data: webhookData
         };
       }
-
+      const orderCode = webhookData.orderCode.toString();
+      console.log(`DEBUG: Webhook orderCode type: ${typeof orderCode}, value: "${orderCode}"`);
       // Get transaction from MongoDB to retrieve subscription ID
       const transaction = await mongoDBHandler.getTransactionByOrderCode(webhookData.orderCode.toString());
       const subscriptionId = transaction?.subscriptionID || null;
