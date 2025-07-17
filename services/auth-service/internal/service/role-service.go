@@ -170,7 +170,9 @@ func (s *RoleService) CreateDefaultRoles(ctx context.Context) error {
 
 		permissionNames := make([]string, len(allPermissions))
 		for i, p := range allPermissions {
-			permissionNames[i] = p.Name
+			if strings.Contains(p.Name, "admin") {
+				permissionNames[i] = p.Name
+			}
 		}
 
 		_, err = s.CreateRole(ctx, "admin", "Administrator with all permissions", permissionNames, true)

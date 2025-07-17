@@ -670,7 +670,8 @@ func (c *EventConsumer) assignRoleToUser(ctx context.Context, event *Subscriptio
 	}
 
 	// Check if user already has this role
-	existingUserRoles, err := c.userRoleRepo.FindByUserID(ctx, userObjectID)
+	var scopeID bson.ObjectID
+	existingUserRoles, err := c.userRoleRepo.FindByUserIDAndScope(ctx, userObjectID, "", scopeID)
 	if err != nil {
 		return fmt.Errorf("failed to get existing user roles: %w", err)
 	}
