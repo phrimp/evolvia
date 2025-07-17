@@ -35,7 +35,7 @@ export const orderController = new Elysia({ prefix: "/order" })
       description,
       cancelUrl,
       returnUrl,
-      expiredAt: Math.floor((Date.now() + 60 * 1000) / 1000), // 1 minute from now (Unix timestamp)
+      expiredAt: Math.floor((Date.now() + 60 * 15 * 1000) / 1000), // 15 minute from now (Unix timestamp)
     };
 
     console.log("Order data prepared:", orderData);
