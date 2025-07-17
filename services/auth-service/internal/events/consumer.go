@@ -62,7 +62,7 @@ func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRep
 			redisRepo:      redisRepo,
 			userRepo:       userRepo,
 			roleRepo:       roleRepo,
-			userRoleRepo:   userRoleRepo,
+			userRoleRepo:   userRoleRepo, // ✅ Added this line
 			permissionRepo: permissionRepo,
 			eventPublisher: eventPublisher,
 			shutdown:       make(chan struct{}),
@@ -102,6 +102,7 @@ func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRep
 		redisRepo:      redisRepo,
 		userRepo:       userRepo,
 		roleRepo:       roleRepo,
+		userRoleRepo:   userRoleRepo, // ✅ Added this line
 		permissionRepo: permissionRepo,
 		eventPublisher: eventPublisher,
 		shutdown:       make(chan struct{}),
