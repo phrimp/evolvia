@@ -48,61 +48,6 @@ var default_permissions []*models.Permission = []*models.Permission{
 	{Name: "read:billing:analytics", Description: "Read Permission for Billing Analytics", Category: "billing", IsSystem: false},
 	{Name: "process:billing:operations", Description: "Process Billing Operations (trial expirations, etc.)", Category: "billing", IsSystem: false},
 
-	// Advanced analytics permissions
-	{Name: "read:billing:analytics:advanced", Description: "Read Permission for Advanced Billing Analytics", Category: "billing", IsSystem: false},
-	{Name: "read:billing:analytics:financial", Description: "Read Permission for Financial Analytics (MRR, ARR, LTV)", Category: "billing", IsSystem: false},
-	{Name: "read:billing:analytics:users", Description: "Read Permission for User Analytics and Metrics", Category: "billing", IsSystem: false},
-	{Name: "read:billing:analytics:revenue", Description: "Read Permission for Revenue Analytics and Forecasting", Category: "billing", IsSystem: false},
-	{Name: "read:billing:analytics:trends", Description: "Read Permission for Subscription Trends and Historical Data", Category: "billing", IsSystem: false},
-	{Name: "read:billing:analytics:cohort", Description: "Read Permission for Cohort Analysis and Customer Behavior", Category: "billing", IsSystem: false},
-	{Name: "read:billing:analytics:geographic", Description: "Read Permission for Geographic Analytics", Category: "billing", IsSystem: false},
-	{Name: "read:billing:analytics:performance", Description: "Read Permission for Performance Metrics and KPIs", Category: "billing", IsSystem: false},
-
-	// Export and reporting permissions
-	{Name: "export:billing:data", Description: "Export Billing Data to various formats", Category: "billing", IsSystem: false},
-	{Name: "export:billing:analytics", Description: "Export Analytics Reports and Data", Category: "billing", IsSystem: false},
-	{Name: "export:billing:financial", Description: "Export Financial Reports", Category: "billing", IsSystem: false},
-
-	// Billing administration permissions
-	{Name: "billing:admin", Description: "Full Administrative Access to Billing System", Category: "billing", IsSystem: false},
-	{Name: "billing:manager", Description: "Manager-level Access to Billing Operations", Category: "billing", IsSystem: false},
-	{Name: "billing:analyst", Description: "Analyst Access to Billing Data and Reports", Category: "billing", IsSystem: false},
-
-	// Profile-specific permissions
-	{Name: "read:profile", Description: "Read Permission for Profile resources", Category: "profile", IsSystem: false},
-	{Name: "read:profile:all", Description: "Read All Permission for Profile resources", Category: "profile", IsSystem: false},
-	{Name: "write:profile", Description: "Write Permission for Profile resources", Category: "profile", IsSystem: false},
-	{Name: "update:profile", Description: "Update Permission for Profile resources", Category: "profile", IsSystem: false},
-	{Name: "delete:profile", Description: "Delete Permission for Profile resources", Category: "profile", IsSystem: false},
-	{Name: "search:profile", Description: "Search Permission for Profile resources", Category: "profile", IsSystem: false},
-	{Name: "read:profile:analytics", Description: "Read Permission for Profile Analytics", Category: "profile", IsSystem: false},
-
-	// Object service specific permissions
-	{Name: "read:object", Description: "Read Permission for Object resources", Category: "object", IsSystem: false},
-	{Name: "read:object:all", Description: "Read All Permission for Object resources", Category: "object", IsSystem: false},
-	{Name: "write:object", Description: "Write Permission for Object resources", Category: "object", IsSystem: false},
-	{Name: "update:object", Description: "Update Permission for Object resources", Category: "object", IsSystem: false},
-	{Name: "delete:object", Description: "Delete Permission for Object resources", Category: "object", IsSystem: false},
-	{Name: "search:object", Description: "Search Permission for Object resources", Category: "object", IsSystem: false},
-
-	// Skill management permissions
-	{Name: "read:skill", Description: "Read Permission for Skills", Category: "skill", IsSystem: false},
-	{Name: "read:skill:all", Description: "Read All Permission for Skills", Category: "skill", IsSystem: false},
-	{Name: "write:skill", Description: "Write Permission for Skills", Category: "skill", IsSystem: false},
-	{Name: "update:skill", Description: "Update Permission for Skills", Category: "skill", IsSystem: false},
-	{Name: "delete:skill", Description: "Delete Permission for Skills", Category: "skill", IsSystem: false},
-	{Name: "admin:skill", Description: "Admin Permission for Skills (full access)", Category: "skill", IsSystem: false},
-
-	// User skill management permissions
-	{Name: "read:user-skill", Description: "Read Permission for User Skills", Category: "user-skill", IsSystem: false},
-	{Name: "read:user-skill:all", Description: "Read All Permission for User Skills", Category: "user-skill", IsSystem: false},
-	{Name: "write:user-skill", Description: "Write Permission for User Skills", Category: "user-skill", IsSystem: false},
-	{Name: "update:user-skill", Description: "Update Permission for User Skills", Category: "user-skill", IsSystem: false},
-	{Name: "delete:user-skill", Description: "Delete Permission for User Skills", Category: "user-skill", IsSystem: false},
-	{Name: "endorse:user-skill", Description: "Endorse User Skills", Category: "user-skill", IsSystem: false},
-	{Name: "verify:user-skill", Description: "Verify User Skills", Category: "user-skill", IsSystem: false},
-	{Name: "admin:user-skill", Description: "Admin Permission for User Skills (full access)", Category: "user-skill", IsSystem: false},
-
 	// Knowledge analytics permissions
 	{Name: "read:knowledge:analytics", Description: "Read Permission for Knowledge Analytics", Category: "knowledge", IsSystem: false},
 	{Name: "read:knowledge:dashboard", Description: "Read Permission for Knowledge Dashboard", Category: "knowledge", IsSystem: false},
