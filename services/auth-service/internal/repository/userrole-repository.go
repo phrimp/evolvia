@@ -23,6 +23,11 @@ func NewUserRoleRepository(db *mongo.Database) *UserRoleRepository {
 }
 
 func (r *UserRoleRepository) Create(ctx context.Context, userRole *models.UserRole) (*models.UserRole, error) {
+	// Check if collection is nil
+	if r.collection == nil {
+		return nil, fmt.Errorf("collection is nil")
+	}
+
 	filter := bson.M{
 		"userId": userRole.UserID,
 		"roleId": userRole.RoleID,
@@ -65,6 +70,10 @@ func (r *UserRoleRepository) Create(ctx context.Context, userRole *models.UserRo
 }
 
 func (r *UserRoleRepository) Update(ctx context.Context, userRole *models.UserRole) error {
+	if r.collection == nil {
+		return fmt.Errorf("collection is nil")
+	}
+
 	filter := bson.M{"_id": userRole.ID}
 	_, err := r.collection.UpdateOne(ctx, filter, bson.M{"$set": userRole})
 	if err != nil {
@@ -74,6 +83,10 @@ func (r *UserRoleRepository) Update(ctx context.Context, userRole *models.UserRo
 }
 
 func (r *UserRoleRepository) Delete(ctx context.Context, id bson.ObjectID) error {
+	if r.collection == nil {
+		return fmt.Errorf("collection is nil")
+	}
+
 	filter := bson.M{"_id": id}
 	_, err := r.collection.DeleteOne(ctx, filter)
 	if err != nil {
@@ -83,6 +96,10 @@ func (r *UserRoleRepository) Delete(ctx context.Context, id bson.ObjectID) error
 }
 
 func (r *UserRoleRepository) FindByID(ctx context.Context, id bson.ObjectID) (*models.UserRole, error) {
+	if r.collection == nil {
+		return nil, fmt.Errorf("collection is nil")
+	}
+
 	var userRole models.UserRole
 	err := r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&userRole)
 	if err != nil {
@@ -95,6 +112,11 @@ func (r *UserRoleRepository) FindByID(ctx context.Context, id bson.ObjectID) (*m
 }
 
 func (r *UserRoleRepository) FindByUserID(ctx context.Context, userID bson.ObjectID) ([]*models.UserRole, error) {
+	// Check if collection is nil
+	if r.collection == nil {
+		return nil, fmt.Errorf("collection is nil")
+	}
+
 	filter := bson.M{"userId": userID, "isActive": true}
 
 	currentTime := int(time.Now().Unix())
@@ -112,19 +134,34 @@ func (r *UserRoleRepository) FindByUserID(ctx context.Context, userID bson.Objec
 
 	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error finding user roles: %w", err)
 	}
-	defer cursor.Close(ctx)
+
+	// Critical: Check if cursor is nil before using it
+	if cursor == nil {
+		return nil, fmt.Errorf("cursor is nil")
+	}
+
+	defer func() {
+		if cursor != nil {
+			cursor.Close(ctx)
+		}
+	}()
 
 	var userRoles []*models.UserRole
 	if err = cursor.All(ctx, &userRoles); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error decoding user roles: %w", err)
 	}
 
 	return userRoles, nil
 }
 
 func (r *UserRoleRepository) FindByUserIDAndScope(ctx context.Context, userID bson.ObjectID, scopeType string, scopeID bson.ObjectID) ([]*models.UserRole, error) {
+	// Check if collection is nil
+	if r.collection == nil {
+		return nil, fmt.Errorf("collection is nil")
+	}
+
 	filter := bson.M{
 		"userId":   userID,
 		"isActive": true,
@@ -143,19 +180,34 @@ func (r *UserRoleRepository) FindByUserIDAndScope(ctx context.Context, userID bs
 
 	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error finding user roles by scope: %w", err)
 	}
-	defer cursor.Close(ctx)
+
+	// Critical: Check if cursor is nil before using it
+	if cursor == nil {
+		return nil, fmt.Errorf("cursor is nil")
+	}
+
+	defer func() {
+		if cursor != nil {
+			cursor.Close(ctx)
+		}
+	}()
 
 	var userRoles []*models.UserRole
 	if err = cursor.All(ctx, &userRoles); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error decoding user roles: %w", err)
 	}
 
 	return userRoles, nil
 }
 
 func (r *UserRoleRepository) FindUsersWithRole(ctx context.Context, roleID bson.ObjectID, page, limit int) ([]bson.ObjectID, error) {
+	// Check if collection is nil
+	if r.collection == nil {
+		return nil, fmt.Errorf("collection is nil")
+	}
+
 	filter := bson.M{"roleId": roleID, "isActive": true}
 
 	opts := options.Find()
@@ -168,15 +220,25 @@ func (r *UserRoleRepository) FindUsersWithRole(ctx context.Context, roleID bson.
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error finding users with role: %w", err)
 	}
-	defer cursor.Close(ctx)
+
+	// Critical: Check if cursor is nil before using it
+	if cursor == nil {
+		return nil, fmt.Errorf("cursor is nil")
+	}
+
+	defer func() {
+		if cursor != nil {
+			cursor.Close(ctx)
+		}
+	}()
 
 	var results []struct {
 		UserID bson.ObjectID `bson:"userId"`
 	}
 	if err = cursor.All(ctx, &results); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error decoding users with role: %w", err)
 	}
 
 	userIDs := make([]bson.ObjectID, len(results))
@@ -188,6 +250,10 @@ func (r *UserRoleRepository) FindUsersWithRole(ctx context.Context, roleID bson.
 }
 
 func (r *UserRoleRepository) Deactivate(ctx context.Context, id bson.ObjectID) error {
+	if r.collection == nil {
+		return fmt.Errorf("collection is nil")
+	}
+
 	filter := bson.M{"_id": id}
 	update := bson.M{"$set": bson.M{"isActive": false}}
 	_, err := r.collection.UpdateOne(ctx, filter, update)
@@ -198,6 +264,10 @@ func (r *UserRoleRepository) Deactivate(ctx context.Context, id bson.ObjectID) e
 }
 
 func (r *UserRoleRepository) DeactivateUserRoles(ctx context.Context, userID bson.ObjectID) error {
+	if r.collection == nil {
+		return fmt.Errorf("collection is nil")
+	}
+
 	filter := bson.M{"userId": userID, "isActive": true}
 	update := bson.M{"$set": bson.M{"isActive": false}}
 	_, err := r.collection.UpdateMany(ctx, filter, update)
