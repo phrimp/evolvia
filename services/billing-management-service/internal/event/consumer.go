@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/rabbitmq/amqp091-go"
@@ -34,7 +33,7 @@ type EventConsumer struct {
 
 type PaymentEventData struct {
 	Type           string  `json:"type"`
-	OrderCode      int     `json:"orderCode"`
+	OrderCode      string  `json:"orderCode"`
 	SubscriptionID string  `json:"subscription_id"`
 	Amount         float64 `json:"amount"`
 	Description    string  `json:"description"`
@@ -217,7 +216,7 @@ func (c *EventConsumer) handlePaymentEvent(body []byte) error {
 func (c *EventConsumer) handlePaymentSuccess(ctx context.Context, subscriptionID bson.ObjectID, event PaymentEventData) error {
 	log.Printf("Handling payment success for subscription: %s", subscriptionID.Hex())
 
-	err := c.paymentHandler.HandlePaymentSuccess(ctx, subscriptionID, strconv.Itoa(event.OrderCode))
+	err := c.paymentHandler.HandlePaymentSuccess(ctx, subscriptionID, event.OrderCode)
 	if err != nil {
 		return fmt.Errorf("failed to handle payment success: %w", err)
 	}
@@ -229,7 +228,7 @@ func (c *EventConsumer) handlePaymentSuccess(ctx context.Context, subscriptionID
 func (c *EventConsumer) handlePaymentFailed(ctx context.Context, subscriptionID bson.ObjectID, event PaymentEventData) error {
 	log.Printf("Handling payment failed for subscription: %s", subscriptionID.Hex())
 
-	err := c.paymentHandler.HandlePaymentFailed(ctx, subscriptionID, strconv.Itoa(event.OrderCode))
+	err := c.paymentHandler.HandlePaymentFailed(ctx, subscriptionID, event.OrderCode)
 	if err != nil {
 		return fmt.Errorf("failed to handle payment failed: %w", err)
 	}
@@ -241,7 +240,7 @@ func (c *EventConsumer) handlePaymentFailed(ctx context.Context, subscriptionID 
 func (c *EventConsumer) handlePaymentCancelled(ctx context.Context, subscriptionID bson.ObjectID, event PaymentEventData) error {
 	log.Printf("Handling payment cancelled for subscription: %s", subscriptionID.Hex())
 
-	err := c.paymentHandler.HandlePaymentCancelled(ctx, subscriptionID, strconv.Itoa(event.OrderCode))
+	err := c.paymentHandler.HandlePaymentCancelled(ctx, subscriptionID, event.OrderCode)
 	if err != nil {
 		return fmt.Errorf("failed to handle payment cancelled: %w", err)
 	}
@@ -253,7 +252,7 @@ func (c *EventConsumer) handlePaymentCancelled(ctx context.Context, subscription
 func (c *EventConsumer) handlePaymentTimeout(ctx context.Context, subscriptionID bson.ObjectID, event PaymentEventData) error {
 	log.Printf("Handling payment timeout for subscription: %s", subscriptionID.Hex())
 
-	err := c.paymentHandler.HandlePaymentTimeout(ctx, subscriptionID, strconv.Itoa(event.OrderCode))
+	err := c.paymentHandler.HandlePaymentTimeout(ctx, subscriptionID, event.OrderCode)
 	if err != nil {
 		return fmt.Errorf("failed to handle payment timeout: %w", err)
 	}
