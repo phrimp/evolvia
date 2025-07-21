@@ -165,7 +165,7 @@ func (r *AnalyticsRepository) GetRevenueMetrics(ctx context.Context) (*models.Re
 		metrics.MonthlyRevenue = result["monthlyRevenue"].(float64)
 		metrics.YearlyRevenue = result["yearlyRevenue"].(float64)
 		metrics.AveragePrice = result["avgPrice"].(float64)
-		subscriberCount := result["subscriberCount"].(int64)
+		subscriberCount := result["subscriberCount"].(int32)
 
 		if subscriberCount > 0 {
 			metrics.AverageRevenuePerUser = metrics.MonthlyRevenue / float64(subscriberCount)
