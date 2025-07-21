@@ -62,7 +62,7 @@ type SubscriptionTrends struct {
 
 type TrendData struct {
 	Period interface{} `json:"period"` // Could be different structures based on grouping
-	Count  int64       `json:"count"`
+	Count  int32       `json:"count"`
 	Date   string      `json:"date,omitempty"` // Formatted date string for frontend
 }
 

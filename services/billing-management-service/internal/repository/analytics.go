@@ -241,7 +241,7 @@ func (r *AnalyticsRepository) GetSubscriptionTrends(ctx context.Context, period 
 	for i, result := range results {
 		trends.Data[i] = models.TrendData{
 			Period: result["_id"],
-			Count:  result["count"].(int64),
+			Count:  result["count"].(int32),
 		}
 	}
 
