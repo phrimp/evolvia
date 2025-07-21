@@ -58,6 +58,47 @@ func toFloat64(v interface{}) float64 {
 	}
 }
 
+// Helper function to convert bson.D to bson.M
+func bsonDToM(d bson.D) bson.M {
+	m := make(bson.M)
+	for _, elem := range d {
+		m[elem.Key] = elem.Value
+	}
+	return m
+}
+
+// Helper function to safely convert interface{} to bson.M
+func toBsonM(v interface{}) bson.M {
+	switch val := v.(type) {
+	case bson.M:
+		return val
+	case bson.D:
+		return bsonDToM(val)
+	default:
+		return bson.M{}
+	}
+}
+
+// Helper function to safely get string from bson.M
+func getBsonString(m bson.M, key string) string {
+	if val, ok := m[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+// Helper function to safely get ObjectID from bson.M
+func getBsonObjectID(m bson.M, key string) bson.ObjectID {
+	if val, ok := m[key]; ok {
+		if oid, ok := val.(bson.ObjectID); ok {
+			return oid
+		}
+	}
+	return bson.ObjectID{}
+}
+
 // GetUserMetrics returns user-related metrics
 func (r *AnalyticsRepository) GetUserMetrics(ctx context.Context) (*models.UserMetrics, error) {
 	pipeline := []bson.M{
@@ -341,7 +382,7 @@ func (r *AnalyticsRepository) GetPlanPopularity(ctx context.Context) (*models.Pl
 	}
 
 	for i, result := range results {
-		planData := result["_id"].(bson.M)
+		planData := toBsonM(result["_id"])
 		subscriberCount := toInt64(result["subscriberCount"])
 
 		percentage := float64(0)
@@ -349,11 +390,16 @@ func (r *AnalyticsRepository) GetPlanPopularity(ctx context.Context) (*models.Pl
 			percentage = float64(subscriberCount) / float64(totalSubscribers) * 100
 		}
 
+		planID := getBsonObjectID(planData, "planId")
+		planName := getBsonString(planData, "planName")
+		planType := getBsonString(planData, "planType")
+		price := toFloat64(planData["price"])
+
 		popularity.Plans[i] = models.PlanStatistics{
-			PlanID:          planData["planId"].(bson.ObjectID).Hex(),
-			PlanName:        planData["planName"].(string),
-			PlanType:        models.PlanType(planData["planType"].(string)),
-			Price:           toFloat64(planData["price"]),
+			PlanID:          planID.Hex(),
+			PlanName:        planName,
+			PlanType:        models.PlanType(planType),
+			Price:           price,
 			SubscriberCount: subscriberCount,
 			Revenue:         toFloat64(result["revenue"]),
 			Percentage:      percentage,
