@@ -22,6 +22,42 @@ func NewAnalyticsRepository(db *mongo.Database) *AnalyticsRepository {
 	}
 }
 
+// Helper function to safely convert interface{} to int64
+func toInt64(v interface{}) int64 {
+	switch val := v.(type) {
+	case int64:
+		return val
+	case int32:
+		return int64(val)
+	case int:
+		return int64(val)
+	case float64:
+		return int64(val)
+	case float32:
+		return int64(val)
+	default:
+		return 0
+	}
+}
+
+// Helper function to safely convert interface{} to float64
+func toFloat64(v interface{}) float64 {
+	switch val := v.(type) {
+	case float64:
+		return val
+	case float32:
+		return float64(val)
+	case int64:
+		return float64(val)
+	case int32:
+		return float64(val)
+	case int:
+		return float64(val)
+	default:
+		return 0.0
+	}
+}
+
 // GetUserMetrics returns user-related metrics
 func (r *AnalyticsRepository) GetUserMetrics(ctx context.Context) (*models.UserMetrics, error) {
 	pipeline := []bson.M{
@@ -60,7 +96,7 @@ func (r *AnalyticsRepository) GetUserMetrics(ctx context.Context) (*models.UserM
 		// Total users
 		if totalUsers, ok := result["totalUsers"].([]interface{}); ok && len(totalUsers) > 0 {
 			if userData, ok := totalUsers[0].(bson.M); ok {
-				metrics.TotalUsers = userData["count"].(int64)
+				metrics.TotalUsers = toInt64(userData["count"])
 			}
 		}
 
@@ -69,7 +105,7 @@ func (r *AnalyticsRepository) GetUserMetrics(ctx context.Context) (*models.UserM
 			for _, item := range statusData {
 				if statusItem, ok := item.(bson.M); ok {
 					status := statusItem["_id"].(string)
-					count := statusItem["count"].(int64)
+					count := toInt64(statusItem["count"])
 
 					switch models.SubscriptionStatus(status) {
 					case models.SubscriptionStatusActive:
@@ -161,11 +197,11 @@ func (r *AnalyticsRepository) GetRevenueMetrics(ctx context.Context) (*models.Re
 
 	if len(results) > 0 {
 		result := results[0]
-		metrics.TotalRevenue = result["totalRevenue"].(float64)
-		metrics.MonthlyRevenue = result["monthlyRevenue"].(float64)
-		metrics.YearlyRevenue = result["yearlyRevenue"].(float64)
-		metrics.AveragePrice = result["avgPrice"].(float64)
-		subscriberCount := result["subscriberCount"].(int64)
+		metrics.TotalRevenue = toFloat64(result["totalRevenue"])
+		metrics.MonthlyRevenue = toFloat64(result["monthlyRevenue"])
+		metrics.YearlyRevenue = toFloat64(result["yearlyRevenue"])
+		metrics.AveragePrice = toFloat64(result["avgPrice"])
+		subscriberCount := toInt64(result["subscriberCount"])
 
 		if subscriberCount > 0 {
 			metrics.AverageRevenuePerUser = metrics.MonthlyRevenue / float64(subscriberCount)
@@ -241,7 +277,7 @@ func (r *AnalyticsRepository) GetSubscriptionTrends(ctx context.Context, period 
 	for i, result := range results {
 		trends.Data[i] = models.TrendData{
 			Period: result["_id"],
-			Count:  result["count"].(int64),
+			Count:  toInt64(result["count"]),
 		}
 	}
 
@@ -301,12 +337,12 @@ func (r *AnalyticsRepository) GetPlanPopularity(ctx context.Context) (*models.Pl
 
 	var totalSubscribers int64
 	for _, result := range results {
-		totalSubscribers += result["subscriberCount"].(int64)
+		totalSubscribers += toInt64(result["subscriberCount"])
 	}
 
 	for i, result := range results {
 		planData := result["_id"].(bson.M)
-		subscriberCount := result["subscriberCount"].(int64)
+		subscriberCount := toInt64(result["subscriberCount"])
 
 		percentage := float64(0)
 		if totalSubscribers > 0 {
@@ -317,9 +353,9 @@ func (r *AnalyticsRepository) GetPlanPopularity(ctx context.Context) (*models.Pl
 			PlanID:          planData["planId"].(bson.ObjectID).Hex(),
 			PlanName:        planData["planName"].(string),
 			PlanType:        models.PlanType(planData["planType"].(string)),
-			Price:           planData["price"].(float64),
+			Price:           toFloat64(planData["price"]),
 			SubscriberCount: subscriberCount,
-			Revenue:         result["revenue"].(float64),
+			Revenue:         toFloat64(result["revenue"]),
 			Percentage:      percentage,
 		}
 	}
@@ -394,19 +430,19 @@ func (r *AnalyticsRepository) GetRealTimeMetrics(ctx context.Context) (*models.R
 
 		if today, ok := result["today"].([]interface{}); ok && len(today) > 0 {
 			if todayData, ok := today[0].(bson.M); ok {
-				metrics.NewSubscriptionsToday = todayData["count"].(int64)
+				metrics.NewSubscriptionsToday = toInt64(todayData["count"])
 			}
 		}
 
 		if thisWeek, ok := result["thisWeek"].([]interface{}); ok && len(thisWeek) > 0 {
 			if weekData, ok := thisWeek[0].(bson.M); ok {
-				metrics.NewSubscriptionsThisWeek = weekData["count"].(int64)
+				metrics.NewSubscriptionsThisWeek = toInt64(weekData["count"])
 			}
 		}
 
 		if activeNow, ok := result["activeNow"].([]interface{}); ok && len(activeNow) > 0 {
 			if activeData, ok := activeNow[0].(bson.M); ok {
-				metrics.ActiveSubscriptions = activeData["count"].(int64)
+				metrics.ActiveSubscriptions = toInt64(activeData["count"])
 			}
 		}
 	}
