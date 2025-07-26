@@ -31,7 +31,7 @@ func (h *UserSkillHandler) RegisterRoutes(app *fiber.App) {
 	protectedGroup := app.Group("/protected/user-skills")
 
 	// User skill CRUD operations - require specific permissions
-	protectedGroup.Post("/", h.AddUserSkill, utils.PermissionRequired(middleware.WriteUserSkillPermission))
+	protectedGroup.Post("/", h.AddUserSkill)
 	protectedGroup.Get("/user/:userID", h.GetUserSkills, utils.OwnerPermissionRequired(""))
 	protectedGroup.Get("/user/:userID/skill/:skillID", h.GetUserSkill, utils.OwnerPermissionRequired(""))
 	protectedGroup.Put("/user/:userID/skill/:skillID", h.UpdateUserSkill, utils.OwnerPermissionRequired(""))
@@ -39,7 +39,7 @@ func (h *UserSkillHandler) RegisterRoutes(app *fiber.App) {
 
 	// User skill management operations
 	protectedGroup.Patch("/user/:userID/skill/:skillID/last-used", h.UpdateLastUsed, utils.OwnerPermissionRequired(""))
-	protectedGroup.Patch("/user/:userID/skill/:skillID/endorse", h.EndorseUserSkill, utils.PermissionRequired(middleware.EndorseUserSkillPermission))
+	protectedGroup.Patch("/user/:userID/skill/:skillID/endorse", h.EndorseUserSkill)
 	protectedGroup.Patch("/user/:userID/skill/:skillID/verify", h.VerifyUserSkill, utils.RequireAnyPermission(middleware.AdminPermission, middleware.ManagerPermission, middleware.VerifyUserSkillPermission))
 
 	// Query operations - require read permissions
