@@ -32,28 +32,28 @@ func (h *UserSkillHandler) RegisterRoutes(app *fiber.App) {
 
 	// User skill CRUD operations - require specific permissions
 	protectedGroup.Post("/", h.AddUserSkill)
-	protectedGroup.Get("/user/:userID", h.GetUserSkills, utils.OwnerPermissionRequired(""))
-	protectedGroup.Get("/user/:userID/skill/:skillID", h.GetUserSkill, utils.OwnerPermissionRequired(""))
-	protectedGroup.Put("/user/:userID/skill/:skillID", h.UpdateUserSkill, utils.OwnerPermissionRequired(""))
-	protectedGroup.Delete("/user/:userID/skill/:skillID", h.RemoveUserSkill, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userId", h.GetUserSkills, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userId/skill/:skillID", h.GetUserSkill, utils.OwnerPermissionRequired(""))
+	protectedGroup.Put("/user/:userId/skill/:skillID", h.UpdateUserSkill, utils.OwnerPermissionRequired(""))
+	protectedGroup.Delete("/user/:userId/skill/:skillID", h.RemoveUserSkill, utils.OwnerPermissionRequired(""))
 
 	// User skill management operations
-	protectedGroup.Patch("/user/:userID/skill/:skillID/last-used", h.UpdateLastUsed, utils.OwnerPermissionRequired(""))
-	protectedGroup.Patch("/user/:userID/skill/:skillID/endorse", h.EndorseUserSkill)
-	protectedGroup.Patch("/user/:userID/skill/:skillID/verify", h.VerifyUserSkill, utils.RequireAnyPermission(middleware.AdminPermission, middleware.ManagerPermission, middleware.VerifyUserSkillPermission))
+	protectedGroup.Patch("/user/:userId/skill/:skillID/last-used", h.UpdateLastUsed, utils.OwnerPermissionRequired(""))
+	protectedGroup.Patch("/user/:userId/skill/:skillID/endorse", h.EndorseUserSkill)
+	protectedGroup.Patch("/user/:userId/skill/:skillID/verify", h.VerifyUserSkill, utils.RequireAnyPermission(middleware.AdminPermission, middleware.ManagerPermission, middleware.VerifyUserSkillPermission))
 
 	// Query operations - require read permissions
 	protectedGroup.Get("/skill/:skillID/users", h.GetUsersWithSkill, utils.PermissionRequired(middleware.ReadUserSkillPermission))
 	protectedGroup.Get("/skill/:skillID/top-users", h.GetTopUsersForSkill, utils.PermissionRequired(middleware.ReadUserSkillPermission))
-	protectedGroup.Get("/user/:userID/matrix", h.GetUserSkillMatrix, utils.OwnerPermissionRequired(""))
-	protectedGroup.Get("/user/:userID/gaps/:targetSkillID", h.GetSkillGaps, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userId/matrix", h.GetUserSkillMatrix, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userId/gaps/:targetSkillID", h.GetSkillGaps, utils.OwnerPermissionRequired(""))
 
-	protectedGroup.Put("/user/:userID/skill/:skillID/blooms", h.UpdateBloomsAssessment, utils.OwnerPermissionRequired(""))
-	protectedGroup.Get("/user/:userID/skill/:skillID/blooms", h.GetBloomsAssessment, utils.OwnerPermissionRequired(""))
-	protectedGroup.Get("/user/:userID/blooms-analytics", h.GetBloomsAnalytics, utils.OwnerPermissionRequired(""))
-	protectedGroup.Get("/user/:userID/skill/:skillID/focus-area", h.GetRecommendedFocusArea, utils.OwnerPermissionRequired(""))
+	protectedGroup.Put("/user/:userId/skill/:skillID/blooms", h.UpdateBloomsAssessment, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userId/skill/:skillID/blooms", h.GetBloomsAssessment, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userId/blooms-analytics", h.GetBloomsAnalytics, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userId/skill/:skillID/focus-area", h.GetRecommendedFocusArea, utils.OwnerPermissionRequired(""))
 	protectedGroup.Get("/skill/:skillID/blooms-experts/:bloomsLevel", h.GetBloomsExperts, utils.PermissionRequired(middleware.ReadUserSkillPermission))
-	protectedGroup.Patch("/user/:userID/skill/:skillID/auto-level", h.UpdateSkillLevelFromBlooms, utils.OwnerPermissionRequired(""))
+	protectedGroup.Patch("/user/:userId/skill/:skillID/auto-level", h.UpdateSkillLevelFromBlooms, utils.OwnerPermissionRequired(""))
 
 	// Batch operations - require admin permissions
 	protectedGroup.Post("/batch", h.BatchAddUserSkills, utils.PermissionRequired(middleware.AdminUserSkillPermission))
@@ -118,16 +118,16 @@ func (h *UserSkillHandler) AddUserSkill(c fiber.Ctx) error {
 }
 
 func (h *UserSkillHandler) GetUserSkill(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
+	userIdStr := c.Params("userId")
 	skillIDStr := c.Params("skillID")
 
-	if userIDStr == "" || skillIDStr == "" {
+	if userIdStr == "" || skillIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID and Skill ID are required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -144,9 +144,9 @@ func (h *UserSkillHandler) GetUserSkill(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	userSkill, err := h.userSkillService.GetUserSkill(ctx, userID, skillID)
+	userSkill, err := h.userSkillService.GetUserSkill(ctx, userId, skillID)
 	if err != nil {
-		log.Printf("Failed to get user skill %s-%s: %v", userIDStr, skillIDStr, err)
+		log.Printf("Failed to get user skill %s-%s: %v", userIdStr, skillIDStr, err)
 
 		if strings.Contains(err.Error(), "not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -167,14 +167,14 @@ func (h *UserSkillHandler) GetUserSkill(c fiber.Ctx) error {
 }
 
 func (h *UserSkillHandler) GetUserSkills(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
-	if userIDStr == "" {
+	userIdStr := c.Params("userId")
+	if userIdStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID is required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -207,9 +207,9 @@ func (h *UserSkillHandler) GetUserSkills(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	userSkills, err := h.userSkillService.GetUserSkills(ctx, userID, opts)
+	userSkills, err := h.userSkillService.GetUserSkills(ctx, userId, opts)
 	if err != nil {
-		log.Printf("Failed to get user skills for %s: %v", userIDStr, err)
+		log.Printf("Failed to get user skills for %s: %v", userIdStr, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to retrieve user skills",
 		})
@@ -218,7 +218,7 @@ func (h *UserSkillHandler) GetUserSkills(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"data": fiber.Map{
 			"userSkills": userSkills,
-			"userID":     userID,
+			"userId":     userId,
 			"count":      len(userSkills),
 			"pagination": fiber.Map{
 				"limit":  limit,
@@ -294,16 +294,16 @@ func (h *UserSkillHandler) GetUsersWithSkill(c fiber.Ctx) error {
 }
 
 func (h *UserSkillHandler) UpdateUserSkill(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
+	userIdStr := c.Params("userId")
 	skillIDStr := c.Params("skillID")
 
-	if userIDStr == "" || skillIDStr == "" {
+	if userIdStr == "" || skillIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID and Skill ID are required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -328,9 +328,9 @@ func (h *UserSkillHandler) UpdateUserSkill(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	updatedUserSkill, err := h.userSkillService.UpdateUserSkill(ctx, userID, skillID, &updates)
+	updatedUserSkill, err := h.userSkillService.UpdateUserSkill(ctx, userId, skillID, &updates)
 	if err != nil {
-		log.Printf("Failed to update user skill %s-%s: %v", userIDStr, skillIDStr, err)
+		log.Printf("Failed to update user skill %s-%s: %v", userIdStr, skillIDStr, err)
 
 		if strings.Contains(err.Error(), "not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -358,16 +358,16 @@ func (h *UserSkillHandler) UpdateUserSkill(c fiber.Ctx) error {
 }
 
 func (h *UserSkillHandler) RemoveUserSkill(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
+	userIdStr := c.Params("userId")
 	skillIDStr := c.Params("skillID")
 
-	if userIDStr == "" || skillIDStr == "" {
+	if userIdStr == "" || skillIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID and Skill ID are required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -384,9 +384,9 @@ func (h *UserSkillHandler) RemoveUserSkill(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	err = h.userSkillService.RemoveUserSkill(ctx, userID, skillID)
+	err = h.userSkillService.RemoveUserSkill(ctx, userId, skillID)
 	if err != nil {
-		log.Printf("Failed to remove user skill %s-%s: %v", userIDStr, skillIDStr, err)
+		log.Printf("Failed to remove user skill %s-%s: %v", userIdStr, skillIDStr, err)
 
 		if strings.Contains(err.Error(), "not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -405,16 +405,16 @@ func (h *UserSkillHandler) RemoveUserSkill(c fiber.Ctx) error {
 }
 
 func (h *UserSkillHandler) UpdateLastUsed(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
+	userIdStr := c.Params("userId")
 	skillIDStr := c.Params("skillID")
 
-	if userIDStr == "" || skillIDStr == "" {
+	if userIdStr == "" || skillIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID and Skill ID are required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -431,9 +431,9 @@ func (h *UserSkillHandler) UpdateLastUsed(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err = h.userSkillService.UpdateLastUsed(ctx, userID, skillID)
+	err = h.userSkillService.UpdateLastUsed(ctx, userId, skillID)
 	if err != nil {
-		log.Printf("Failed to update last used for user skill %s-%s: %v", userIDStr, skillIDStr, err)
+		log.Printf("Failed to update last used for user skill %s-%s: %v", userIdStr, skillIDStr, err)
 
 		if strings.Contains(err.Error(), "not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -452,16 +452,16 @@ func (h *UserSkillHandler) UpdateLastUsed(c fiber.Ctx) error {
 }
 
 func (h *UserSkillHandler) EndorseUserSkill(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
+	userIdStr := c.Params("userId")
 	skillIDStr := c.Params("skillID")
 
-	if userIDStr == "" || skillIDStr == "" {
+	if userIdStr == "" || skillIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID and Skill ID are required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -478,9 +478,9 @@ func (h *UserSkillHandler) EndorseUserSkill(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err = h.userSkillService.EndorseUserSkill(ctx, userID, skillID)
+	err = h.userSkillService.EndorseUserSkill(ctx, userId, skillID)
 	if err != nil {
-		log.Printf("Failed to endorse user skill %s-%s: %v", userIDStr, skillIDStr, err)
+		log.Printf("Failed to endorse user skill %s-%s: %v", userIdStr, skillIDStr, err)
 
 		if strings.Contains(err.Error(), "not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -499,16 +499,16 @@ func (h *UserSkillHandler) EndorseUserSkill(c fiber.Ctx) error {
 }
 
 func (h *UserSkillHandler) VerifyUserSkill(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
+	userIdStr := c.Params("userId")
 	skillIDStr := c.Params("skillID")
 
-	if userIDStr == "" || skillIDStr == "" {
+	if userIdStr == "" || skillIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID and Skill ID are required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -535,9 +535,9 @@ func (h *UserSkillHandler) VerifyUserSkill(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err = h.userSkillService.VerifyUserSkill(ctx, userID, skillID, req.Verified)
+	err = h.userSkillService.VerifyUserSkill(ctx, userId, skillID, req.Verified)
 	if err != nil {
-		log.Printf("Failed to verify user skill %s-%s: %v", userIDStr, skillIDStr, err)
+		log.Printf("Failed to verify user skill %s-%s: %v", userIdStr, skillIDStr, err)
 
 		if strings.Contains(err.Error(), "not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -603,14 +603,14 @@ func (h *UserSkillHandler) GetTopUsersForSkill(c fiber.Ctx) error {
 }
 
 func (h *UserSkillHandler) GetUserSkillMatrix(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
-	if userIDStr == "" {
+	userIdStr := c.Params("userId")
+	if userIdStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID is required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -620,9 +620,9 @@ func (h *UserSkillHandler) GetUserSkillMatrix(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	matrix, err := h.userSkillService.GetUserSkillMatrix(ctx, userID)
+	matrix, err := h.userSkillService.GetUserSkillMatrix(ctx, userId)
 	if err != nil {
-		log.Printf("Failed to get user skill matrix for %s: %v", userIDStr, err)
+		log.Printf("Failed to get user skill matrix for %s: %v", userIdStr, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to retrieve user skill matrix",
 		})
@@ -636,16 +636,16 @@ func (h *UserSkillHandler) GetUserSkillMatrix(c fiber.Ctx) error {
 }
 
 func (h *UserSkillHandler) GetSkillGaps(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
+	userIdStr := c.Params("userId")
 	targetSkillIDStr := c.Params("targetSkillID")
 
-	if userIDStr == "" || targetSkillIDStr == "" {
+	if userIdStr == "" || targetSkillIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID and Target Skill ID are required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -662,9 +662,9 @@ func (h *UserSkillHandler) GetSkillGaps(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	gaps, err := h.userSkillService.GetSkillGaps(ctx, userID, targetSkillID)
+	gaps, err := h.userSkillService.GetSkillGaps(ctx, userId, targetSkillID)
 	if err != nil {
-		log.Printf("Failed to get skill gaps for user %s target %s: %v", userIDStr, targetSkillIDStr, err)
+		log.Printf("Failed to get skill gaps for user %s target %s: %v", userIdStr, targetSkillIDStr, err)
 
 		if strings.Contains(err.Error(), "target skill not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -680,7 +680,7 @@ func (h *UserSkillHandler) GetSkillGaps(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"data": fiber.Map{
 			"gaps":          gaps,
-			"userID":        userID,
+			"userId":        userId,
 			"targetSkillID": targetSkillID,
 			"count":         len(gaps),
 		},
@@ -741,16 +741,16 @@ func (h *UserSkillHandler) BatchAddUserSkills(c fiber.Ctx) error {
 }
 
 func (h *UserSkillHandler) UpdateBloomsAssessment(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
+	userIdStr := c.Params("userId")
 	skillIDStr := c.Params("skillID")
 
-	if userIDStr == "" || skillIDStr == "" {
+	if userIdStr == "" || skillIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID and Skill ID are required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -774,9 +774,9 @@ func (h *UserSkillHandler) UpdateBloomsAssessment(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	err = h.userSkillService.UpdateBloomsAssessment(ctx, userID, skillID, &assessment)
+	err = h.userSkillService.UpdateBloomsAssessment(ctx, userId, skillID, &assessment)
 	if err != nil {
-		log.Printf("Failed to update Bloom's assessment for user %s skill %s: %v", userIDStr, skillIDStr, err)
+		log.Printf("Failed to update Bloom's assessment for user %s skill %s: %v", userIdStr, skillIDStr, err)
 
 		if strings.Contains(err.Error(), "not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -805,16 +805,16 @@ func (h *UserSkillHandler) UpdateBloomsAssessment(c fiber.Ctx) error {
 
 // GetBloomsAssessment retrieves Bloom's taxonomy scores for a user skill
 func (h *UserSkillHandler) GetBloomsAssessment(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
+	userIdStr := c.Params("userId")
 	skillIDStr := c.Params("skillID")
 
-	if userIDStr == "" || skillIDStr == "" {
+	if userIdStr == "" || skillIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID and Skill ID are required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -831,9 +831,9 @@ func (h *UserSkillHandler) GetBloomsAssessment(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	assessment, err := h.userSkillService.GetBloomsAssessment(ctx, userID, skillID)
+	assessment, err := h.userSkillService.GetBloomsAssessment(ctx, userId, skillID)
 	if err != nil {
-		log.Printf("Failed to get Bloom's assessment for user %s skill %s: %v", userIDStr, skillIDStr, err)
+		log.Printf("Failed to get Bloom's assessment for user %s skill %s: %v", userIdStr, skillIDStr, err)
 
 		if strings.Contains(err.Error(), "not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -858,14 +858,14 @@ func (h *UserSkillHandler) GetBloomsAssessment(c fiber.Ctx) error {
 
 // GetBloomsAnalytics retrieves aggregated Bloom's data for a user
 func (h *UserSkillHandler) GetBloomsAnalytics(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
-	if userIDStr == "" {
+	userIdStr := c.Params("userId")
+	if userIdStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID is required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -875,9 +875,9 @@ func (h *UserSkillHandler) GetBloomsAnalytics(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	analytics, err := h.userSkillService.GetBloomsAnalytics(ctx, userID)
+	analytics, err := h.userSkillService.GetBloomsAnalytics(ctx, userId)
 	if err != nil {
-		log.Printf("Failed to get Bloom's analytics for user %s: %v", userIDStr, err)
+		log.Printf("Failed to get Bloom's analytics for user %s: %v", userIdStr, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to retrieve Bloom's analytics",
 		})
@@ -892,16 +892,16 @@ func (h *UserSkillHandler) GetBloomsAnalytics(c fiber.Ctx) error {
 
 // GetRecommendedFocusArea suggests which Bloom's level to focus on next
 func (h *UserSkillHandler) GetRecommendedFocusArea(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
+	userIdStr := c.Params("userId")
 	skillIDStr := c.Params("skillID")
 
-	if userIDStr == "" || skillIDStr == "" {
+	if userIdStr == "" || skillIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID and Skill ID are required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -918,9 +918,9 @@ func (h *UserSkillHandler) GetRecommendedFocusArea(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	focusArea, err := h.userSkillService.GetRecommendedFocusArea(ctx, userID, skillID)
+	focusArea, err := h.userSkillService.GetRecommendedFocusArea(ctx, userId, skillID)
 	if err != nil {
-		log.Printf("Failed to get recommended focus area for user %s skill %s: %v", userIDStr, skillIDStr, err)
+		log.Printf("Failed to get recommended focus area for user %s skill %s: %v", userIdStr, skillIDStr, err)
 
 		if strings.Contains(err.Error(), "not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -1002,16 +1002,16 @@ func (h *UserSkillHandler) GetBloomsExperts(c fiber.Ctx) error {
 
 // UpdateSkillLevelFromBlooms automatically updates skill level based on Bloom's assessment
 func (h *UserSkillHandler) UpdateSkillLevelFromBlooms(c fiber.Ctx) error {
-	userIDStr := c.Params("userID")
+	userIdStr := c.Params("userId")
 	skillIDStr := c.Params("skillID")
 
-	if userIDStr == "" || skillIDStr == "" {
+	if userIdStr == "" || skillIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "User ID and Skill ID are required",
 		})
 	}
 
-	userID, err := bson.ObjectIDFromHex(userIDStr)
+	userId, err := bson.ObjectIDFromHex(userIdStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid user ID format",
@@ -1028,9 +1028,9 @@ func (h *UserSkillHandler) UpdateSkillLevelFromBlooms(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	err = h.userSkillService.UpdateSkillLevelFromBlooms(ctx, userID, skillID)
+	err = h.userSkillService.UpdateSkillLevelFromBlooms(ctx, userId, skillID)
 	if err != nil {
-		log.Printf("Failed to update skill level from Bloom's for user %s skill %s: %v", userIDStr, skillIDStr, err)
+		log.Printf("Failed to update skill level from Bloom's for user %s skill %s: %v", userIdStr, skillIDStr, err)
 
 		if strings.Contains(err.Error(), "not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
