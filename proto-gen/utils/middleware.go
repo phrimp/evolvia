@@ -66,10 +66,11 @@ func OwnerPermissionRequired(userID string) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		log.Println("Owner required function called from", c.IP(), "Calling", c.Method(), "Request", c.OriginalURL())
 
-		// Get userID from parameter if not provided
-		if userID == "" {
-			userID = c.Params("userId")
-			if userID == "" {
+		targetUserID := userID
+
+		if targetUserID == "" {
+			targetUserID = c.Params("userId")
+			if targetUserID == "" {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 					"error": "User ID is required",
 				})
@@ -82,7 +83,7 @@ func OwnerPermissionRequired(userID string) fiber.Handler {
 
 		if currentUserID != "" {
 			// Check if user is the owner
-			if currentUserID == userID {
+			if currentUserID == targetUserID {
 				hasPermission = true
 			} else {
 				// Check if user has elevated permissions
@@ -101,7 +102,7 @@ func OwnerPermissionRequired(userID string) fiber.Handler {
 
 		if !hasPermission {
 			log.Printf("Access denied for user [%s] trying to access resource for user [%s] with permissions [%s]",
-				currentUserID, userID, userPermissions)
+				currentUserID, targetUserID, userPermissions)
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "Access denied",
 			})
