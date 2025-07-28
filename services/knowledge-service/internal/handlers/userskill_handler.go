@@ -144,7 +144,8 @@ func (h *UserSkillHandler) GetUserSkill(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	userSkill, err := h.userSkillService.GetUserSkill(ctx, userId, skillID)
+	// Use the new method that includes skill details
+	userSkillWithDetails, err := h.userSkillService.GetUserSkillWithDetails(ctx, userId, skillID)
 	if err != nil {
 		log.Printf("Failed to get user skill %s-%s: %v", userIdStr, skillIDStr, err)
 
@@ -161,7 +162,7 @@ func (h *UserSkillHandler) GetUserSkill(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"data": fiber.Map{
-			"userSkill": userSkill,
+			"userSkill": userSkillWithDetails,
 		},
 	})
 }
@@ -207,7 +208,8 @@ func (h *UserSkillHandler) GetUserSkills(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	userSkills, err := h.userSkillService.GetUserSkills(ctx, userId, opts)
+	// Use the new method that includes skill details
+	userSkillsWithDetails, err := h.userSkillService.GetUserSkillsWithDetails(ctx, userId, opts)
 	if err != nil {
 		log.Printf("Failed to get user skills for %s: %v", userIdStr, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -217,9 +219,9 @@ func (h *UserSkillHandler) GetUserSkills(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"data": fiber.Map{
-			"userSkills": userSkills,
+			"userSkills": userSkillsWithDetails,
 			"userId":     userId,
-			"count":      len(userSkills),
+			"count":      len(userSkillsWithDetails),
 			"pagination": fiber.Map{
 				"limit":  limit,
 				"offset": offset,

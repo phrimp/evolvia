@@ -389,3 +389,10 @@ func GetSkillIndexes() []mongo.IndexModel {
 		},
 	}
 }
+
+type UserSkillWithDetails struct {
+	*UserSkill
+	SkillName        string   `json:"skill_name"`
+	SkillDescription string   `json:"skill_description,omitempty"`
+	SkillTags        []string `json:"skill_tags,omitempty"`
+}

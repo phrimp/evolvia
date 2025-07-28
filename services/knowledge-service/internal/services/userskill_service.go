@@ -585,3 +585,63 @@ func (s *UserSkillService) HasBloomsAssessment(ctx context.Context, userID, skil
 
 	return hasData, nil
 }
+
+func (s *UserSkillService) GetUserSkillsWithDetails(ctx context.Context, userID bson.ObjectID, opts repository.UserSkillListOptions) ([]*models.UserSkillWithDetails, error) {
+	userSkills, err := s.userSkillRepo.GetByUser(ctx, userID, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	var userSkillsWithDetails []*models.UserSkillWithDetails
+	for _, userSkill := range userSkills {
+		// Fetch skill details for each user skill
+		skill, err := s.skillRepo.GetByID(ctx, userSkill.SkillID)
+		if err != nil {
+			log.Printf("Failed to get skill details for skill %s: %v", userSkill.SkillID.Hex(), err)
+			continue // Skip this skill if we can't get details
+		}
+		if skill == nil {
+			log.Printf("Skill not found for ID %s", userSkill.SkillID.Hex())
+			continue
+		}
+
+		userSkillWithDetails := &models.UserSkillWithDetails{
+			UserSkill:        userSkill,
+			SkillName:        skill.Name,
+			SkillDescription: skill.Description,
+			SkillTags:        skill.Tags,
+		}
+		userSkillsWithDetails = append(userSkillsWithDetails, userSkillWithDetails)
+	}
+
+	return userSkillsWithDetails, nil
+}
+
+func (s *UserSkillService) GetUserSkillWithDetails(ctx context.Context, userID, skillID bson.ObjectID) (*models.UserSkillWithDetails, error) {
+	userSkill, err := s.userSkillRepo.GetByUserAndSkill(ctx, userID, skillID)
+	if err != nil {
+		return nil, err
+	}
+	if userSkill == nil {
+		return nil, fmt.Errorf("user skill not found")
+	}
+
+	// Fetch skill details
+	skill, err := s.skillRepo.GetByID(ctx, skillID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get skill details: %w", err)
+	}
+	if skill == nil {
+		return nil, fmt.Errorf("skill not found")
+	}
+
+	// Create enhanced response
+	userSkillWithDetails := &models.UserSkillWithDetails{
+		UserSkill:        userSkill,
+		SkillName:        skill.Name,
+		SkillDescription: skill.Description,
+		SkillTags:        skill.Tags,
+	}
+
+	return userSkillWithDetails, nil
+}
