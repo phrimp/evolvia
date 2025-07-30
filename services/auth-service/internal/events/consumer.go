@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"proto-gen/utils"
 	"sync"
 	"time"
 
@@ -342,48 +341,48 @@ func (c *EventConsumer) handleGoogleLogin(body []byte) error {
 
 	log.Printf("Google login event received: Email=%s", event.Email)
 
-	user, err := c.userRepo.FindByEmail(context.Background(), event.Email)
-	log.Println(err)
-	if user != nil || err != nil {
-		log.Printf("user Google login exist: no new user created; detail: %v", err)
-		return fmt.Errorf("user Google login exist: no new user created; detail: %v", err)
-	}
+	//user, err := c.userRepo.FindByEmail(context.Background(), event.Email)
+	//log.Println(err)
+	//if user != nil || err != nil {
+	//	log.Printf("user Google login exist: no new user created; detail: %v", err)
+	//	return fmt.Errorf("user Google login exist: no new user created; detail: %v", err)
+	//}
 
-	user = &models.UserAuth{
-		ID:              bson.NewObjectID(),
-		Username:        event.Email,
-		Email:           event.Email,
-		PasswordHash:    event.Email + utils.GenerateRandomStringWithLength(10),
-		IsActive:        true,
-		IsEmailVerified: true,
-		CreatedAt:       int(time.Now().Unix()),
-		UpdatedAt:       int(time.Now().Unix()),
-	}
-	log.Printf("New user init: %v", user)
+	//user = &models.UserAuth{
+	//	ID:              bson.NewObjectID(),
+	//	Username:        event.Email,
+	//	Email:           event.Email,
+	//	PasswordHash:    event.Email + utils.GenerateRandomStringWithLength(10),
+	//	IsActive:        true,
+	//	IsEmailVerified: true,
+	//	CreatedAt:       int(time.Now().Unix()),
+	//	UpdatedAt:       int(time.Now().Unix()),
+	//}
+	//log.Printf("New user init: %v", user)
 
-	_, err = c.userRepo.NewUser(context.Background(), user)
-	if err != nil {
-		log.Printf("error create new auth user: %v", err)
-		return fmt.Errorf("error create new auth user: %v", err)
-	}
-	profile := map[string]string{"fullname": event.Name, "locale": event.Locale, "avatar": event.Avatar}
-	log.Printf("new user created with profile: %v", profile)
+	//_, err = c.userRepo.NewUser(context.Background(), user)
+	//if err != nil {
+	//	log.Printf("error create new auth user: %v", err)
+	//	return fmt.Errorf("error create new auth user: %v", err)
+	//}
+	//profile := map[string]string{"fullname": event.Name, "locale": event.Locale, "avatar": event.Avatar}
+	//log.Printf("new user created with profile: %v", profile)
 
-	if c.eventPublisher != nil {
-		err := c.eventPublisher.PublishUserRegister(
-			context.Background(),
-			user.ID.Hex(),
-			user.Username,
-			user.Email,
-			profile,
-		)
-		if err != nil {
-			// Log the error but don't fail the registration
-			log.Printf("Warning: Failed to publish user created event: %v", err)
-		} else {
-			log.Printf("Published user created event for user: %s", user.Username)
-		}
-	}
+	//if c.eventPublisher != nil {
+	//	err := c.eventPublisher.PublishUserRegister(
+	//		context.Background(),
+	//		user.ID.Hex(),
+	//		user.Username,
+	//		user.Email,
+	//		profile,
+	//	)
+	//	if err != nil {
+	//		// Log the error but don't fail the registration
+	//		log.Printf("Warning: Failed to publish user created event: %v", err)
+	//	} else {
+	//		log.Printf("Published user created event for user: %s", user.Username)
+	//	}
+	//}
 
 	return nil
 }

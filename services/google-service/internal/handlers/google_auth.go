@@ -1,14 +1,21 @@
 package handlers
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"google-service/internal/config"
 	"google-service/internal/event"
+	"google-service/internal/models"
 	"google-service/internal/repository"
 	"google-service/internal/services"
+	"io"
 	"log"
+	"net/http"
+	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -81,7 +88,6 @@ func (h *AuthHandler) HandleGoogleCallback(c fiber.Ctx) error {
 
 	token, err := h.oauthService.Exchange(c.Context(), code)
 	if err != nil {
-
 		log.Printf("Token exchange error: %v\n", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":   "Failed to exchange token",
@@ -96,36 +102,153 @@ func (h *AuthHandler) HandleGoogleCallback(c fiber.Ctx) error {
 		})
 	}
 
+	// Store user token for future use
+	h.oauthService.StoreUserToken(userInfo.Email, token)
+
+	// Call auth service Google OAuth login endpoint
+	sessionToken, err := h.callGoogleOAuthLogin(c.Context(), userInfo)
+	if err != nil {
+		log.Printf("Google OAuth login failed: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to create session",
+		})
+	}
+
 	type User struct {
 		DisplayName string `json:"displayName"`
 		AvatarUrl   string `json:"avatar_url"`
 	}
 	basic_profile := User{DisplayName: userInfo.Name, AvatarUrl: userInfo.Picture}
 
-	h.oauthService.StoreUserToken(userInfo.Email, token)
-
-	//return c.Status(fiber.StatusOK).JSON(fiber.Map{
-	//	"message": "None",
-	//	"data": fiber.Map{
-	//		"basicProfile": basic_profile,
-	//	},
-	//})
-	userDataJSON, _ := json.Marshal(basic_profile)
-
+	// Publish Google login event
 	err = h.eventPublisher.PublishGoogleLogin(c.Context(), userInfo.Email, userInfo.Name, userInfo.Picture, userInfo.Locale)
 	if err != nil {
-		log.Printf("Error publishing event `google.login`: %v	", err)
+		log.Printf("Error publishing event `google.login`: %v", err)
 	}
 
-	c.Cookie(&fiber.Cookie{
-		Name:     "user",
-		Value:    string(userDataJSON),
-		Expires:  time.Now().Add(24 * time.Hour),
-		Secure:   true,
-		SameSite: "None",          // Required for cross-site cookies
-		Domain:   ".phrimp.io.vn", // Parent domain with leading dot
-	})
+	userDataJSON, _ := json.Marshal(basic_profile)
+
+	// Determine if production environment for secure cookies
+	isProduction := len(h.FE_Address) > 8 && h.FE_Address[:8] == "https://"
+
+	// Set session token cookie
+	tokenCookie := &fiber.Cookie{
+		Name:    "token",
+		Value:   sessionToken,
+		Path:    "/",
+		Expires: time.Now().Add(24 * time.Hour),
+		Domain:  ".phrimp.io.vn",
+	}
+
+	// Set user data cookie
+	userCookie := &fiber.Cookie{
+		Name:    "user",
+		Value:   string(userDataJSON),
+		Path:    "/",
+		Expires: time.Now().Add(24 * time.Hour),
+		Domain:  ".phrimp.io.vn",
+	}
+
+	if isProduction {
+		tokenCookie.SameSite = "None"
+		tokenCookie.Secure = true
+		userCookie.SameSite = "None"
+		userCookie.Secure = true
+	} else {
+		tokenCookie.SameSite = "Lax"
+		tokenCookie.Secure = false
+		userCookie.SameSite = "Lax"
+		userCookie.Secure = false
+	}
+
+	c.Cookie(tokenCookie)
+	c.Cookie(userCookie)
+
 	return c.Redirect().To(h.FE_Address)
+}
+
+// GoogleLoginRequest matches the auth service structure
+type GoogleLoginRequest struct {
+	Email    string            `json:"email"`
+	Name     string            `json:"name"`
+	Picture  string            `json:"picture"`
+	GoogleID string            `json:"google_id"`
+	Locale   string            `json:"locale"`
+	Profile  map[string]string `json:"profile"`
+}
+
+func (h *AuthHandler) callGoogleOAuthLogin(ctx context.Context, userInfo *models.GoogleUserInfo) (string, error) {
+	authServiceURL, err := h.getAuthServiceURL()
+	if err != nil {
+		return "", fmt.Errorf("failed to get auth service URL: %w", err)
+	}
+
+	// Create Google login request
+	loginRequest := GoogleLoginRequest{
+		Email:    userInfo.Email,
+		Name:     userInfo.Name,
+		Picture:  userInfo.Picture,
+		GoogleID: userInfo.ID,
+		Locale:   userInfo.Locale,
+		Profile: map[string]string{
+			"fullname":    userInfo.Name,
+			"given_name":  userInfo.GivenName,
+			"family_name": userInfo.FamilyName,
+			"avatar":      userInfo.Picture,
+			"locale":      userInfo.Locale,
+			"provider":    "google",
+			"google_id":   userInfo.ID,
+			"verified":    fmt.Sprintf("%t", userInfo.VerifiedEmail),
+		},
+	}
+
+	requestBody, err := json.Marshal(loginRequest)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal login request: %w", err)
+	}
+
+	// Create HTTP request with context timeout
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, "POST", authServiceURL+"/public/auth/google/login", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Make the request
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check if request was successful
+	if resp.StatusCode == http.StatusOK {
+		// The response is the session token as plain text
+		return string(body), nil
+	}
+
+	// Handle error response
+	return "", fmt.Errorf("google OAuth login failed with status %d: %s", resp.StatusCode, string(body))
+}
+
+// getAuthServiceURL retrieves the auth service URL from service discovery
+func (h *AuthHandler) getAuthServiceURL() (string, error) {
+	url := fmt.Sprintf("auth-service:%s", os.Getenv("AUTH_PORT"))
+	return url, nil
 }
 
 func generateRandomState() string {

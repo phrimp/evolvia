@@ -91,6 +91,7 @@ func (h *AuthHandler) RegisterRoutes(app *fiber.App) {
 	authGroup.Post("/login", h.Login)
 	authGroup.Post("/login/token", h.LoginWToken)
 	authGroup.Post("/internal/login", h.InternalLogin)
+	authGroup.Post("/google/login", h.GoogleOAuthLogin)
 	authGroup.Post("/logout", h.Logout)
 }
 
@@ -419,4 +420,129 @@ func extractToken(c fiber.Ctx) string {
 		return auth[7:]
 	}
 	return ""
+}
+
+type GoogleLoginRequest struct {
+	Email    string            `json:"email"`
+	Name     string            `json:"name"`
+	Picture  string            `json:"picture"`
+	GoogleID string            `json:"google_id"`
+	Locale   string            `json:"locale"`
+	Profile  map[string]string `json:"profile"`
+}
+
+func (h *AuthHandler) GoogleOAuthLogin(c fiber.Ctx) error {
+	var googleLoginRequest GoogleLoginRequest
+
+	if err := c.Bind().Body(&googleLoginRequest); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if googleLoginRequest.Email == "" || googleLoginRequest.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Email and name are required",
+		})
+	}
+
+	// Try to login with email as both username and password
+	login_data, err := h.userService.Login(c.Context(), googleLoginRequest.Email, googleLoginRequest.Email)
+	if err != nil {
+		// User doesn't exist, create new user
+		user := &models.UserAuth{
+			ID:              bson.NewObjectID(),
+			Username:        googleLoginRequest.Email,
+			Email:           googleLoginRequest.Email,
+			PasswordHash:    googleLoginRequest.Email, // Set password hash as email
+			IsActive:        true,
+			IsEmailVerified: true,
+			CreatedAt:       int(time.Now().Unix()),
+			UpdatedAt:       int(time.Now().Unix()),
+		}
+
+		// Create profile data
+		profile := googleLoginRequest.Profile
+		if profile == nil {
+			profile = make(map[string]string)
+		}
+		profile["fullname"] = googleLoginRequest.Name
+		profile["avatar"] = googleLoginRequest.Picture
+		profile["locale"] = googleLoginRequest.Locale
+		profile["provider"] = "google"
+		profile["google_id"] = googleLoginRequest.GoogleID
+
+		success, err := h.userService.Register(c.Context(), user, profile)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		if !success {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to create user",
+			})
+		}
+
+		// Assign default role to new user
+		err = h.userRoleService.AssignDefaultRoleToUser(c.Context(), user.ID)
+		if err != nil {
+			log.Printf("Warning: Failed to assign default role to user: %v", err)
+		}
+
+		// Try login again after user creation
+		login_data, err = h.userService.Login(c.Context(), googleLoginRequest.Email, googleLoginRequest.Email)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to login after user creation",
+			})
+		}
+	}
+
+	// Rest of session creation logic remains the same...
+	user_id := login_data["user_id"].(bson.ObjectID)
+
+	permissions, err := h.userRoleService.GetUserPermissions(c.Context(), user_id, "", bson.NilObjectID)
+	if err != nil {
+		log.Printf("Error getting permissions for user: %s : %s", googleLoginRequest.Email, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Service Error",
+		})
+	}
+
+	session, err := h.sessionService.GetSession(c.Context(), login_data["username"].(string))
+	if err != nil {
+		session, err = h.sessionService.NewSession(
+			&models.Session{},
+			permissions,
+			c.Get("User-Agent"),
+			login_data["username"].(string),
+			login_data["email"].(string),
+			user_id.String(),
+		)
+		if err != nil {
+			log.Printf("Error creating session for user: %s : %s", googleLoginRequest.Email, err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Service Error",
+			})
+		}
+	}
+
+	// Send session to middleware via gRPC (async)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		for i := range 5 {
+			err = h.gRPCSessionService.SendSession(ctx, session, "middleware")
+			if err != nil {
+				log.Printf("Error sending session to middleware for user: %s : %s -- Retry: %v", googleLoginRequest.Email, err, i)
+			} else {
+				log.Printf("Successfully sent session to middleware for user: %s", googleLoginRequest.Email)
+				return
+			}
+		}
+	}()
+
+	return c.Status(fiber.StatusOK).SendString(session.Token)
 }
