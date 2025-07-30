@@ -247,7 +247,7 @@ func (h *AuthHandler) callGoogleOAuthLogin(ctx context.Context, userInfo *models
 
 // getAuthServiceURL retrieves the auth service URL from service discovery
 func (h *AuthHandler) getAuthServiceURL() (string, error) {
-	url := fmt.Sprintf("auth-service:%s", os.Getenv("AUTH_PORT"))
+	url := fmt.Sprintf("http://auth-service:%s", os.Getenv("AUTH_PORT"))
 	return url, nil
 }
 
