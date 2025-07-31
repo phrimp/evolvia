@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -225,4 +226,155 @@ func (us *UserService) CreateDefaultAdminUser(ctx context.Context) error {
 	log.Println("IMPORTANT: Please change the default admin password after first login!")
 
 	return nil
+}
+
+// ListAllUsers returns paginated list of all users for admin purposes
+func (us *UserService) ListAllUsers(ctx context.Context, page, limit int) ([]*models.UserAuth, error) {
+	users, err := us.UserRepo.FindAll(ctx, page, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve users: %w", err)
+	}
+
+	return users, nil
+}
+
+// GetUserByID returns a user by their ID for admin purposes
+func (us *UserService) GetUserByID(ctx context.Context, userID bson.ObjectID) (*models.UserAuth, error) {
+	user, err := us.UserRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+	return user, nil
+}
+
+// UpdateUserByAdmin updates user information by admin
+func (us *UserService) UpdateUserByAdmin(ctx context.Context, userID bson.ObjectID, updateRequest interface{}) (*models.UserAuth, error) {
+	// First get the current user
+	user, err := us.UserRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	// Type assertion to get the update fields
+	if updateData, ok := updateRequest.(*struct {
+		Username        string `json:"username"`
+		Email           string `json:"email"`
+		IsActive        *bool  `json:"isActive"`
+		IsEmailVerified *bool  `json:"isEmailVerified"`
+	}); ok {
+		currentTime := int(time.Now().Unix())
+
+		// Update fields if provided
+		if updateData.Username != "" {
+			user.Username = updateData.Username
+		}
+		if updateData.Email != "" {
+			user.Email = updateData.Email
+		}
+		if updateData.IsActive != nil {
+			user.IsActive = *updateData.IsActive
+		}
+		if updateData.IsEmailVerified != nil {
+			user.IsEmailVerified = *updateData.IsEmailVerified
+		}
+
+		user.UpdatedAt = currentTime
+
+		// Update in repository
+		err = us.UserRepo.Update(ctx, user)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update user: %w", err)
+		}
+
+		// Invalidate cache
+		us.invalidateUserCache(userID.String())
+
+		return user, nil
+	}
+
+	return nil, fmt.Errorf("invalid update request format")
+}
+
+// ActivateUser activates a user account
+func (us *UserService) ActivateUser(ctx context.Context, userID bson.ObjectID) error {
+	user, err := us.UserRepo.FindByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("user not found: %w", err)
+	}
+
+	user.IsActive = true
+	user.UpdatedAt = int(time.Now().Unix())
+
+	err = us.UserRepo.Update(ctx, user)
+	if err != nil {
+		return fmt.Errorf("failed to activate user: %w", err)
+	}
+
+	// Invalidate cache
+	us.invalidateUserCache(userID.String())
+
+	return nil
+}
+
+// SearchUsers searches for users based on criteria
+func (us *UserService) SearchUsers(ctx context.Context, username, email, isActive string, page, limit int) ([]*models.UserAuth, error) {
+	// For now, we'll get a larger set of users and filter them
+	// In a production system, you'd want to implement this filtering at the database level
+	maxResults := 1000 // Get up to 1000 users to search through
+	allUsers, err := us.UserRepo.FindAll(ctx, 1, maxResults)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve users: %w", err)
+	}
+
+	// Filter users based on search criteria
+	var filteredUsers []*models.UserAuth
+	for _, user := range allUsers {
+		match := true
+
+		if username != "" && !containsIgnoreCase(user.Username, username) {
+			match = false
+		}
+		if email != "" && !containsIgnoreCase(user.Email, email) {
+			match = false
+		}
+		if isActive != "" {
+			activeFilter := isActive == "true"
+			if user.IsActive != activeFilter {
+				match = false
+			}
+		}
+
+		if match {
+			filteredUsers = append(filteredUsers, user)
+		}
+	}
+
+	// Apply pagination to filtered results
+	start := (page - 1) * limit
+	end := start + limit
+
+	if start >= len(filteredUsers) {
+		return []*models.UserAuth{}, nil
+	}
+
+	if end > len(filteredUsers) {
+		end = len(filteredUsers)
+	}
+
+	return filteredUsers[start:end], nil
+}
+
+// Helper function for case-insensitive string contains
+func containsIgnoreCase(source, substr string) bool {
+	if substr == "" {
+		return true
+	}
+	if len(source) < len(substr) {
+		return false
+	}
+
+	sourceLower := strings.ToLower(source)
+	substrLower := strings.ToLower(substr)
+
+	return strings.Contains(sourceLower, substrLower)
 }

@@ -68,6 +68,13 @@ var default_permissions []*models.Permission = []*models.Permission{
 	{Name: "billing:manager", Description: "Manager-level Access to Billing Operations", Category: "billing", IsSystem: false},
 	{Name: "billing:analyst", Description: "Analyst Access to Billing Data and Reports", Category: "billing", IsSystem: false},
 
+	// User management permissions
+	{Name: "read:user", Description: "Read Permission for User resources", Category: "user_management", IsSystem: false},
+	{Name: "read:user:all", Description: "Read All Permission for User resources", Category: "user_management", IsSystem: false},
+	{Name: "update:user", Description: "Update Permission for User resources", Category: "user_management", IsSystem: false},
+	{Name: "delete:user", Description: "Delete Permission for User resources", Category: "user_management", IsSystem: false},
+	{Name: "manage:user", Description: "Manage Permission for User resources (activate, deactivate, etc.)", Category: "user_management", IsSystem: false},
+
 	// Profile-specific permissions
 	{Name: "read:profile", Description: "Read Permission for Profile resources", Category: "profile", IsSystem: false},
 	{Name: "read:profile:all", Description: "Read All Permission for Profile resources", Category: "profile", IsSystem: false},
