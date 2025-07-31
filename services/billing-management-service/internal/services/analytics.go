@@ -269,3 +269,23 @@ func (s *AnalyticsService) formatTrendDates(trends *models.SubscriptionTrends) {
 		}
 	}
 }
+
+// GetAdminSubscriptionStats returns comprehensive admin subscription statistics
+func (s *AnalyticsService) GetAdminSubscriptionStats(ctx context.Context) (*models.AdminSubscriptionStats, error) {
+	stats, err := s.analyticsRepo.GetAdminSubscriptionStats(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get admin subscription stats: %w", err)
+	}
+
+	return stats, nil
+}
+
+// GetCancellationAnalytics returns detailed cancellation analytics
+func (s *AnalyticsService) GetCancellationAnalytics(ctx context.Context) (*models.CancellationAnalytics, error) {
+	analytics, err := s.analyticsRepo.GetCancellationAnalytics(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cancellation analytics: %w", err)
+	}
+
+	return analytics, nil
+}

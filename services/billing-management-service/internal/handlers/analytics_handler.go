@@ -39,6 +39,10 @@ func (h *AnalyticsHandler) RegisterRoutes(app *fiber.App) {
 	// Advanced analytics endpoints
 	analyticsGroup.Get("/advanced", h.GetAdvancedAnalytics, utils.PermissionRequired(middleware.ReadBillingAnalyticsPermission))
 
+	// Admin-specific endpoints
+	analyticsGroup.Get("/admin/subscription-stats", h.GetAdminSubscriptionStats, utils.PermissionRequired(middleware.ReadBillingDashboardPermission))
+	analyticsGroup.Get("/admin/cancellation-analytics", h.GetCancellationAnalytics, utils.PermissionRequired(middleware.ReadBillingAnalyticsPermission))
+
 	// Health check for analytics service
 	analyticsGroup.Get("/health", h.HealthCheck)
 }
@@ -223,6 +227,52 @@ func (h *AnalyticsHandler) GetAdvancedAnalytics(c fiber.Ctx) error {
 		},
 		"params": fiber.Map{
 			"timeRange": timeRange,
+		},
+	})
+}
+
+func (h *AnalyticsHandler) GetAdminSubscriptionStats(c fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	stats, err := h.analyticsService.GetAdminSubscriptionStats(ctx)
+	if err != nil {
+		log.Printf("Failed to get admin subscription stats: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve admin subscription statistics",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"stats": stats,
+		},
+		"meta": fiber.Map{
+			"generated_at":   stats.GeneratedAt,
+			"cache_duration": 300, // 5 minutes cache recommendation
+		},
+	})
+}
+
+func (h *AnalyticsHandler) GetCancellationAnalytics(c fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	analytics, err := h.analyticsService.GetCancellationAnalytics(ctx)
+	if err != nil {
+		log.Printf("Failed to get cancellation analytics: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve cancellation analytics",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"analytics": analytics,
+		},
+		"meta": fiber.Map{
+			"generated_at":   time.Now().Unix(),
+			"cache_duration": 600, // 10 minutes cache recommendation
 		},
 	})
 }

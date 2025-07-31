@@ -157,6 +157,73 @@ type SeasonalTrend struct {
 	GrowthRate        float64 `json:"growthRate"`
 }
 
+// Admin Subscription Statistics
+type AdminSubscriptionStats struct {
+	// Basic counts
+	TotalSubscriptions    int64   `json:"totalSubscriptions"`
+	ActiveSubscriptions   int64   `json:"activeSubscriptions"`
+	CanceledSubscriptions int64   `json:"canceledSubscriptions"`
+	TrialSubscriptions    int64   `json:"trialSubscriptions"`
+	SuspendedSubscriptions int64  `json:"suspendedSubscriptions"`
+	PastDueSubscriptions  int64   `json:"pastDueSubscriptions"`
+	InactiveSubscriptions int64   `json:"inactiveSubscriptions"`
+
+	// Rate calculations
+	SubscriptionRate      float64 `json:"subscriptionRate"`      // Active/Total users
+	CancelRate            float64 `json:"cancelRate"`            // Canceled/Total subscriptions
+	TrialConversionRate   float64 `json:"trialConversionRate"`   // Active/(Active+Trial)
+	ChurnRate             float64 `json:"churnRate"`             // Monthly churn percentage
+	GrowthRate            float64 `json:"growthRate"`            // Monthly growth percentage
+
+	// Time-based metrics
+	NewSubscriptionsToday    int64 `json:"newSubscriptionsToday"`
+	NewSubscriptionsThisWeek int64 `json:"newSubscriptionsThisWeek"`
+	NewSubscriptionsThisMonth int64 `json:"newSubscriptionsThisMonth"`
+	CancelationsToday        int64 `json:"cancelationsToday"`
+	CancelationsThisWeek     int64 `json:"cancelationsThisWeek"`
+	CancelationsThisMonth    int64 `json:"cancelationsThisMonth"`
+
+	// Revenue metrics
+	TotalRevenue          float64 `json:"totalRevenue"`
+	MonthlyRevenue        float64 `json:"monthlyRevenue"`
+	AverageRevenuePerUser float64 `json:"averageRevenuePerUser"`
+
+	// Timestamp
+	GeneratedAt int64 `json:"generatedAt"`
+}
+
+// Cancellation Analytics
+type CancellationAnalytics struct {
+	TotalCancellations     int64                    `json:"totalCancellations"`
+	CancelRate             float64                  `json:"cancelRate"`
+	CancelationsByReason   []CancellationByReason   `json:"cancelationsByReason"`
+	CancelationsByPlan     []CancellationByPlan     `json:"cancelationsByPlan"`
+	CancelationTrends      []CancellationTrendData  `json:"cancelationTrends"`
+	AverageSubscriptionLife float64                 `json:"averageSubscriptionLife"` // days
+}
+
+type CancellationByReason struct {
+	Reason string  `json:"reason"`
+	Count  int64   `json:"count"`
+	Rate   float64 `json:"rate"`
+}
+
+type CancellationByPlan struct {
+	PlanName   string  `json:"planName"`
+	PlanType   string  `json:"planType"`
+	Count      int64   `json:"count"`
+	Rate       float64 `json:"rate"`
+	TotalUsers int64   `json:"totalUsers"`
+}
+
+type CancellationTrendData struct {
+	Period         string `json:"period"`
+	Cancellations  int64  `json:"cancellations"`
+	NewSignups     int64  `json:"newSignups"`
+	CancelRate     float64 `json:"cancelRate"`
+	Date           string `json:"date,omitempty"`
+}
+
 // Geographic Analytics
 type GeographicAnalytics struct {
 	UsersByCountry  []CountryData `json:"usersByCountry"`
