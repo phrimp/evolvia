@@ -978,7 +978,7 @@ services:
     container_name: quiz-service
     restart: unless-stopped
     ports:
-      - "${QUIZ_SERVICE_PORT:-9260}:8080"
+      - "${QUIZ_SERVICE_PORT:-8080}:8080"
     environment:
       # Server Configuration
       - SERVICE_NAME=${QUIZ_SERVICE_NAME:-quiz-service}
@@ -1002,7 +1002,7 @@ services:
       - traefik
     labels:
       - "traefik.enable=true"
-      - "traefik.http.services.quiz-service.loadbalancer.server.port=${QUIZ_SERVICE_PORT:-9260}"
+      - "traefik.http.services.quiz-service.loadbalancer.server.port=${QUIZ_SERVICE_PORT:8080}"
       - "traefik.http.routers.quiz-service-public.service=quiz-service"
       - "traefik.http.routers.quiz-service-secure.service=quiz-service"
       # Public routes with CORS
