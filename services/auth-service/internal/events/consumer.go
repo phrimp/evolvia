@@ -9,6 +9,7 @@ import (
 	"log"
 	"sync"
 	"time"
+	utils "proto-gen/utils"
 
 	"github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -61,7 +62,7 @@ func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRep
 			redisRepo:      redisRepo,
 			userRepo:       userRepo,
 			roleRepo:       roleRepo,
-			userRoleRepo:   userRoleRepo, // ✅ Added this line
+			userRoleRepo:   userRoleRepo,
 			permissionRepo: permissionRepo,
 			eventPublisher: eventPublisher,
 			shutdown:       make(chan struct{}),
@@ -101,7 +102,7 @@ func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRep
 		redisRepo:      redisRepo,
 		userRepo:       userRepo,
 		roleRepo:       roleRepo,
-		userRoleRepo:   userRoleRepo, // ✅ Added this line
+		userRoleRepo:   userRoleRepo,
 		permissionRepo: permissionRepo,
 		eventPublisher: eventPublisher,
 		shutdown:       make(chan struct{}),
@@ -183,6 +184,7 @@ func (c *EventConsumer) Start() error {
 
 		// Google events
 		{Exchange: "google.events", RoutingKey: "google.login"},
+		{Exchange: "google.events", RoutingKey: "google.login.request"},
 
 		// Billing events
 		{Exchange: "billing.events", RoutingKey: "plan.created"},
@@ -288,6 +290,8 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 	// Google events
 	case "google.login":
 		return c.handleGoogleLogin(msg.Body)
+	case "google.login.request":
+		return c.handleGoogleLoginRequest(msg.Body)
 
 	// Billing events
 	case "plan.created":
@@ -385,6 +389,169 @@ func (c *EventConsumer) handleGoogleLogin(body []byte) error {
 	//}
 
 	return nil
+}
+
+func (c *EventConsumer) handleGoogleLoginRequest(body []byte) error {
+	var event GoogleLoginRequestEvent
+	if err := json.Unmarshal(body, &event); err != nil {
+		return fmt.Errorf("failed to unmarshal google login request event: %w", err)
+	}
+
+	log.Printf("Google login request received: RequestID=%s, Email=%s", event.RequestID, event.Email)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Try to login with email as both username and password (Google OAuth pattern)
+	userAuth, err := c.userRepo.FindByEmail(ctx, event.Email)
+	var sessionToken string
+	var userID string
+
+	if err != nil || userAuth == nil {
+		// User doesn't exist, create new user
+		log.Printf("Creating new user for Google login: %s", event.Email)
+		
+		newUser := &models.UserAuth{
+			ID:              bson.NewObjectID(),
+			Username:        event.Email,
+			Email:           event.Email,
+			PasswordHash:    event.Email, // Set password hash as email for Google users
+			IsActive:        true,
+			IsEmailVerified: true, // Google users are pre-verified
+			CreatedAt:       int(time.Now().Unix()),
+			UpdatedAt:       int(time.Now().Unix()),
+		}
+
+		// Create user in database
+		createdUser, err := c.userRepo.NewUser(ctx, newUser)
+		if err != nil {
+			log.Printf("Failed to create user: %v", err)
+			// Publish failure response
+			c.publishLoginResponse(ctx, event.RequestID, false, "", "Failed to create user", "")
+			return fmt.Errorf("failed to create user: %w", err)
+		}
+
+		// Assign default role to new user
+		err = c.assignDefaultRoleToUser(ctx, createdUser.ID)
+		if err != nil {
+			log.Printf("Warning: Failed to assign default role to user: %v", err)
+		}
+
+		userAuth = createdUser
+		userID = createdUser.ID.Hex()
+		
+		// Publish user registration event if event publisher is available
+		if c.eventPublisher != nil {
+			err := c.eventPublisher.PublishUserRegister(
+				ctx,
+				userAuth.ID.Hex(),
+				userAuth.Username,
+				userAuth.Email,
+				event.Profile,
+			)
+			if err != nil {
+				log.Printf("Warning: Failed to publish user created event: %v", err)
+			} else {
+				log.Printf("Published user created event for user: %s", userAuth.Username)
+			}
+		}
+	} else {
+		userID = userAuth.ID.Hex()
+		log.Printf("Existing user found for Google login: %s", event.Email)
+	}
+
+	// Create session token (this logic should match your existing login flow)
+	sessionToken, err = c.createSessionForUser(ctx, userAuth)
+	if err != nil {
+		log.Printf("Failed to create session: %v", err)
+		// Publish failure response
+		c.publishLoginResponse(ctx, event.RequestID, false, "", "Failed to create session", userID)
+		return fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// Publish success response
+	c.publishLoginResponse(ctx, event.RequestID, true, sessionToken, "", userID)
+	
+	log.Printf("Successfully processed Google login request for user: %s", event.Email)
+	return nil
+}
+
+// Helper function to create session for user (extracted from existing login logic)
+func (c *EventConsumer) createSessionForUser(ctx context.Context, userAuth *models.UserAuth) (string, error) {
+	// This should implement the same session creation logic as in your existing login handlers
+	// For now, I'll create a simplified version - you may need to adjust this
+	
+	// Get user permissions (simplified - just set empty permissions for Google users)
+	permissions := []string{} // Google users get basic permissions
+
+	// Create session (simplified - you may need to adjust based on your session service implementation)
+	sessionData := map[string]interface{}{
+		"user_id":  userAuth.ID.Hex(),
+		"username": userAuth.Username,
+		"email":    userAuth.Email,
+		"permissions": permissions,
+	}
+
+	// Generate session token (you might have a different method for this)
+	sessionToken := generateSessionToken()
+	
+	// Store session in Redis with 24-hour expiration
+	sessionKey := fmt.Sprintf("session:%s", sessionToken)
+	_, sessionErr := c.redisRepo.SaveStructCached(ctx, "", sessionKey, sessionData, 24*60) // 24 hours in minutes
+	if sessionErr != nil {
+		return "", fmt.Errorf("failed to store session: %w", sessionErr)
+	}
+
+	return sessionToken, nil
+}
+
+// Helper function to publish login response
+func (c *EventConsumer) publishLoginResponse(ctx context.Context, requestID string, success bool, sessionToken, errorMsg, userID string) {
+	if c.eventPublisher != nil {
+		err := c.eventPublisher.PublishGoogleLoginResponse(ctx, requestID, success, sessionToken, errorMsg, userID)
+		if err != nil {
+			log.Printf("Failed to publish Google login response: %v", err)
+		} else {
+			log.Printf("Published Google login response for request %s", requestID)
+		}
+	}
+}
+
+// Helper function to assign default role to user (simplified version)
+func (c *EventConsumer) assignDefaultRoleToUser(ctx context.Context, userID bson.ObjectID) error {
+	// Find the default role (assuming there's a role called "user" or similar)
+	defaultRole, err := c.roleRepo.FindByName(ctx, "user")
+	if err != nil {
+		// If no default role exists, log and continue
+		log.Printf("No default role found, skipping role assignment: %v", err)
+		return nil
+	}
+
+	// Create user role assignment
+	currentTime := int(time.Now().Unix())
+	userRole := &models.UserRole{
+		ID:         bson.NewObjectID(),
+		UserID:     userID,
+		RoleID:     defaultRole.ID,
+		ScopeType:  "global",
+		ScopeID:    bson.NilObjectID,
+		AssignedBy: bson.NilObjectID, // System assignment
+		AssignedAt: currentTime,
+		ExpiresAt:  0, // No expiration
+		IsActive:   true,
+	}
+
+	_, err = c.userRoleRepo.Create(ctx, userRole)
+	if err != nil {
+		return fmt.Errorf("failed to create user role assignment: %w", err)
+	}
+
+	return nil
+}
+
+// Helper function to generate session token
+func generateSessionToken() string {
+	return time.Now().Format("20060102150405") + "-" + utils.GenerateRandomStringWithLength(32)
 }
 
 func (c *EventConsumer) handlePlanCreated(body []byte) error {

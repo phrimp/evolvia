@@ -7,6 +7,7 @@ import (
 
 type Publisher interface {
 	PublishUserRegister(ctx context.Context, userID, username, email string, profileData map[string]string) error
+	PublishGoogleLoginResponse(ctx context.Context, requestID string, success bool, sessionToken, errorMsg, userID string) error
 
 	// Close closes the publisher and releases resources
 	Close() error
@@ -89,6 +90,31 @@ func (p *EventPublisher) PublishUserLogin(ctx context.Context, userID string) er
 	}
 
 	log.Printf("Published UserLogin event for user ID: %s", userID)
+	return nil
+}
+
+func (p *EventPublisher) PublishGoogleLoginResponse(ctx context.Context, requestID string, success bool, sessionToken, errorMsg, userID string) error {
+	if !p.enabled {
+		log.Println("Event publishing is disabled, skipping GoogleLoginResponse")
+		return nil
+	}
+
+	// Create event
+	event := NewGoogleLoginResponseEvent(requestID, success, sessionToken, errorMsg, userID)
+
+	// Serialize to JSON
+	eventData, err := event.ToJSON()
+	if err != nil {
+		return err
+	}
+
+	// Publish to auth-events exchange with google.login.response routing key
+	err = p.rabbitMQ.PublishEvent("auth-events", string(GoogleLoginResponse), eventData)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Published GoogleLoginResponse event for request ID: %s, success: %t", requestID, success)
 	return nil
 }
 

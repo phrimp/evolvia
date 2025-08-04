@@ -13,7 +13,9 @@ const (
 	UserRegister EventType = "user.registered"
 	UserLogin    EventType = "user.login"
 	// ProfileUpdated is triggered when a user profile is updated
-	ProfileUpdated EventType = "profile.updated"
+	ProfileUpdated            EventType = "profile.updated"
+	GoogleLoginRequest        EventType = "google.login.request"
+	GoogleLoginResponse       EventType = "google.login.response"
 )
 
 type BaseEvent struct {
@@ -29,6 +31,26 @@ type GoogleLoginEvent struct {
 	Name   string `json:"name"`
 	Avatar string `json:"avatar"`
 	Locale string `json:"locale"`
+}
+
+type GoogleLoginRequestEvent struct {
+	BaseEvent
+	RequestID string            `json:"request_id"`
+	Email     string            `json:"email"`
+	Name      string            `json:"name"`
+	Picture   string            `json:"picture"`
+	GoogleID  string            `json:"google_id"`
+	Locale    string            `json:"locale"`
+	Profile   map[string]string `json:"profile"`
+}
+
+type GoogleLoginResponseEvent struct {
+	BaseEvent
+	RequestID    string `json:"request_id"`
+	Success      bool   `json:"success"`
+	SessionToken string `json:"session_token,omitempty"`
+	Error        string `json:"error,omitempty"`
+	UserID       string `json:"user_id,omitempty"`
 }
 
 type UserRegisterEvent struct {
@@ -100,6 +122,26 @@ func NewProfileUpdatedEvent(userID, username string) *ProfileUpdatedEvent {
 
 // ToJSON serializes the event to JSON
 func (e *ProfileUpdatedEvent) ToJSON() ([]byte, error) {
+	return json.Marshal(e)
+}
+
+func NewGoogleLoginResponseEvent(requestID string, success bool, sessionToken, errorMsg, userID string) *GoogleLoginResponseEvent {
+	return &GoogleLoginResponseEvent{
+		BaseEvent: BaseEvent{
+			ID:        generateEventID(),
+			Type:      GoogleLoginResponse,
+			Timestamp: time.Now().Unix(),
+			Version:   "1.0",
+		},
+		RequestID:    requestID,
+		Success:      success,
+		SessionToken: sessionToken,
+		Error:        errorMsg,
+		UserID:       userID,
+	}
+}
+
+func (e *GoogleLoginResponseEvent) ToJSON() ([]byte, error) {
 	return json.Marshal(e)
 }
 

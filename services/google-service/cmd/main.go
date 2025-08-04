@@ -7,6 +7,7 @@ import (
 	"google-service/internal/event"
 	"google-service/internal/handlers"
 	"google-service/internal/repository"
+	"google-service/internal/services"
 	"google-service/pkg/discovery"
 	"log"
 	"os"
@@ -62,13 +63,41 @@ func main() {
 		return c.Status(fiber.StatusOK).SendString("Google Service is healthy")
 	})
 
+	// Initialize event publisher
 	eventPublisher, err := event.NewEventPublisher(cfg.RabbitMQ.URI)
 	if err != nil {
-		log.Fatalf("Error initializing Message Queue: %v", err)
+		log.Fatalf("Error initializing event publisher: %v", err)
 	}
+	defer eventPublisher.Close()
+
+	// Initialize Redis repository
 	redisRepo := repository.NewRedisRepo()
 
+	// Initialize services
+	emailService := services.NewEmailService(cfg.Email)
+	otpService := services.NewOTPService(redisRepo)
+
+	// Initialize event consumer
+	eventConsumer, err := event.NewEventConsumer(
+		cfg.RabbitMQ.URI,
+		emailService,
+		otpService,
+		eventPublisher,
+		redisRepo,
+	)
+	if err != nil {
+		log.Fatalf("Error initializing event consumer: %v", err)
+	}
+	defer eventConsumer.Close()
+
+	// Start event consumer
+	if err := eventConsumer.Start(); err != nil {
+		log.Fatalf("Error starting event consumer: %v", err)
+	}
+
+	// Register handlers
 	handlers.NewAuthHandler(cfg.GoogleAuth, cfg.FEADDRESS, redisRepo, eventPublisher).RegisterRoutes(app)
+	handlers.NewEmailVerificationHandler(otpService, emailService, eventPublisher).RegisterRoutes(app)
 
 	shutdownChan := make(chan os.Signal, 1)
 	doneChan := make(chan bool, 1)

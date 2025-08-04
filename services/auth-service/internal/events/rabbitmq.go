@@ -168,6 +168,20 @@ func (c *RabbitMQClient) setupExchangesAndQueues() error {
 		return fmt.Errorf("failed to declare exchange: %w", err)
 	}
 
+	// Declare the auth events exchange for responses
+	err = c.channel.ExchangeDeclare(
+		"auth-events", // name
+		"topic",       // type
+		true,          // durable
+		false,         // auto-deleted
+		false,         // internal
+		false,         // no-wait
+		nil,           // arguments
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare auth-events exchange: %w", err)
+	}
+
 	// Declare the user.created queue for profile service
 	_, err = c.channel.QueueDeclare(
 		"user.created.profile", // name

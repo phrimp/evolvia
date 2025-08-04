@@ -11,7 +11,10 @@ import (
 )
 
 type Publisher interface {
-	PublishGoogleLogin(ctx context.Context, email, name, avatar, locale string)
+	PublishGoogleLogin(ctx context.Context, email, name, avatar, locale string) error
+	PublishGoogleLoginRequest(ctx context.Context, email, name, picture, googleID, locale string, profile map[string]string) (*GoogleLoginRequestEvent, error)
+	PublishGoogleLoginResponse(ctx context.Context, requestID string, success bool, sessionToken, errorMsg, userID string) error
+	PublishEmailVerificationSuccess(ctx context.Context, userID, email string) error
 }
 
 type EventPublisher struct {
@@ -108,6 +111,25 @@ func (p *EventPublisher) publishEvent(ctx context.Context, routingKey string, ev
 func (p *EventPublisher) PublishGoogleLogin(ctx context.Context, email, name, avatar, locale string) error {
 	event := NewGoogleLoginEvent(email, name, avatar, locale)
 	return p.publishEvent(ctx, string(EventTypeGoogleLogin), event)
+}
+
+func (p *EventPublisher) PublishGoogleLoginRequest(ctx context.Context, email, name, picture, googleID, locale string, profile map[string]string) (*GoogleLoginRequestEvent, error) {
+	event := NewGoogleLoginRequestEvent(email, name, picture, googleID, locale, profile)
+	err := p.publishEvent(ctx, string(EventTypeGoogleLoginRequest), event)
+	if err != nil {
+		return nil, err
+	}
+	return event, nil
+}
+
+func (p *EventPublisher) PublishGoogleLoginResponse(ctx context.Context, requestID string, success bool, sessionToken, errorMsg, userID string) error {
+	event := NewGoogleLoginResponseEvent(requestID, success, sessionToken, errorMsg, userID)
+	return p.publishEvent(ctx, string(EventTypeGoogleLoginResponse), event)
+}
+
+func (p *EventPublisher) PublishEmailVerificationSuccess(ctx context.Context, userID, email string) error {
+	event := NewEmailVerificationSuccessEvent(userID, email)
+	return p.publishEvent(ctx, string(EventTypeEmailVerificationSuccess), event)
 }
 
 func (p *EventPublisher) Close() error {
