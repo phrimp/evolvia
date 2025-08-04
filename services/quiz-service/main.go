@@ -54,7 +54,7 @@ func main() {
 	}))
 	// Khởi tạo repository, service, handler cho quiz và question
 	mongoClient := db.Client
-	database := mongoClient.Database("quizdb")
+	database := mongoClient.Database("quiz_service")
 	quizRepo := repository.NewQuizRepository(database)
 	quizService := service.NewQuizService(quizRepo)
 	quizHandler := handlers.NewQuizHandler(quizService)
