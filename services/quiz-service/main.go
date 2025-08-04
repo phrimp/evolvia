@@ -171,5 +171,5 @@ func main() {
 		protectedResult.POST("/", resultHandler.CreateResult)
 	}
 
-	r.Run()
+	r.Run(":6666")
 }
