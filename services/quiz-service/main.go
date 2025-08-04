@@ -72,7 +72,7 @@ func main() {
 	resultRepo := repository.NewResultRepository(database)
 	resultService := service.NewResultService(resultRepo)
 	resultHandler := handlers.NewResultHandler(resultService)
-	publicQuiz := r.Group("/public/quiz")
+	publicQuiz := r.Group("/public/quizz/quiz")
 	{
 		publicQuiz.GET("/", func(c *gin.Context) {
 			quizHandler.ListQuizzes(c)
@@ -93,7 +93,7 @@ func main() {
 			}
 		})
 	}
-	publicQuestion := r.Group("/public/question")
+	publicQuestion := r.Group("/public/quizz/question")
 	{
 		publicQuestion.GET("/", func(c *gin.Context) {
 			questionHandler.ListQuestions(c)
@@ -110,14 +110,14 @@ func main() {
 	}
 
 	// Protected routes
-	protectedQuiz := r.Group("/protected/quiz")
+	protectedQuiz := r.Group("/protected/quizz/quiz")
 	{
 		protectedQuiz.POST("/", quizHandler.CreateQuiz)
 		protectedQuiz.PUT("/:id", quizHandler.UpdateQuiz)
 		protectedQuiz.DELETE("/:id", quizHandler.DeleteQuiz)
 	}
 
-	protectedQuestion := r.Group("/protected/question")
+	protectedQuestion := r.Group("/protected/quizz/question")
 	{
 		protectedQuestion.POST("/", questionHandler.CreateQuestion)
 		protectedQuestion.PUT("/:id", questionHandler.UpdateQuestion)
@@ -125,7 +125,7 @@ func main() {
 		protectedQuestion.POST("/bulk", questionHandler.BulkQuestionOps)
 	}
 
-	protectedSession := r.Group("/protected/session")
+	protectedSession := r.Group("/protected/quizz/session")
 	{
 		protectedSession.POST("/", sessionHandler.CreateSession)
 		protectedSession.POST("/:id/answer", answerHandler.CreateAnswer)
@@ -134,7 +134,7 @@ func main() {
 		protectedSession.POST("/:id/pause", sessionHandler.PauseSession)
 	}
 
-	publicSession := r.Group("/public/session")
+	publicSession := r.Group("/public/quizz/session")
 	{
 		publicSession.GET(":id", func(c *gin.Context) {
 			sessionHandler.GetSession(c)
@@ -156,7 +156,7 @@ func main() {
 		})
 	}
 
-	publicUser := r.Group("/public/user")
+	publicUser := r.Group("/public/quizz/user")
 	{
 		publicUser.GET(":id/results", func(c *gin.Context) {
 			resultHandler.GetResultsByUser(c)
@@ -166,7 +166,7 @@ func main() {
 		})
 	}
 
-	protectedResult := r.Group("/protected/result")
+	protectedResult := r.Group("/protected/quizz/result")
 	{
 		protectedResult.POST("/", resultHandler.CreateResult)
 	}
