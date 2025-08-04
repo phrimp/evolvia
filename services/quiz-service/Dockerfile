@@ -24,7 +24,6 @@ WORKDIR /app
 
 # Copy binary from build stage
 COPY --from=0 /app/main .
-COPY --from=0 /app/.env .
 
 # Create log directory
 RUN mkdir -p /evolvia/log/quiz_service
