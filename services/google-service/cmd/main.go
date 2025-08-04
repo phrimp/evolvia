@@ -20,6 +20,12 @@ import (
 )
 
 func setupLogging() (*os.File, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Recovered from panic: %v\n", r)
+		}
+	}()
+
 	logDir := filepath.Join("/evolvia", "log", "google_service")
 	err := os.MkdirAll(logDir, 0755)
 	if err != nil {

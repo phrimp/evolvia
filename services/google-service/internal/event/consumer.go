@@ -1,6 +1,7 @@
 package event
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"google-service/internal/repository"
@@ -20,16 +21,16 @@ type Consumer interface {
 
 // EventConsumer implements the Consumer interface using RabbitMQ
 type EventConsumer struct {
-	conn          *amqp091.Connection
-	channel       *amqp091.Channel
-	queueName     string
-	emailService  *services.EmailService
-	otpService    *services.OTPService
-	publisher     Publisher
-	redisRepo     *repository.RedisRepo
-	shutdown      chan struct{}
-	wg            sync.WaitGroup
-	enabled       bool
+	conn         *amqp091.Connection
+	channel      *amqp091.Channel
+	queueName    string
+	emailService *services.EmailService
+	otpService   *services.OTPService
+	publisher    Publisher
+	redisRepo    *repository.RedisRepo
+	shutdown     chan struct{}
+	wg           sync.WaitGroup
+	enabled      bool
 }
 
 // Exchange configuration
@@ -187,10 +188,10 @@ func (c *EventConsumer) Start() error {
 		// User events
 		{Exchange: "user-events", RoutingKey: "user.registered"},
 		{Exchange: "user-events", RoutingKey: "user.#"},
-		
+
 		// Google specific events
 		{Exchange: "google.events", RoutingKey: "google.#"},
-		
+
 		// Auth service responses
 		{Exchange: "auth-events", RoutingKey: "google.login.response"},
 	}
@@ -341,9 +342,9 @@ func (c *EventConsumer) handleGoogleLoginResponse(body []byte) error {
 
 	// Store the response in Redis with the request ID as key for pickup by the callback handler
 	responseKey := fmt.Sprintf("google-login-response:%s", event.RequestID)
-	
+
 	// Store the response for 5 minutes (enough time for callback to pick it up)
-	_, err := c.redisRepo.SaveStructCached(nil, "", responseKey, event, 5)
+	_, err := c.redisRepo.SaveStructCached(context.Background(), "", responseKey, event, 5)
 	if err != nil {
 		log.Printf("Failed to store login response in Redis: %v", err)
 		return fmt.Errorf("failed to store login response: %w", err)
@@ -380,3 +381,4 @@ func (c *EventConsumer) Close() error {
 
 	return nil
 }
+
