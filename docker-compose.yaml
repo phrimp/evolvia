@@ -218,12 +218,12 @@ services:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-200h}'
-      - '--web.enable-lifecycle'
-      - '--web.external-url=${PROMETHEUS_EXTERNAL_URL:-http://localhost:9090}'
-      - '--log.level=${PROMETHEUS_LOG_LEVEL:-info}'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-200h}"
+      - "--web.enable-lifecycle"
+      - "--web.external-url=${PROMETHEUS_EXTERNAL_URL:-http://localhost:9090}"
+      - "--log.level=${PROMETHEUS_LOG_LEVEL:-info}"
     networks:
       - consul-net
       - traefik-net
@@ -391,7 +391,7 @@ services:
       - MINIO_REGION=${MINIO_REGION:-us-east-1}
       - MINIO_AVATAR_BUCKET=${MINIO_AVATAR_BUCKET:-avatars}
       - MINIO_FILE_BUCKET=${MINIO_FILE_BUCKET:-files}
-      - RABBITMQ_URI=amqp://${RABBITMQ_USER:-rabbitmq}:${RABBITMQ_PASSWORD:-rabbitmq_password}@rabbitmq:${RABBITMQ_PORT:-5672}/
+      - RABBITMQ_URI=amqp://${RABBITMQ_USER:-rabbitmq}:${RABBITMQ_PASSWORD:-rabbitmq}@rabbitmq:${RABBITMQ_PORT:-5672}/
       - RABBITMQ_QUEUE=${RABBITMQ_QUEUE:-storage.events}
       - CONSUL_ADDRESS=consul-server:${CONSUL_HTTP_PORT:-8500}
     networks:
@@ -968,6 +968,49 @@ services:
       # Protected routes with CORS and auth
       - "traefik.http.routers.llm-service-secure.rule=PathPrefix(`/protected/llm`)"
       - "traefik.http.routers.llm-service-secure.middlewares=global-cors@docker,auth-middleware"
+      - "traefik.docker.network=microservices_template_traefik-net"
+
+  quiz-service:
+    user: "0:0"
+    build:
+      context: .
+      dockerfile: services/quiz-service/Dockerfile
+    container_name: quiz-service
+    restart: unless-stopped
+    ports:
+      - "${QUIZ_SERVICE_PORT:-9260}:8080"
+    environment:
+      # Server Configuration
+      - SERVICE_NAME=${QUIZ_SERVICE_NAME:-quiz-service}
+      - SERVICE_ADDRESS=${QUIZ_SERVICE_ADDRESS:-quiz-service}
+
+      # MongoDB Configuration
+      - MONGO_URI=${MONGO_URI:-mongodb://root:example@mongodb:27017}
+
+      # RabbitMQ Configuration
+      - RABBITMQ_URI=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
+    env_file:
+      - .env
+    networks:
+      - consul-net
+      - traefik-net
+    volumes:
+      - ./logs/quiz-service:/evolvia/log/quiz_service
+    depends_on:
+      - mongodb
+      - rabbitmq
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.quiz-service.loadbalancer.server.port=${QUIZ_SERVICE_PORT:-9260}"
+      - "traefik.http.routers.quiz-service-public.service=quiz-service"
+      - "traefik.http.routers.quiz-service-secure.service=quiz-service"
+      # Public routes with CORS
+      - "traefik.http.routers.quiz-service-public.rule=PathPrefix(`/public/quiz`) || PathPrefix(`/public/question`)"
+      - "traefik.http.routers.quiz-service-public.middlewares=global-cors@docker"
+      # Protected routes with CORS and auth
+      - "traefik.http.routers.quiz-service-secure.rule=PathPrefix(`/protected/quiz`) || PathPrefix(`/protected/question`)"
+      - "traefik.http.routers.quiz-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
 networks:
