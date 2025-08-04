@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"quiz-service/internal/db"
 	"quiz-service/internal/event"
@@ -10,6 +11,7 @@ import (
 	"quiz-service/internal/repository"
 	"quiz-service/internal/service"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
