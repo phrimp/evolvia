@@ -1006,10 +1006,10 @@ services:
       - "traefik.http.routers.quiz-service-public.service=quiz-service"
       - "traefik.http.routers.quiz-service-secure.service=quiz-service"
       # Public routes with CORS
-      - "traefik.http.routers.quiz-service-public.rule=PathPrefix(`/public/quizz/quiz`) || PathPrefix(`/public/quizz/question`)"
+      - "traefik.http.routers.quiz-service-public.rule=PathPrefix(`/public/quizz`)"
       - "traefik.http.routers.quiz-service-public.middlewares=global-cors@docker"
       # Protected routes with CORS and auth
-      - "traefik.http.routers.quiz-service-secure.rule=PathPrefix(`/protected/quizz/quiz`) || PathPrefix(`/protected/quizz/question`)"
+      - "traefik.http.routers.quiz-service-secure.rule=PathPrefix(`/protected/quizz`)"
       - "traefik.http.routers.quiz-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 

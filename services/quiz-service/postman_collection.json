@@ -21,9 +21,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/quiz/",
+              "raw": "{{baseUrl}}/public/quizz/quiz/",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "quiz", ""]
+              "path": ["public", "quizz", "quiz", ""]
             },
             "description": "Get all available quizzes"
           }
@@ -34,9 +34,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/quiz/:id",
+              "raw": "{{baseUrl}}/public/quizz/quiz/:id",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "quiz", ":id"],
+              "path": ["public", "quizz", "quiz", ":id"],
               "variable": [
                 {
                   "key": "id",
@@ -54,9 +54,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/quiz/:id/results",
+              "raw": "{{baseUrl}}/public/quizz/quiz/:id/results",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "quiz", ":id", "results"],
+              "path": ["public", "quizz", "quiz", ":id", "results"],
               "variable": [
                 {
                   "key": "id",
@@ -93,9 +93,9 @@
               "raw": "{\n  \"title\": \"Sample Quiz\",\n  \"description\": \"A sample quiz for testing\",\n  \"skill_id\": \"skill_123\",\n  \"total_duration_seconds\": 3600,\n  \"max_questions\": 20,\n  \"stage_config\": {\n    \"beginner\": {\n      \"initial_questions\": 5,\n      \"passing_threshold\": 0.6,\n      \"recovery_questions\": 2,\n      \"recovery_threshold\": 0.7,\n      \"base_points\": 10,\n      \"recovery_points\": 5\n    },\n    \"intermediate\": {\n      \"initial_questions\": 7,\n      \"passing_threshold\": 0.7,\n      \"recovery_questions\": 3,\n      \"recovery_threshold\": 0.8,\n      \"base_points\": 15,\n      \"recovery_points\": 8\n    },\n    \"advanced\": {\n      \"initial_questions\": 8,\n      \"passing_threshold\": 0.8,\n      \"recovery_questions\": 4,\n      \"recovery_threshold\": 0.85,\n      \"base_points\": 20,\n      \"recovery_points\": 10\n    }\n  },\n  \"status\": \"active\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/protected/quiz/",
+              "raw": "{{baseUrl}}/protected/quizz/quiz/",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "quiz", ""]
+              "path": ["protected", "quizz", "quiz", ""]
             },
             "description": "Create a new quiz"
           }
@@ -120,9 +120,9 @@
               "raw": "{\n  \"title\": \"Updated Quiz Title\",\n  \"description\": \"Updated description\",\n  \"status\": \"inactive\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/protected/quiz/:id",
+              "raw": "{{baseUrl}}/protected/quizz/quiz/:id",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "quiz", ":id"],
+              "path": ["protected", "quizz", "quiz", ":id"],
               "variable": [
                 {
                   "key": "id",
@@ -171,9 +171,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/question/",
+              "raw": "{{baseUrl}}/public/quizz/question/",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "question", ""]
+              "path": ["public", "quizz", "question", ""]
             },
             "description": "Get all available questions"
           }
@@ -184,9 +184,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/question/:id",
+              "raw": "{{baseUrl}}/public/quizz/question/:id",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "question", ":id"],
+              "path": ["public", "quizz", "question", ":id"],
               "variable": [
                 {
                   "key": "id",
@@ -223,9 +223,9 @@
               "raw": "{\n  \"content\": \"What is the capital of France?\",\n  \"type\": \"multiple_choice\",\n  \"options\": [\n    {\n      \"id\": \"a\",\n      \"text\": \"London\"\n    },\n    {\n      \"id\": \"b\",\n      \"text\": \"Berlin\"\n    },\n    {\n      \"id\": \"c\",\n      \"text\": \"Paris\"\n    },\n    {\n      \"id\": \"d\",\n      \"text\": \"Madrid\"\n    }\n  ],\n  \"correct_answer\": \"c\",\n  \"explanation\": \"Paris is the capital and largest city of France.\",\n  \"skill_id\": \"geography_001\",\n  \"difficulty_level\": \"beginner\",\n  \"bloom_level\": \"remember\",\n  \"points\": 10,\n  \"estimated_time_seconds\": 30,\n  \"topic_tags\": [\"geography\", \"capitals\", \"europe\"],\n  \"question_pool_id\": \"geography_pool_1\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/protected/question/",
+              "raw": "{{baseUrl}}/protected/quizz/question/",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "question", ""]
+              "path": ["protected", "quizz", "question", ""]
             },
             "description": "Create a new question"
           }
@@ -250,9 +250,9 @@
               "raw": "{\n  \"content\": \"Updated question content\",\n  \"difficulty_level\": \"intermediate\",\n  \"points\": 15\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/protected/question/:id",
+              "raw": "{{baseUrl}}/protected/quizz/question/:id",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "question", ":id"],
+              "path": ["protected", "quizz", "question", ":id"],
               "variable": [
                 {
                   "key": "id",
@@ -310,9 +310,9 @@
               "raw": "{\n  \"operation\": \"bulk_create\",\n  \"questions\": [\n    {\n      \"content\": \"Question 1\",\n      \"type\": \"multiple_choice\",\n      \"correct_answer\": \"a\",\n      \"skill_id\": \"skill_1\"\n    },\n    {\n      \"content\": \"Question 2\",\n      \"type\": \"true_false\",\n      \"correct_answer\": \"true\",\n      \"skill_id\": \"skill_1\"\n    }\n  ]\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/protected/question/bulk",
+              "raw": "{{baseUrl}}/protected/quizz/question/bulk",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "question", "bulk"]
+              "path": ["protected", "quizz", "question", "bulk"]
             },
             "description": "Perform bulk operations on questions"
           }
@@ -328,9 +328,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/session/:id",
+              "raw": "{{baseUrl}}/public/quizz/session/:id",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "session", ":id"],
+              "path": ["public", "quizz", "session", ":id"],
               "variable": [
                 {
                   "key": "id",
@@ -348,9 +348,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/session/:id/answers",
+              "raw": "{{baseUrl}}/public/quizz/session/:id/answers",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "session", ":id", "answers"],
+              "path": ["public", "quizz", "session", ":id", "answers"],
               "variable": [
                 {
                   "key": "id",
@@ -368,9 +368,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/session/:id/result",
+              "raw": "{{baseUrl}}/public/quizz/session/:id/result",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "session", ":id", "result"],
+              "path": ["public", "quizz", "session", ":id", "result"],
               "variable": [
                 {
                   "key": "id",
@@ -407,9 +407,9 @@
               "raw": "{\n  \"quiz_id\": \"quiz_123\",\n  \"user_id\": \"user_456\",\n  \"session_token\": \"session_token_789\",\n  \"current_stage\": \"beginner\",\n  \"status\": \"active\",\n  \"stage_progress\": {\n    \"beginner\": {\n      \"attempted\": 0,\n      \"correct\": 0,\n      \"passed\": false,\n      \"recovery_round\": 0,\n      \"score\": 0\n    }\n  },\n  \"questions_used\": [],\n  \"total_questions_asked\": 0\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/protected/session/",
+              "raw": "{{baseUrl}}/protected/quizz/session/",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "session", ""]
+              "path": ["protected", "quizz", "session", ""]
             },
             "description": "Create a new quiz session"
           }
@@ -434,9 +434,9 @@
               "raw": "{\n  \"session_id\": \"session_123\",\n  \"question_id\": \"question_456\",\n  \"user_answer\": \"c\",\n  \"is_correct\": true,\n  \"points_earned\": 10,\n  \"time_spent_seconds\": 25,\n  \"stage_type\": \"beginner\",\n  \"question_sequence\": 1\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/protected/session/:id/answer",
+              "raw": "{{baseUrl}}/protected/quizz/session/:id/answer",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "session", ":id", "answer"],
+              "path": ["protected", "quizz", "session", ":id", "answer"],
               "variable": [
                 {
                   "key": "id",
@@ -460,9 +460,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/protected/session/:id/next",
+              "raw": "{{baseUrl}}/protected/quizz/session/:id/next",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "session", ":id", "next"],
+              "path": ["protected", "quizz", "session", ":id", "next"],
               "variable": [
                 {
                   "key": "id",
@@ -494,9 +494,9 @@
               "raw": "{\n  \"completion_type\": \"completed\",\n  \"final_score\": 85.5\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/protected/session/:id/submit",
+              "raw": "{{baseUrl}}/protected/quizz/session/:id/submit",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "session", ":id", "submit"],
+              "path": ["protected", "quizz", "session", ":id", "submit"],
               "variable": [
                 {
                   "key": "id",
@@ -528,9 +528,9 @@
               "raw": "{\n  \"reason\": \"user_requested\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/protected/session/:id/pause",
+              "raw": "{{baseUrl}}/protected/quizz/session/:id/pause",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "session", ":id", "pause"],
+              "path": ["protected", "quizz", "session", ":id", "pause"],
               "variable": [
                 {
                   "key": "id",
@@ -553,9 +553,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/user/:id/results",
+              "raw": "{{baseUrl}}/public/quizz/user/:id/results",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "user", ":id", "results"],
+              "path": ["public", "quizz", "user", ":id", "results"],
               "variable": [
                 {
                   "key": "id",
@@ -592,9 +592,9 @@
               "raw": "{\n  \"session_id\": \"session_123\",\n  \"user_id\": \"user_456\",\n  \"quiz_id\": \"quiz_789\",\n  \"final_score\": 85.5,\n  \"percentage\": 85.5,\n  \"badge_level\": \"intermediate\",\n  \"questions_attempted\": 10,\n  \"questions_correct\": 8,\n  \"stage_breakdown\": {\n    \"beginner\": {\n      \"attempted\": 5,\n      \"correct\": 4,\n      \"score\": 40,\n      \"percentage\": 80,\n      \"passed\": true,\n      \"recovery_used\": false\n    },\n    \"intermediate\": {\n      \"attempted\": 5,\n      \"correct\": 4,\n      \"score\": 45.5,\n      \"percentage\": 91,\n      \"passed\": true,\n      \"recovery_used\": false\n    }\n  },\n  \"time_breakdown\": {\n    \"total_time_seconds\": 600,\n    \"average_time_per_question\": 60,\n    \"time_by_stage\": {\n      \"beginner\": 300,\n      \"intermediate\": 300\n    }\n  },\n  \"bloom_breakdown\": {\n    \"remember\": {\n      \"attempted\": 3,\n      \"correct\": 3\n    },\n    \"understand\": {\n      \"attempted\": 3,\n      \"correct\": 2\n    },\n    \"apply\": {\n      \"attempted\": 2,\n      \"correct\": 2\n    },\n    \"analyze\": {\n      \"attempted\": 1,\n      \"correct\": 1\n    },\n    \"evaluate\": {\n      \"attempted\": 1,\n      \"correct\": 0\n    },\n    \"create\": {\n      \"attempted\": 0,\n      \"correct\": 0\n    }\n  },\n  \"completion_type\": \"completed\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/protected/result/",
+              "raw": "{{baseUrl}}/protected/quizz/result/",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "result", ""]
+              "path": ["protected", "quizz", "result", ""]
             },
             "description": "Create a new quiz result"
           }
