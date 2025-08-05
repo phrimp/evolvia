@@ -315,7 +315,7 @@ func (c *EventConsumer) handleUserRegistered(body []byte) error {
 		Email:      event.Email,
 		OTPCode:    otpData.Code,
 		ExpiryTime: fmt.Sprintf("%d minutes", (otpData.ExpiresAt-otpData.CreatedAt)/60),
-		VerifyURL:  fmt.Sprintf("https://your-frontend-url.com/verify-email?user_id=%s&otp=%s", event.UserID, otpData.Code),
+		VerifyURL:  fmt.Sprintf("https://evolvia.phrimp.io.vn/verify-email?user_id=%s&otp=%s", event.UserID, otpData.Code),
 	}
 
 	// Send email verification email
@@ -381,4 +381,3 @@ func (c *EventConsumer) Close() error {
 
 	return nil
 }
-

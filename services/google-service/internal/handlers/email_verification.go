@@ -148,7 +148,7 @@ func (h *EmailVerificationHandler) VerifyEmail(c fiber.Ctx) error {
 		welcomeData := services.EmailData{
 			Name:      "User", // Could be enhanced with actual user name
 			Email:     email,
-			VerifyURL: "https://your-frontend-url.com/dashboard", // Could be configurable
+			VerifyURL: "https://evolvia.phrimp.io.vn/customer/main-dashboard", // Could be configurable
 		}
 
 		err = h.emailService.SendEmailWithTemplate("welcome", welcomeData, []string{email})
@@ -209,7 +209,7 @@ func (h *EmailVerificationHandler) ResendOTP(c fiber.Ctx) error {
 		Email:      req.Email,
 		OTPCode:    otpData.Code,
 		ExpiryTime: fmt.Sprintf("%d minutes", (otpData.ExpiresAt-otpData.CreatedAt)/60),
-		VerifyURL:  fmt.Sprintf("https://your-frontend-url.com/verify-email?user_id=%s&otp=%s", req.UserID, otpData.Code),
+		VerifyURL:  fmt.Sprintf("https://evolvia.phrimp.io.vn/verify-email?user_id=%s&otp=%s", req.UserID, otpData.Code),
 	}
 
 	// Send verification email
@@ -276,4 +276,3 @@ func (h *EmailVerificationHandler) GetOTPStatus(c fiber.Ctx) error {
 		Message:       "Active OTP found",
 	})
 }
-
