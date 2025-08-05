@@ -119,6 +119,7 @@ func GetConfig() *Config {
 
 func NewEmailConfig() *EmailConfig {
 	enabled, _ := strconv.ParseBool(getEnv("SMTP_ENABLED", "false"))
+	fmt.Printf("email: %v", enabled)
 	return &EmailConfig{
 		SMTPConfig: loadSMTPConfig(),
 		Enabled:    enabled,

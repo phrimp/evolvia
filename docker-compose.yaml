@@ -459,6 +459,7 @@ services:
       - SMTP_USERNAME=${SMTP_USERNAME}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_FROM=${SMTP_FROM}
+      - SMTP_ENABLED=${SMTP_ENABLED}
 
       # Redis Configuration
       - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
