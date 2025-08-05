@@ -56,7 +56,7 @@ func (o *OTPService) GenerateOTP(userID, email string) (*OTPData, error) {
 
 	// Store OTP in Redis with expiry
 	key := o.getOTPKey(userID)
-	_, err = o.redisRepo.SaveStructCached(nil, userID, key, otpData, time.Duration(OTPExpiryMinutes)*time.Minute)
+	_, err = o.redisRepo.SaveStructCached(context.Background(), userID, key, otpData, time.Duration(OTPExpiryMinutes)*time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store OTP in cache: %w", err)
 	}
@@ -70,7 +70,7 @@ func (o *OTPService) ValidateOTP(userID, otpCode string) (bool, error) {
 	key := o.getOTPKey(userID)
 
 	var otpData OTPData
-	err := o.redisRepo.GetStructCached(nil, key, userID, &otpData)
+	err := o.redisRepo.GetStructCached(context.Background(), key, userID, &otpData)
 	if err != nil {
 		log.Printf("OTP not found for user %s: %v", userID, err)
 		return false, fmt.Errorf("OTP not found or expired")
@@ -96,7 +96,7 @@ func (o *OTPService) ValidateOTP(userID, otpCode string) (bool, error) {
 	// Validate OTP code
 	if otpData.Code != otpCode {
 		// Update attempts in cache
-		o.redisRepo.SaveStructCached(nil, userID, key, &otpData, time.Duration(OTPExpiryMinutes)*time.Minute)
+		o.redisRepo.SaveStructCached(context.Background(), userID, key, &otpData, time.Duration(OTPExpiryMinutes)*time.Minute)
 		return false, fmt.Errorf("invalid OTP code")
 	}
 
@@ -111,7 +111,7 @@ func (o *OTPService) GetOTPStatus(userID string) (*OTPData, error) {
 	key := o.getOTPKey(userID)
 
 	var otpData OTPData
-	err := o.redisRepo.GetStructCached(nil, key, userID, &otpData)
+	err := o.redisRepo.GetStructCached(context.Background(), key, userID, &otpData)
 	if err != nil {
 		return nil, fmt.Errorf("no active OTP found for user")
 	}
@@ -181,4 +181,3 @@ func (o *OTPService) GetTimeUntilExpiry(userID string) (int, error) {
 
 	return int(timeLeft / 60), nil // Return minutes
 }
-
