@@ -1,7 +1,8 @@
 package models
 
 type UserProfile struct {
-	DisplayName string `bson:"displayName" json:"displayName"`
+	DisplayName string   `bson:"displayName" json:"displayName"`
+	Role        []string `bson:"-" json:"roles"`
 }
 
 type UserWithProfile struct {

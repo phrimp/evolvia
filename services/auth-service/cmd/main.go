@@ -146,7 +146,7 @@ func main() {
 	})
 
 	// Init Handlers
-	auth_handler := handlers.NewAuthHandler(services_init.UserService, services_init.JwtService, services_init.SessionService, services_init.UserRoleService, services_init.gRPCSessionService, services_init.gRPCGoogleService)
+	auth_handler := handlers.NewAuthHandler(services_init.UserService, services_init.JwtService, services_init.SessionService, services_init.UserRoleService, services_init.gRPCSessionService, services_init.gRPCGoogleService, services_init.RoleService)
 	role_handler := handlers.NewRoleHandler(services_init.RoleService, services_init.UserRoleService)
 	permission_handler := handlers.NewPermissionHanlder(services_init.RoleService, services_init.UserRoleService, services_init.PermissionService)
 	user_handler := handlers.NewUserHandler(services_init.UserService, services_init.UserRoleService)

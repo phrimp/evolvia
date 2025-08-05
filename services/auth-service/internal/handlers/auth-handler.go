@@ -26,13 +26,14 @@ type AuthHandler struct {
 	userService        *service.UserService
 	sessionService     *service.SessionService
 	userRoleService    *service.UserRoleService
+	roleService        *service.RoleService
 	jwtService         *service.JWTService
 	gRPCSessionService *grpcServer.SessionSenderService
 	gRPCGoogleService  *grpcServer.GoogleAuthService
 	FeAddress          string
 }
 
-func NewAuthHandler(userService *service.UserService, jwtService *service.JWTService, sessionService *service.SessionService, userRoleService *service.UserRoleService, grpcSession *grpcServer.SessionSenderService, grpcGoogle *grpcServer.GoogleAuthService) *AuthHandler {
+func NewAuthHandler(userService *service.UserService, jwtService *service.JWTService, sessionService *service.SessionService, userRoleService *service.UserRoleService, grpcSession *grpcServer.SessionSenderService, grpcGoogle *grpcServer.GoogleAuthService, roleService *service.RoleService) *AuthHandler {
 	return &AuthHandler{
 		userService:        userService,
 		jwtService:         jwtService,
@@ -40,6 +41,7 @@ func NewAuthHandler(userService *service.UserService, jwtService *service.JWTSer
 		userRoleService:    userRoleService,
 		gRPCSessionService: grpcSession,
 		gRPCGoogleService:  grpcGoogle,
+		roleService:        roleService,
 		FeAddress:          config.ServiceConfig.FEAddress,
 	}
 }
@@ -387,6 +389,18 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 
 	// Processing Basic Profile Data
 	basic_profile := login_data["basic_profile"].(models.UserProfile)
+	userroles, err := h.userRoleService.GetUserRoles(c.Context(), user_id)
+	if err != nil {
+		log.Printf("error get user role by id: %v. Detail: %v", user_id, err)
+	} else {
+		for _, userrole := range userroles {
+			role, err := h.roleService.GetRoleByID(c.Context(), userrole.RoleID)
+			if err != nil {
+				log.Printf("retrieving role by id error: %v", err)
+			}
+			basic_profile.Role = append(basic_profile.Role, role.Name)
+		}
+	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "User Login Successfully",
