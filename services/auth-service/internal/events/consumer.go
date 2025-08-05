@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	utils "proto-gen/utils"
 	"sync"
 	"time"
-	utils "proto-gen/utils"
 
 	"github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -191,6 +191,7 @@ func (c *EventConsumer) Start() error {
 		{Exchange: "billing.events", RoutingKey: "plan.updated"},
 		{Exchange: "billing.events", RoutingKey: "plan.deleted"},
 		{Exchange: "billing.events", RoutingKey: "subscription.updated"},
+		{Exchange: "google.events", RoutingKey: "email.verification.success"},
 	}
 
 	// Bind the queue to all exchanges with their routing keys
@@ -292,6 +293,8 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 		return c.handleGoogleLogin(msg.Body)
 	case "google.login.request":
 		return c.handleGoogleLoginRequest(msg.Body)
+	case "email.verification.success":
+		return c.handleEmailVerificationSuccess(msg.Body)
 
 	// Billing events
 	case "plan.created":
@@ -410,7 +413,7 @@ func (c *EventConsumer) handleGoogleLoginRequest(body []byte) error {
 	if err != nil || userAuth == nil {
 		// User doesn't exist, create new user
 		log.Printf("Creating new user for Google login: %s", event.Email)
-		
+
 		newUser := &models.UserAuth{
 			ID:              bson.NewObjectID(),
 			Username:        event.Email,
@@ -439,7 +442,7 @@ func (c *EventConsumer) handleGoogleLoginRequest(body []byte) error {
 
 		userAuth = createdUser
 		userID = createdUser.ID.Hex()
-		
+
 		// Publish user registration event if event publisher is available
 		if c.eventPublisher != nil {
 			err := c.eventPublisher.PublishUserRegister(
@@ -471,7 +474,7 @@ func (c *EventConsumer) handleGoogleLoginRequest(body []byte) error {
 
 	// Publish success response
 	c.publishLoginResponse(ctx, event.RequestID, true, sessionToken, "", userID)
-	
+
 	log.Printf("Successfully processed Google login request for user: %s", event.Email)
 	return nil
 }
@@ -480,21 +483,21 @@ func (c *EventConsumer) handleGoogleLoginRequest(body []byte) error {
 func (c *EventConsumer) createSessionForUser(ctx context.Context, userAuth *models.UserAuth) (string, error) {
 	// This should implement the same session creation logic as in your existing login handlers
 	// For now, I'll create a simplified version - you may need to adjust this
-	
+
 	// Get user permissions (simplified - just set empty permissions for Google users)
 	permissions := []string{} // Google users get basic permissions
 
 	// Create session (simplified - you may need to adjust based on your session service implementation)
 	sessionData := map[string]interface{}{
-		"user_id":  userAuth.ID.Hex(),
-		"username": userAuth.Username,
-		"email":    userAuth.Email,
+		"user_id":     userAuth.ID.Hex(),
+		"username":    userAuth.Username,
+		"email":       userAuth.Email,
 		"permissions": permissions,
 	}
 
 	// Generate session token (you might have a different method for this)
 	sessionToken := generateSessionToken()
-	
+
 	// Store session in Redis with 24-hour expiration
 	sessionKey := fmt.Sprintf("session:%s", sessionToken)
 	_, sessionErr := c.redisRepo.SaveStructCached(ctx, "", sessionKey, sessionData, 24*60) // 24 hours in minutes
@@ -873,6 +876,62 @@ func (c *EventConsumer) assignRoleToUser(ctx context.Context, event *Subscriptio
 
 	log.Printf("Successfully assigned role '%s' to user %s for subscription %s with permissions: %v",
 		role.Name, event.UserID, event.SubscriptionID, event.UserRoleMetadata.Permissions)
+
+	return nil
+}
+
+func (c *EventConsumer) handleEmailVerificationSuccess(body []byte) error {
+	var event EmailVerificationSuccessEvent
+	if err := json.Unmarshal(body, &event); err != nil {
+		return fmt.Errorf("failed to unmarshal email verification success event: %w", err)
+	}
+
+	log.Printf("Email verification success event received: UserID=%s, Email=%s", event.UserID, event.Email)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Convert UserID string to ObjectID
+	userObjectID, err := bson.ObjectIDFromHex(event.UserID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	// Find the user
+	user, err := c.userRepo.FindByID(ctx, userObjectID)
+	if err != nil {
+		return fmt.Errorf("failed to find user %s: %w", event.UserID, err)
+	}
+	if user == nil {
+		return fmt.Errorf("user %s not found", event.UserID)
+	}
+
+	// Check if email verification is already completed
+	if user.IsEmailVerified {
+		log.Printf("User %s email is already verified, skipping update", event.UserID)
+		return nil
+	}
+
+	// Update email verification status
+	user.IsEmailVerified = true
+	user.UpdatedAt = int(time.Now().Unix())
+
+	err = c.userRepo.Update(ctx, user)
+	if err != nil {
+		return fmt.Errorf("failed to update email verification status for user %s: %w", event.UserID, err)
+	}
+
+	log.Printf("Successfully updated email verification status for user %s (email: %s)", event.UserID, event.Email)
+
+	// Optionally publish a user updated event or invalidate cache
+	// Invalidate user cache if you have caching implemented
+	if c.redisRepo != nil {
+		cacheKey := "auth-service-auth-user-" + user.Username
+		err = c.redisRepo.DeleteKey(ctx, cacheKey)
+		if err != nil {
+			log.Printf("Warning: Failed to invalidate user cache for %s: %v", user.Username, err)
+		}
+	}
 
 	return nil
 }

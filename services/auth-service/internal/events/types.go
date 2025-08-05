@@ -13,9 +13,10 @@ const (
 	UserRegister EventType = "user.registered"
 	UserLogin    EventType = "user.login"
 	// ProfileUpdated is triggered when a user profile is updated
-	ProfileUpdated            EventType = "profile.updated"
-	GoogleLoginRequest        EventType = "google.login.request"
-	GoogleLoginResponse       EventType = "google.login.response"
+	ProfileUpdated           EventType = "profile.updated"
+	GoogleLoginRequest       EventType = "google.login.request"
+	GoogleLoginResponse      EventType = "google.login.response"
+	EmailVerificationSuccess EventType = "email.verification.success"
 )
 
 type BaseEvent struct {
@@ -23,6 +24,11 @@ type BaseEvent struct {
 	Type      EventType `json:"type"`
 	Timestamp int64     `json:"timestamp"`
 	Version   string    `json:"version"`
+}
+type EmailVerificationSuccessEvent struct {
+	BaseEvent
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
 }
 
 type GoogleLoginEvent struct {
