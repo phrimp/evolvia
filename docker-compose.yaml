@@ -323,7 +323,7 @@ services:
       - "traefik.http.routers.auth-service-public.middlewares=global-cors@docker"
       # Secure routes with CORS and auth
       - "traefik.http.routers.auth-service-secure.rule=PathPrefix(`/protected/auth`)"
-      - "traefik.http.routers.auth-service-secure.middlewares=global-cors@docker,auth-middleware"
+      - "traefik.http.routers.auth-service-secure.middlewares=global-cors@docker,auth-middleware@docker"
       - "traefik.docker.network=microservices_template_traefik-net"
 
   middleware:
