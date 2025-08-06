@@ -1,24 +1,54 @@
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
 
 scrape_configs:
+  # Prometheus itself
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
 
+  # Traefik metrics
   - job_name: 'traefik'
     static_configs:
       - targets: ['traefik:8080']
     metrics_path: '/metrics'
 
+  # Auth service metrics - Add this section
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth-service:9100']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # RabbitMQ metrics (already enabled in your config)
   - job_name: 'rabbitmq'
     static_configs:
       - targets: ['rabbitmq:15692']
     metrics_path: '/metrics'
 
-  - job_name: 'consul'
+  # Middleware service
+  - job_name: 'middleware'
     static_configs:
-      - targets: ['consul-server:8500']
-    metrics_path: '/v1/agent/metrics'
-    params:
-      format: ['prometheus']
+      - targets: ['middleware:9200']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Google service
+  - job_name: 'google-service'
+    static_configs:
+      - targets: ['google-service:9220']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Profile service
+  - job_name: 'profile-service'
+    static_configs:
+      - targets: ['profile-service:9230']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
