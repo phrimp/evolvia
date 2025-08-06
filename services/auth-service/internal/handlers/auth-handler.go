@@ -496,6 +496,7 @@ func (h *AuthHandler) Logout(c fiber.Ctx) error {
 		})
 	}
 	username := c.Get("X-User-Name")
+	log.Printf("username: %s", username)
 	logoutAttempts.Inc()
 	activeSessions.Dec()
 	err := h.sessionService.InvalidateSession(c.Context(), username)
@@ -535,7 +536,7 @@ func extractToken(c fiber.Ctx) string {
 	if len(auth) > 7 && auth[:7] == "Bearer " {
 		return auth[7:]
 	}
-	fmt.Printf("%s", auth)
+	fmt.Printf("token: %s", auth)
 	return auth
 }
 
