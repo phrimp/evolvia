@@ -19,8 +19,12 @@ func NewSessionRepository(db *mongo.Database) *SessionRepository {
 }
 
 func (r *SessionRepository) FindByID(ctx context.Context, id string) (*models.QuizSession, error) {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
 	var session models.QuizSession
-	err := r.Col.FindOne(ctx, bson.M{"_id": id}).Decode(&session)
+	err = r.Col.FindOne(ctx, bson.M{"_id": objID}).Decode(&session)
 	if err != nil {
 		return nil, err
 	}
@@ -40,6 +44,10 @@ func (r *SessionRepository) Create(ctx context.Context, session *models.QuizSess
 }
 
 func (r *SessionRepository) Update(ctx context.Context, id string, update bson.M) error {
-	_, err := r.Col.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": update})
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+	_, err = r.Col.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": update})
 	return err
 }

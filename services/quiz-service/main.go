@@ -62,7 +62,11 @@ func main() {
 	questionService := service.NewQuestionService(questionRepo)
 	questionHandler := handlers.NewQuestionHandler(questionService)
 	sessionRepo := repository.NewSessionRepository(database)
-	sessionService := service.NewSessionService(sessionRepo)
+	sessionService := service.NewSessionService(
+		sessionRepo,
+		quizRepo,
+		questionRepo,
+	)
 	sessionHandler := handlers.NewSessionHandler(sessionService)
 	answerRepo := repository.NewAnswerRepository(database)
 	answerService := service.NewAnswerService(answerRepo)

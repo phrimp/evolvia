@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"quiz-service/internal/models"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -55,4 +56,21 @@ func (r *QuestionRepository) Update(ctx context.Context, id string, update bson.
 func (r *QuestionRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.Col.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": bson.M{"status": "deleted"}})
 	return err
+}
+
+func (r *QuestionRepository) FindByQuizID(ctx context.Context, quizID string) ([]models.Question, error) {
+	cur, err := r.Col.Find(ctx, bson.M{"quiz_id": quizID})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var questions []models.Question
+	for cur.Next(ctx) {
+		var q models.Question
+		if err := cur.Decode(&q); err != nil {
+			return nil, err
+		}
+		questions = append(questions, q)
+	}
+	return questions, nil
 }
