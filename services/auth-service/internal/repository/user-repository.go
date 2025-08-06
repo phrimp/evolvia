@@ -133,7 +133,7 @@ func (r *UserAuthRepository) FindAll(ctx context.Context, page, limit int) ([]*m
 		},
 		{
 			"$lookup": bson.M{
-				"from": "userrole",
+				"from": "UserRole",
 				"let":  bson.M{"userId": "$_id"},
 				"pipeline": bson.A{
 					bson.M{
@@ -152,7 +152,7 @@ func (r *UserAuthRepository) FindAll(ctx context.Context, page, limit int) ([]*m
 		},
 		{
 			"$lookup": bson.M{
-				"from":         "role",
+				"from":         "Role",
 				"localField":   "userRoles.roleId",
 				"foreignField": "_id",
 				"as":           "roleDetails",
