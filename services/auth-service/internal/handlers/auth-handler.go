@@ -159,6 +159,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	}
 
 	if err := c.Bind().Body(&registerRequest); err != nil {
+		// Track failed registration attempt due to bad request
 		registrationAttempts.WithLabelValues("failure", "regular").Inc()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
@@ -166,6 +167,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	}
 
 	if registerRequest.Username == "" || registerRequest.Email == "" || registerRequest.Password == "" {
+		// Track failed registration attempt due to missing fields
 		registrationAttempts.WithLabelValues("failure", "regular").Inc()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Username, email, and password are required",
@@ -176,6 +178,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 		first, ok_first := registerRequest.Profile["firstName"]
 		last, ok_last := registerRequest.Profile["lastName"]
 		if !ok_first && !ok_last {
+			// Track failed registration attempt due to missing name
 			registrationAttempts.WithLabelValues("failure", "regular").Inc()
 			return c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
 				"error": "First name or Last name are required",
@@ -198,6 +201,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 
 	success, err := h.userService.Register(c.Context(), user, registerRequest.Profile)
 	if err != nil {
+		// Track failed registration attempt due to service error
 		registrationAttempts.WithLabelValues("failure", "regular").Inc()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -209,6 +213,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 		log.Printf("Warning: Failed to assign default role to user: %v", err)
 	}
 
+	// Track successful registration
 	registrationAttempts.WithLabelValues("success", "regular").Inc()
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -423,6 +428,7 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 	permissions, err := h.userRoleService.GetUserPermissions(c.Context(), user_id, "", bson.NilObjectID)
 	if err != nil {
 		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
+		loginAttempts.WithLabelValues("failure", "regular").Inc()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Service Error",
 		})
@@ -432,6 +438,7 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 	if err != nil {
 		session, err = h.sessionService.NewSession(&models.Session{}, permissions, c.Get("User-Agent"), login_data["username"].(string), login_data["email"].(string), user_id.String())
 		if err != nil {
+			loginAttempts.WithLabelValues("failure", "regular").Inc()
 			log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Service Error",
