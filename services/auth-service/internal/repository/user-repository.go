@@ -10,7 +10,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -120,12 +119,59 @@ func (r *UserAuthRepository) FindByEmail(ctx context.Context, email string) (*mo
 }
 
 func (r *UserAuthRepository) FindAll(ctx context.Context, page, limit int) ([]*models.UserAuth, error) {
-	opts := options.Find()
-	opts.SetSort(bson.M{"createdAt": -1})
-	opts.SetSkip(int64((page - 1) * limit))
-	opts.SetLimit(int64(limit))
+	skip := int64((page - 1) * limit)
 
-	cursor, err := r.collection.Find(ctx, bson.M{}, opts)
+	pipeline := []bson.M{
+		{
+			"$sort": bson.M{"createdAt": -1},
+		},
+		{
+			"$skip": skip,
+		},
+		{
+			"$limit": int64(limit),
+		},
+		{
+			"$lookup": bson.M{
+				"from": "userrole",
+				"let":  bson.M{"userId": "$_id"},
+				"pipeline": bson.A{
+					bson.M{
+						"$match": bson.M{
+							"$expr": bson.M{
+								"$and": bson.A{
+									bson.M{"$eq": bson.A{"$userId", "$$userId"}},
+									bson.M{"$eq": bson.A{"$isActive", true}},
+								},
+							},
+						},
+					},
+				},
+				"as": "userRoles",
+			},
+		},
+		{
+			"$lookup": bson.M{
+				"from":         "role",
+				"localField":   "userRoles.roleId",
+				"foreignField": "_id",
+				"as":           "roleDetails",
+			},
+		},
+		{
+			"$addFields": bson.M{
+				"basicProfile.roles": "$roleDetails.name",
+			},
+		},
+		{
+			"$project": bson.M{
+				"userRoles":   0,
+				"roleDetails": 0,
+			},
+		},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
