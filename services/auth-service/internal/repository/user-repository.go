@@ -164,7 +164,7 @@ func (r *UserAuthRepository) FindAll(ctx context.Context, page, limit int) ([]*m
 					"$map": bson.M{
 						"input": "$roleDetails",
 						"as":    "role",
-						"in":    "$role.name",
+						"in":    "$$role.name",
 					},
 				},
 			},
