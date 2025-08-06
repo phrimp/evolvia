@@ -444,6 +444,7 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 				"error": "Service Error",
 			})
 		}
+		activeSessions.Inc()
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -475,7 +476,6 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 	}
 
 	loginAttempts.WithLabelValues("success", "regular").Inc()
-	activeSessions.Inc()
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "User Login Successfully",
