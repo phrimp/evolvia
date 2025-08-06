@@ -498,8 +498,11 @@ func (h *AuthHandler) Logout(c fiber.Ctx) error {
 	username := c.Get("X-User-Name")
 	logoutAttempts.Inc()
 	activeSessions.Dec()
-	h.sessionService.InvalidateSession(c.Context(), username)
-	var null_session *models.Session
+	err := h.sessionService.InvalidateSession(c.Context(), username)
+	if err != nil {
+		log.Printf("invalidate user: %s session failed: %s", username, err)
+	}
+	null_session := &models.Session{}
 
 	go func() {
 		null_session.IPAddress = "invalidate"
