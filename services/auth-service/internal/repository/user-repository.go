@@ -184,3 +184,161 @@ func (r *UserAuthRepository) FindAll(ctx context.Context, page, limit int) ([]*m
 
 	return users, nil
 }
+
+// 1. First, let's check what's actually in your UserRole collection
+func (r *UserAuthRepository) DebugUserRoles(ctx context.Context, userID bson.ObjectID) {
+	userRoleCollection := r.collection.Database().Collection("UserRole")
+
+	// Check all UserRole documents for this user (ignore isActive for now)
+	cursor, err := userRoleCollection.Find(ctx, bson.M{"userId": userID})
+	if err != nil {
+		log.Printf("Error finding UserRoles: %v", err)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var userRoles []bson.M
+	if err = cursor.All(ctx, &userRoles); err != nil {
+		log.Printf("Error decoding UserRoles: %v", err)
+		return
+	}
+
+	log.Printf("Found %d UserRole records for user %s:", len(userRoles), userID.Hex())
+	for i, ur := range userRoles {
+		log.Printf("UserRole %d: %+v", i, ur)
+	}
+}
+
+// 2. Check what's in your Role collection
+func (r *UserAuthRepository) DebugRoles(ctx context.Context) {
+	roleCollection := r.collection.Database().Collection("Role")
+
+	cursor, err := roleCollection.Find(ctx, bson.M{})
+	if err != nil {
+		log.Printf("Error finding Roles: %v", err)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var roles []bson.M
+	if err = cursor.All(ctx, &roles); err != nil {
+		log.Printf("Error decoding Roles: %v", err)
+		return
+	}
+
+	log.Printf("Found %d Role records:", len(roles))
+	for i, role := range roles {
+		log.Printf("Role %d: %+v", i, role)
+	}
+}
+
+// 3. Test the aggregation step by step
+func (r *UserAuthRepository) DebugAggregationSteps(ctx context.Context, userID bson.ObjectID) {
+	// Test just the UserRole lookup
+	pipeline1 := []bson.M{
+		{
+			"$match": bson.M{"_id": userID},
+		},
+		{
+			"$lookup": bson.M{
+				"from": "UserRole",
+				"let":  bson.M{"userId": "$_id"},
+				"pipeline": bson.A{
+					bson.M{
+						"$match": bson.M{
+							"$expr": bson.M{
+								"$eq": bson.A{"$userId", "$$userId"},
+							},
+						},
+					},
+				},
+				"as": "userRoles",
+			},
+		},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline1)
+	if err != nil {
+		log.Printf("Error in step 1 aggregation: %v", err)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var result1 []bson.M
+	if err = cursor.All(ctx, &result1); err != nil {
+		log.Printf("Error decoding step 1: %v", err)
+		return
+	}
+
+	log.Printf("Step 1 result (UserRole lookup): %+v", result1)
+
+	// Test with Role lookup
+	pipeline2 := []bson.M{
+		{
+			"$match": bson.M{"_id": userID},
+		},
+		{
+			"$lookup": bson.M{
+				"from": "UserRole",
+				"let":  bson.M{"userId": "$_id"},
+				"pipeline": bson.A{
+					bson.M{
+						"$match": bson.M{
+							"$expr": bson.M{
+								"$eq": bson.A{"$userId", "$$userId"},
+							},
+						},
+					},
+				},
+				"as": "userRoles",
+			},
+		},
+		{
+			"$lookup": bson.M{
+				"from":         "Role",
+				"localField":   "userRoles.roleId",
+				"foreignField": "_id",
+				"as":           "roleDetails",
+			},
+		},
+	}
+
+	cursor2, err := r.collection.Aggregate(ctx, pipeline2)
+	if err != nil {
+		log.Printf("Error in step 2 aggregation: %v", err)
+		return
+	}
+	defer cursor2.Close(ctx)
+
+	var result2 []bson.M
+	if err = cursor2.All(ctx, &result2); err != nil {
+		log.Printf("Error decoding step 2: %v", err)
+		return
+	}
+
+	log.Printf("Step 2 result (Role lookup): %+v", result2)
+}
+
+// 4. Alternative approach - check field names by looking at first document
+func (r *UserAuthRepository) DebugFieldNames(ctx context.Context) {
+	userRoleCollection := r.collection.Database().Collection("UserRole")
+	roleCollection := r.collection.Database().Collection("Role")
+
+	// Get first UserRole document
+	var userRole bson.M
+	err := userRoleCollection.FindOne(ctx, bson.M{}).Decode(&userRole)
+	if err != nil {
+		log.Printf("No UserRole documents found or error: %v", err)
+	} else {
+		log.Printf("Sample UserRole document fields: %+v", userRole)
+	}
+
+	// Get first Role document
+	var role bson.M
+	err = roleCollection.FindOne(ctx, bson.M{}).Decode(&role)
+	if err != nil {
+		log.Printf("No Role documents found or error: %v", err)
+	} else {
+		log.Printf("Sample Role document fields: %+v", role)
+	}
+}

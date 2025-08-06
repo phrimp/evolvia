@@ -70,6 +70,15 @@ func (h *UserHandler) ListAllUsers(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// DEBUG: Add these lines temporarily
+	h.userService.UserRepo.DebugFieldNames(ctx)
+
+	// Test with the specific user ID from your response
+	userObjectID, _ := bson.ObjectIDFromHex("6891d3c11e8582266745d2b6")
+	h.userService.UserRepo.DebugUserRoles(ctx, userObjectID)
+	h.userService.UserRepo.DebugRoles(ctx)
+	h.userService.UserRepo.DebugAggregationSteps(ctx, userObjectID)
+
 	users, err := h.userService.ListAllUsers(ctx, page, limit)
 	if err != nil {
 		log.Printf("Failed to list users: %v", err)
