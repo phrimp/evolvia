@@ -320,7 +320,7 @@ services:
       - "traefik.http.routers.auth-service-public.middlewares=global-cors@docker"
       # Secure routes with CORS and auth
       - "traefik.http.routers.auth-service-secure.rule=PathPrefix(`/protected/auth`)"
-      - "traefik.http.routers.auth-service-secure.middlewares=global-cors@docker,auth-middleware@docker"
+      - "traefik.http.routers.auth-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 
   middleware:
@@ -357,12 +357,13 @@ services:
       - redis
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.middleware.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.middleware.rule=PathPrefix(`/api`) || PathPrefix(`/auth`)"
       - "traefik.http.routers.middleware.service=middleware"
       - "traefik.http.services.middleware.loadbalancer.server.port=${MIDDLEWARE_SERVICE_PORT}"
       - "traefik.http.routers.middleware.middlewares=global-cors@docker"
       - "traefik.http.middlewares.auth-middleware.forwardauth.address=http://middleware:${MIDDLEWARE_SERVICE_PORT}/auth/validate"
-      - "traefik.http.middlewares.auth-middleware.forwardauth.authResponseHeaders=X-User-ID,X-User-Role,X-User-Permissions"
+      - "traefik.http.middlewares.auth-middleware.forwardauth.authResponseHeaders=X-User-ID,X-User-Name,X-User-Email,X-User-Permissions"
+      - "traefik.http.middlewares.auth-middleware.forwardauth.trustForwardHeader=true"
       - "traefik.docker.network=microservices_template_traefik-net"
 
   object-storage-service:
