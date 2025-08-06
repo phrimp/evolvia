@@ -74,6 +74,11 @@ func (s *SessionService) GetSession(ctx context.Context, username string) (*mode
 	return session, nil
 }
 
+func (s *SessionService) InvalidateSession(ctx context.Context, username string) error {
+	cacheKey := "auth-service-session-" + username
+	return s.RedisRepo.DeleteKey(ctx, cacheKey)
+}
+
 func getBrowserInfo(userAgent string) string {
 	if len(userAgent) == 0 {
 		return "Unknown"

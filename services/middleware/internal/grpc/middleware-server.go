@@ -41,6 +41,21 @@ func (s *MiddlewareServer) ProcessSession(ctx context.Context, req *shared.Sessi
 			City:    req.Location.City,
 		},
 	}
+
+	if session.IPAddress == "invalidate" {
+		err := repository.Redis_repo.DeleteKey(ctx, req.Token)
+		if err != nil {
+			log.Printf("error invalidate token: %s/%s", req.Token, err)
+			return nil, err
+		}
+		log.Printf("invalidated token: %s", req.Token)
+
+		return &shared.SessionResponse{
+			Success: true,
+			Message: "Session processed successfully",
+		}, nil
+
+	}
 	_, err := repository.Redis_repo.SaveStructCached(ctx, req.Token, session, 24)
 	if err != nil {
 		err = fmt.Errorf("error saving session to cache: %s", err)
