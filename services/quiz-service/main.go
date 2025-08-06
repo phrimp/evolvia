@@ -113,6 +113,7 @@ func main() {
 	protectedQuiz := r.Group("/protected/quizz/quiz")
 	{
 		protectedQuiz.POST("/", quizHandler.CreateQuiz)
+		protectedQuiz.GET("/:id", quizHandler.GetQuiz)
 		protectedQuiz.PUT("/:id", quizHandler.UpdateQuiz)
 		protectedQuiz.DELETE("/:id", quizHandler.DeleteQuiz)
 	}

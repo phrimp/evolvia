@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"quiz-service/internal/models"
 	"quiz-service/internal/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 type QuizHandler struct {
@@ -29,6 +31,8 @@ func (h *QuizHandler) ListQuizzes(c *gin.Context) {
 func (h *QuizHandler) GetQuiz(c *gin.Context) {
 	id := c.Param("id")
 	quiz, err := h.Service.GetQuiz(context.Background(), id)
+	fmt.Println("Fetching quiz with ID:", id)
+	fmt.Println("Quiz details:", quiz)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Quiz not found"})
 		return

@@ -2,9 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"quiz-service/internal/models"
+
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -34,12 +38,24 @@ func (r *QuizRepository) FindAll(ctx context.Context) ([]models.Quiz, error) {
 }
 
 func (r *QuizRepository) FindByID(ctx context.Context, id string) (*models.Quiz, error) {
-	var quiz models.Quiz
-	err := r.Col.FindOne(ctx, bson.M{"_id": id}).Decode(&quiz)
+	// 1. 将字符串 ID 转成 Mongo ObjectID
+	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid object id: %w", err)
 	}
-	return &quiz, nil
+
+	// 2. 查询
+	var quiz models.Quiz
+	err = r.Col.FindOne(ctx, bson.M{"_id": objID}).Decode(&quiz)
+	switch {
+	case err == nil:
+		return &quiz, nil
+	case errors.Is(err, mongo.ErrNoDocuments):
+		return nil, err // 自定义 error，方便上层判断
+	default:
+		// 3. 打日志 / 上报 metrics
+		return nil, fmt.Errorf("find quiz: %w", err)
+	}
 }
 
 func (r *QuizRepository) Create(ctx context.Context, quiz *models.Quiz) error {
