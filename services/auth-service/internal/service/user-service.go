@@ -19,6 +19,7 @@ type UserService struct {
 	RedisRepo           *repository.RedisRepo
 	mu                  *sync.Mutex
 	FailedLoginAttempts map[string]*FailedLoginAttempt
+	LastLoginAttempts   map[string]int64
 	eventPublisher      events.Publisher
 }
 
@@ -32,6 +33,7 @@ func NewUserService(eventPublisher events.Publisher) *UserService {
 		UserRepo:            repository.Repositories_instance.UserAuthRepository,
 		mu:                  &sync.Mutex{},
 		FailedLoginAttempts: make(map[string]*FailedLoginAttempt),
+		LastLoginAttempts:   make(map[string]int64),
 		RedisRepo:           repository.Repositories_instance.RedisRepository,
 		eventPublisher:      eventPublisher,
 	}
@@ -119,6 +121,7 @@ func (us *UserService) Login(ctx context.Context, username, password string) (ma
 		"email":         user.Email,
 		"basic_profile": user.BasicProfile,
 	}
+	us.LastLoginAttempts[user.ID.Hex()] = time.Now().Local().Unix()
 
 	return login_return, nil
 }
@@ -243,6 +246,12 @@ func (us *UserService) GetUserByID(ctx context.Context, userID bson.ObjectID) (*
 	user, err := us.UserRepo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	session := &models.Session{}
+	err = us.RedisRepo.GetStructCached(ctx, "auth-service-session-"+user.Username, "", session)
+	if err != nil {
+		log.Printf("error get user session in get user by id: %v", err)
 	}
 	return user, nil
 }

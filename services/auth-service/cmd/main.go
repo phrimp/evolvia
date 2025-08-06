@@ -30,6 +30,10 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
+func init() {
+	os.Setenv("TZ", "Asia/Ho_Chi_Minh")
+}
+
 var ignore_log_path []string = []string{"/health"}
 
 func setupLogging() (*os.File, error) {

@@ -14,7 +14,57 @@ import (
 	grpcServer "auth_service/internal/grpc"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+var (
+	// Counter for total login attempts
+	loginAttempts = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "auth_login_attempts_total",
+			Help: "Total number of login attempts",
+		},
+		[]string{"status", "method"}, // status: success/failure, method: regular/google
+	)
+
+	// Counter for registrations
+	registrationAttempts = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "auth_registration_attempts_total",
+			Help: "Total number of registration attempts",
+		},
+		[]string{"status", "method"}, // status: success/failure, method: regular/google
+	)
+
+	// Histogram for login duration
+	loginDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "auth_login_duration_seconds",
+			Help:    "Time spent processing login requests",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"status"},
+	)
+
+	// Gauge for active sessions
+	activeSessions = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "auth_active_sessions_current",
+			Help: "Current number of active sessions",
+		},
+	)
+
+	// Counter for logout events
+	logoutAttempts = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "auth_logout_attempts_total",
+			Help: "Total number of logout attempts",
+		},
+	)
 )
 
 type ResponseStruct struct {
@@ -87,6 +137,9 @@ func (h *AuthHandler) GoogleLoginCallBack(c fiber.Ctx) error {
 
 func (h *AuthHandler) RegisterRoutes(app *fiber.App) {
 	app.Get("/health", h.HealthCheck)
+
+	app.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
+
 	authGroup := app.Group("/public/auth")
 
 	authGroup.Post("/register", h.Register)
@@ -106,12 +159,16 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	}
 
 	if err := c.Bind().Body(&registerRequest); err != nil {
+		// Track failed registration attempt due to bad request
+		registrationAttempts.WithLabelValues("failure", "regular").Inc()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
 	}
 
 	if registerRequest.Username == "" || registerRequest.Email == "" || registerRequest.Password == "" {
+		// Track failed registration attempt due to missing fields
+		registrationAttempts.WithLabelValues("failure", "regular").Inc()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Username, email, and password are required",
 		})
@@ -121,6 +178,8 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 		first, ok_first := registerRequest.Profile["firstName"]
 		last, ok_last := registerRequest.Profile["lastName"]
 		if !ok_first && !ok_last {
+			// Track failed registration attempt due to missing name
+			registrationAttempts.WithLabelValues("failure", "regular").Inc()
 			return c.Status(fiber.ErrBadRequest.Code).JSON(fiber.Map{
 				"error": "First name or Last name are required",
 			})
@@ -142,6 +201,8 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 
 	success, err := h.userService.Register(c.Context(), user, registerRequest.Profile)
 	if err != nil {
+		// Track failed registration attempt due to service error
+		registrationAttempts.WithLabelValues("failure", "regular").Inc()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -151,6 +212,9 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	if err != nil {
 		log.Printf("Warning: Failed to assign default role to user: %v", err)
 	}
+
+	// Track successful registration
+	registrationAttempts.WithLabelValues("success", "regular").Inc()
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "User Created Successfully",
@@ -329,18 +393,23 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 }
 
 func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
+	timer := prometheus.NewTimer(loginDuration.WithLabelValues("pending"))
+	defer timer.ObserveDuration()
+
 	var loginRequest struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 
 	if err := c.Bind().Body(&loginRequest); err != nil {
+		loginAttempts.WithLabelValues("failure", "regular").Inc()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
 	}
 
 	if loginRequest.Username == "" || loginRequest.Password == "" {
+		loginAttempts.WithLabelValues("failure", "regular").Inc()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Username and password are required",
 		})
@@ -348,6 +417,7 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 
 	login_data, err := h.userService.Login(c.Context(), loginRequest.Username, loginRequest.Password)
 	if err != nil {
+		loginAttempts.WithLabelValues("failure", "regular").Inc()
 		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid credentials",
@@ -358,6 +428,7 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 	permissions, err := h.userRoleService.GetUserPermissions(c.Context(), user_id, "", bson.NilObjectID)
 	if err != nil {
 		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
+		loginAttempts.WithLabelValues("failure", "regular").Inc()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Service Error",
 		})
@@ -367,6 +438,7 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 	if err != nil {
 		session, err = h.sessionService.NewSession(&models.Session{}, permissions, c.Get("User-Agent"), login_data["username"].(string), login_data["email"].(string), user_id.String())
 		if err != nil {
+			loginAttempts.WithLabelValues("failure", "regular").Inc()
 			log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Service Error",
@@ -402,6 +474,9 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 		}
 	}
 
+	loginAttempts.WithLabelValues("success", "regular").Inc()
+	activeSessions.Inc()
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "User Login Successfully",
 		"data": fiber.Map{
@@ -418,6 +493,8 @@ func (h *AuthHandler) Logout(c fiber.Ctx) error {
 			"error": "No token provided",
 		})
 	}
+	logoutAttempts.Inc()
+	activeSessions.Dec()
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"success": true,
 		"message": "Logged out successfully",
