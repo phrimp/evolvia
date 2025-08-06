@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"quiz-service/internal/models"
 
@@ -36,16 +38,24 @@ func (r *QuizRepository) FindAll(ctx context.Context) ([]models.Quiz, error) {
 }
 
 func (r *QuizRepository) FindByID(ctx context.Context, id string) (*models.Quiz, error) {
+	// 1. 将字符串 ID 转成 Mongo ObjectID
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, err // invalid id format
+		return nil, fmt.Errorf("invalid object id: %w", err)
 	}
+
+	// 2. 查询
 	var quiz models.Quiz
 	err = r.Col.FindOne(ctx, bson.M{"_id": objID}).Decode(&quiz)
-	if err != nil {
-		return nil, err
+	switch {
+	case err == nil:
+		return &quiz, nil
+	case errors.Is(err, mongo.ErrNoDocuments):
+		return nil, err // 自定义 error，方便上层判断
+	default:
+		// 3. 打日志 / 上报 metrics
+		return nil, fmt.Errorf("find quiz: %w", err)
 	}
-	return &quiz, nil
 }
 
 func (r *QuizRepository) Create(ctx context.Context, quiz *models.Quiz) error {
