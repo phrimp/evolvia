@@ -398,7 +398,7 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 			if err != nil {
 				log.Printf("retrieving role by id error: %v", err)
 			}
-			basic_profile.Role = append(basic_profile.Role, role.Name)
+			basic_profile.Roles = append(basic_profile.Roles, role.Name)
 		}
 	}
 

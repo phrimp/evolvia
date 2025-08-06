@@ -92,3 +92,8 @@ type Claims struct {
 	Email       string
 	Permissions []string
 }
+
+type UserAuthWithRoles struct {
+	UserAuth `bson:",inline"`
+	Roles    []string `bson:"roles,omitempty" json:"roles,omitempty"`
+}
