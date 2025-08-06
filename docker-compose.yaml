@@ -57,16 +57,13 @@ services:
       - TRAEFIK_METRICS_PROMETHEUS_ADDENTRYPOINTSLABELS=true
       - TRAEFIK_METRICS_PROMETHEUS_ADDSERVICESLABELS=true
     labels:
-    - "traefik.enable=true"
-    - "traefik.http.routers.middleware.rule=PathPrefix(`/api`) || PathPrefix(`/auth`)" # Add /auth path
-    - "traefik.http.routers.middleware.service=middleware"
-    - "traefik.http.services.middleware.loadbalancer.server.port=${MIDDLEWARE_SERVICE_PORT}"
-    - "traefik.http.routers.middleware.middlewares=global-cors@docker"
-    # ✅ CORRECTED: Add missing headers
-    - "traefik.http.middlewares.auth-middleware.forwardauth.address=http://middleware:${MIDDLEWARE_SERVICE_PORT}/auth/validate"
-    - "traefik.http.middlewares.auth-middleware.forwardauth.authResponseHeaders=X-User-ID,X-User-Name,X-User-Email,X-User-Permissions"
-    - "traefik.http.middlewares.auth-middleware.forwardauth.trustForwardHeader=true"
-    - "traefik.docker.network=microservices_template_traefik-net"
+      - "traefik.enable=true"
+      # Define CORS middleware with proper naming
+      - "traefik.http.middlewares.global-cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
+      - "traefik.http.middlewares.global-cors.headers.accesscontrolallowheaders=*"
+      - "traefik.http.middlewares.global-cors.headers.accesscontrolalloworiginlist=*"
+      - "traefik.http.middlewares.global-cors.headers.accesscontrolmaxage=100"
+      - "traefik.http.middlewares.global-cors.headers.addvaryheader=true"
     networks:
       - consul-net
       - traefik-net
