@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"quiz-service/internal/models"
+
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -34,8 +36,12 @@ func (r *QuizRepository) FindAll(ctx context.Context) ([]models.Quiz, error) {
 }
 
 func (r *QuizRepository) FindByID(ctx context.Context, id string) (*models.Quiz, error) {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err // invalid id format
+	}
 	var quiz models.Quiz
-	err := r.Col.FindOne(ctx, bson.M{"_id": id}).Decode(&quiz)
+	err = r.Col.FindOne(ctx, bson.M{"_id": objID}).Decode(&quiz)
 	if err != nil {
 		return nil, err
 	}
