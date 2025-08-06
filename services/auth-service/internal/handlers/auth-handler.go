@@ -496,6 +496,7 @@ func (h *AuthHandler) Logout(c fiber.Ctx) error {
 		})
 	}
 	username := c.Get("X-User-Name")
+	log.Printf(c.Get("X-User-Name", "null"), c.Get("X-User-ID", "null"), c.Get("X-User-Email", "null"), c.Get("X-User-Permissions", "null"))
 	log.Printf("username: %s", username)
 	logoutAttempts.Inc()
 	activeSessions.Dec()
