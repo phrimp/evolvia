@@ -26,6 +26,9 @@ func (r *SessionRepository) FindByID(ctx context.Context, id string) (*models.Qu
 	var session models.QuizSession
 	err = r.Col.FindOne(ctx, bson.M{"_id": objID}).Decode(&session)
 	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil // Not found, return nil
+		}
 		return nil, err
 	}
 	return &session, nil
