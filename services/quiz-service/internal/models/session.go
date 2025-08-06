@@ -22,6 +22,7 @@ type QuizSession struct {
 	TotalQuestionsAsked int                      `bson:"total_questions_asked" json:"total_questions_asked"`
 	StageProgress       map[string]StageProgress `bson:"stage_progress" json:"stage_progress"`
 	QuestionsUsed       []string                 `bson:"questions_used" json:"questions_used"`
+	AnsweredQuestionIDs []string                 `bson:"answered_question_ids" json:"answered_question_ids"`
 	Status              string                   `bson:"status" json:"status"`
 	FinalScore          float64                  `bson:"final_score" json:"final_score"`
 	CompletionType      string                   `bson:"completion_type" json:"completion_type"`
