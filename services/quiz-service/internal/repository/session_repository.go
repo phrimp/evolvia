@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"quiz-service/internal/models"
+
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -26,8 +28,15 @@ func (r *SessionRepository) FindByID(ctx context.Context, id string) (*models.Qu
 }
 
 func (r *SessionRepository) Create(ctx context.Context, session *models.QuizSession) error {
-	_, err := r.Col.InsertOne(ctx, session)
-	return err
+	res, err := r.Col.InsertOne(ctx, session)
+	if err != nil {
+		return err
+	}
+	// Gán lại ObjectID vào session (nếu dùng primitive.ObjectID)
+	if oid, ok := res.InsertedID.(primitive.ObjectID); ok {
+		session.ID = oid.Hex()
+	}
+	return nil
 }
 
 func (r *SessionRepository) Update(ctx context.Context, id string, update bson.M) error {
