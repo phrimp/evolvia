@@ -39,6 +39,8 @@ func (h *SessionHandler) CreateSession(c *gin.Context) {
 		return
 	}
 
+	session.UserID = c.GetHeader("X-User-ID")
+
 	// Set initial values for adaptive quiz
 	session.StartTime = time.Now()
 	session.Status = "active"

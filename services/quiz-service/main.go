@@ -175,6 +175,8 @@ func main() {
 		protectedResult.POST("/", resultHandler.CreateResult)
 	}
 
+	setupSessionRoutes(r, sessionHandler, publisher)
+
 	r.Run(":6666")
 }
 
