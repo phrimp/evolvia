@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"quiz-service/internal/db"
 	"quiz-service/internal/event"
@@ -153,14 +155,53 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 	// Protected session routes with adaptive logic
 	protectedSession := r.Group("/protected/quizz/session")
 	{
-		// Create new adaptive session
-		protectedSession.POST("/", sessionHandler.CreateSession)
+		// === CORE SESSION MANAGEMENT ===
+
+		// Create new adaptive session with skill validation
+		protectedSession.POST("/", func(c *gin.Context) {
+			sessionHandler.CreateSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.creation_requested", gin.H{
+					"user_id":   c.GetHeader("X-User-ID"),
+					"timestamp": time.Now(),
+				})
+			}
+		})
+
+		// Create simple session (backward compatibility)
+		protectedSession.POST("/simple", func(c *gin.Context) {
+			sessionHandler.CreateSimpleSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.simple_created", gin.H{
+					"user_id":   c.GetHeader("X-User-ID"),
+					"timestamp": time.Now(),
+				})
+			}
+		})
+
+		// Update session information
+		protectedSession.PUT("/:id", func(c *gin.Context) {
+			sessionHandler.UpdateSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.updated", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// === ADAPTIVE QUIZ INTERACTION ===
 
 		// Submit answer - now with adaptive processing
 		protectedSession.POST("/:id/answer", func(c *gin.Context) {
 			sessionHandler.SubmitAnswer(c)
 			if publisher != nil {
-				publisher.Publish("quiz.answer.submitted", gin.H{"session_id": c.Param("id")})
+				publisher.Publish("quiz.answer.submitted", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
 			}
 		})
 
@@ -168,36 +209,272 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 		protectedSession.GET("/:id/next", func(c *gin.Context) {
 			sessionHandler.NextQuestion(c)
 			if publisher != nil {
-				publisher.Publish("quiz.question.requested", gin.H{"session_id": c.Param("id")})
+				publisher.Publish("quiz.question.requested", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
 			}
 		})
 
-		// Get current session status
-		protectedSession.GET("/:id/status", sessionHandler.GetSessionStatus)
+		// === SESSION CONTROL ===
 
 		// Submit/complete session
 		protectedSession.POST("/:id/submit", func(c *gin.Context) {
 			sessionHandler.SubmitSession(c)
 			if publisher != nil {
-				publisher.Publish("quiz.session.completed", gin.H{"session_id": c.Param("id")})
+				publisher.Publish("quiz.session.completed", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
 			}
 		})
 
 		// Pause session
-		protectedSession.POST("/:id/pause", sessionHandler.PauseSession)
+		protectedSession.POST("/:id/pause", func(c *gin.Context) {
+			sessionHandler.PauseSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.paused", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Resume session
+		protectedSession.POST("/:id/resume", func(c *gin.Context) {
+			sessionHandler.ResumeSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.resumed", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// === STATUS AND MONITORING ===
+
+		// Get current session status (detailed adaptive status)
+		protectedSession.GET("/:id/status", func(c *gin.Context) {
+			sessionHandler.GetSessionStatus(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.status_checked", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Get detailed session progress
+		protectedSession.GET("/:id/progress", func(c *gin.Context) {
+			sessionHandler.GetSessionProgress(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.progress_checked", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Get session statistics
+		protectedSession.GET("/:id/statistics", func(c *gin.Context) {
+			sessionHandler.GetSessionStatistics(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.statistics_requested", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// === ANSWERS AND RESULTS ===
+
+		// Get all answers for a session
+		protectedSession.GET("/:id/answers", func(c *gin.Context) {
+			sessionHandler.GetSessionAnswers(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.answers_requested", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Validate session access
+		protectedSession.GET("/:id/validate", func(c *gin.Context) {
+			sessionHandler.ValidateSessionAccess(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.access_validated", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// === QUESTION POOL MANAGEMENT ===
 
 		// Get quiz pool information
-		protectedSession.GET("/pool/info", sessionHandler.GetQuizPoolInfo)
+		protectedSession.GET("/pool/info", func(c *gin.Context) {
+			sessionHandler.GetQuizPoolInfo(c)
+			if publisher != nil {
+				publisher.Publish("quiz.pool.info_requested", gin.H{
+					"quiz_id":   c.Query("quiz_id"),
+					"skill_id":  c.Query("skill_id"),
+					"user_id":   c.GetHeader("X-User-ID"),
+					"timestamp": time.Now(),
+				})
+			}
+		})
 
 		// Preload questions for a stage
-		protectedSession.POST("/pool/preload", sessionHandler.PreloadQuestions)
+		protectedSession.POST("/pool/preload", func(c *gin.Context) {
+			sessionHandler.PreloadQuestions(c)
+			if publisher != nil {
+				publisher.Publish("quiz.pool.questions_preloaded", gin.H{
+					"user_id":   c.GetHeader("X-User-ID"),
+					"timestamp": time.Now(),
+				})
+			}
+		})
+
+		// === ADMIN AND BATCH OPERATIONS ===
+
+		// Get batch sessions (admin endpoint)
+		protectedSession.GET("/batch", func(c *gin.Context) {
+			sessionHandler.GetBatchSessions(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.batch_requested", gin.H{
+					"user_id":   c.GetHeader("X-User-ID"),
+					"limit":     c.Query("limit"),
+					"offset":    c.Query("offset"),
+					"timestamp": time.Now(),
+				})
+			}
+		})
+
+		// Health check for session service
+		protectedSession.GET("/health", func(c *gin.Context) {
+			sessionHandler.HealthCheck(c)
+			// No event publishing for health checks to avoid spam
+		})
 	}
 
-	// Public session routes
+	// === PUBLIC SESSION ROUTES ===
 	publicSession := r.Group("/public/quizz/session")
 	{
-		publicSession.GET("/:id", sessionHandler.GetSession)
-		publicSession.GET("/:id/status", sessionHandler.GetSessionStatus)
-		publicSession.GET("/pool/info", sessionHandler.GetQuizPoolInfo)
+		// Get basic session information (public)
+		publicSession.GET("/:id", func(c *gin.Context) {
+			sessionHandler.GetSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.public_view", gin.H{
+					"session_id": c.Param("id"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Get session status (public - limited info)
+		publicSession.GET("/:id/status", func(c *gin.Context) {
+			sessionHandler.GetSessionStatus(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.public_status_check", gin.H{
+					"session_id": c.Param("id"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Get session progress (public - limited info)
+		publicSession.GET("/:id/progress", func(c *gin.Context) {
+			sessionHandler.GetSessionProgress(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.public_progress_check", gin.H{
+					"session_id": c.Param("id"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Get quiz pool information (public)
+		publicSession.GET("/pool/info", func(c *gin.Context) {
+			sessionHandler.GetQuizPoolInfo(c)
+			if publisher != nil {
+				publisher.Publish("quiz.pool.public_info_requested", gin.H{
+					"quiz_id":   c.Query("quiz_id"),
+					"skill_id":  c.Query("skill_id"),
+					"timestamp": time.Now(),
+				})
+			}
+		})
+
+		// Public health check
+		publicSession.GET("/health", func(c *gin.Context) {
+			sessionHandler.HealthCheck(c)
+			// No event publishing for health checks
+		})
 	}
+
+	// === MIDDLEWARE SETUP FOR SESSION ROUTES ===
+
+	// Add authentication middleware to protected routes
+	protectedSession.Use(func(c *gin.Context) {
+		userID := c.GetHeader("X-User-ID")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Authentication required",
+				"code":  "MISSING_USER_ID",
+			})
+			c.Abort()
+			return
+		}
+		c.Next()
+	})
+
+	// Add rate limiting middleware for intensive operations
+	protectedSession.Use(func(c *gin.Context) {
+		// Simple rate limiting logic could be added here
+		// For production, consider using redis-based rate limiting
+		c.Next()
+	})
+
+	// Add request logging middleware
+	protectedSession.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		return fmt.Sprintf("[SESSION] %v | %3d | %13v | %15s | %-7s %#v\n%s",
+			param.TimeStamp.Format("2006/01/02 - 15:04:05"),
+			param.StatusCode,
+			param.Latency,
+			param.ClientIP,
+			param.Method,
+			param.Path,
+			param.ErrorMessage,
+		)
+	}))
+
+	// === ERROR HANDLING MIDDLEWARE ===
+	protectedSession.Use(func(c *gin.Context) {
+		c.Next()
+
+		// Handle any panics that might occur in session handlers
+		if len(c.Errors) > 0 {
+			err := c.Errors.Last()
+			if publisher != nil {
+				publisher.Publish("quiz.session.error_occurred", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"error":      err.Error(),
+					"path":       c.Request.URL.Path,
+					"method":     c.Request.Method,
+					"timestamp":  time.Now(),
+				})
+			}
+		}
+	})
 }
