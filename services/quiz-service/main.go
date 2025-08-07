@@ -68,7 +68,7 @@ func main() {
 	)
 	answerRepo := repository.NewAnswerRepository(database)
 	answerService := service.NewAnswerService(answerRepo)
-	answerHandler := handlers.NewAnswerHandler(answerService)
+	_ = handlers.NewAnswerHandler(answerService)
 	sessionHandler := handlers.NewSessionHandler(sessionService, answerService)
 
 	// Public routes
@@ -127,37 +127,6 @@ func main() {
 		protectedQuestion.PUT("/:id", questionHandler.UpdateQuestion)
 		protectedQuestion.DELETE("/:id", questionHandler.DeleteQuestion)
 		protectedQuestion.POST("/bulk", questionHandler.BulkQuestionOps)
-	}
-
-	protectedSession := r.Group("/protected/quizz/session")
-	{
-		protectedSession.POST("/", sessionHandler.CreateSession)
-		protectedSession.POST("/:id/answer", answerHandler.CreateAnswer)
-		protectedSession.GET("/:id/next", sessionHandler.NextQuestion)
-		protectedSession.POST("/:id/submit", sessionHandler.SubmitSession)
-		protectedSession.POST("/:id/pause", sessionHandler.PauseSession)
-	}
-
-	publicSession := r.Group("/public/quizz/session")
-	{
-		publicSession.GET(":id", func(c *gin.Context) {
-			sessionHandler.GetSession(c)
-			if publisher != nil {
-				publisher.Publish("session.get", gin.H{"id": c.Param("id")})
-			}
-		})
-		publicSession.GET(":id/answers", func(c *gin.Context) {
-			answerHandler.GetAnswersBySession(c)
-			if publisher != nil {
-				publisher.Publish("session.answers", gin.H{"id": c.Param("id")})
-			}
-		})
-		publicSession.GET(":id/result", func(c *gin.Context) {
-			resultHandler.GetResultBySession(c)
-			if publisher != nil {
-				publisher.Publish("session.result", gin.H{"id": c.Param("id")})
-			}
-		})
 	}
 
 	publicUser := r.Group("/public/quizz/user")
