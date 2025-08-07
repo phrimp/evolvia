@@ -199,3 +199,61 @@ func (h *SessionHandler) GetSessionStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, status)
 }
+
+// GetQuizPoolInfo returns information about the quiz question pool
+func (h *SessionHandler) GetQuizPoolInfo(c *gin.Context) {
+	quizID := c.Query("quiz_id")
+	skillID := c.Query("skill_id")
+
+	if quizID == "" || skillID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "quiz_id and skill_id are required",
+		})
+		return
+	}
+
+	poolInfo, err := h.Service.GetQuizPoolInfo(context.Background(), quizID, skillID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, poolInfo)
+}
+
+// PreloadQuestions allows pre-loading questions for a stage
+func (h *SessionHandler) PreloadQuestions(c *gin.Context) {
+	var request struct {
+		QuizID     string   `json:"quiz_id"`
+		SkillID    string   `json:"skill_id"`
+		Stage      string   `json:"stage"`
+		Count      int      `json:"count"`
+		ExcludeIDs []string `json:"exclude_ids"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	questions, err := h.Service.SelectQuestionsForStage(
+		context.Background(),
+		request.QuizID,
+		request.SkillID,
+		request.Stage,
+		request.Count,
+		request.ExcludeIDs,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"questions": questions,
+		"count":     len(questions),
+		"stage":     request.Stage,
+	})
+}

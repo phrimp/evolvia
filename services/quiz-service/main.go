@@ -214,6 +214,12 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 
 		// Pause session
 		protectedSession.POST("/:id/pause", sessionHandler.PauseSession)
+
+		// Get quiz pool information
+		protectedSession.GET("/pool/info", sessionHandler.GetQuizPoolInfo)
+
+		// Preload questions for a stage
+		protectedSession.POST("/pool/preload", sessionHandler.PreloadQuestions)
 	}
 
 	// Public session routes
@@ -221,5 +227,6 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 	{
 		publicSession.GET("/:id", sessionHandler.GetSession)
 		publicSession.GET("/:id/status", sessionHandler.GetSessionStatus)
+		publicSession.GET("/pool/info", sessionHandler.GetQuizPoolInfo)
 	}
 }
