@@ -3,19 +3,23 @@ package handlers
 import (
 	"context"
 	"net/http"
-
 	"quiz-service/internal/models"
 	"quiz-service/internal/service"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 type SessionHandler struct {
-	Service *service.SessionService
+	Service       *service.SessionService
+	AnswerService *service.AnswerService
 }
 
-func NewSessionHandler(s *service.SessionService) *SessionHandler {
-	return &SessionHandler{Service: s}
+func NewSessionHandler(s *service.SessionService, as *service.AnswerService) *SessionHandler {
+	return &SessionHandler{
+		Service:       s,
+		AnswerService: as,
+	}
 }
 
 func (h *SessionHandler) GetSession(c *gin.Context) {
@@ -34,6 +38,15 @@ func (h *SessionHandler) CreateSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Set initial values for adaptive quiz
+	session.StartTime = time.Now()
+	session.Status = "active"
+	session.CurrentStage = "easy"
+	session.TotalQuestionsAsked = 0
+	session.QuestionsUsed = []string{}
+	session.FinalScore = 0
+
 	if err := h.Service.CreateSession(context.Background(), &session); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -55,18 +68,78 @@ func (h *SessionHandler) UpdateSession(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "updated"})
 }
 
+// SubmitAnswer handles answer submission with adaptive logic
+func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
+	sessionID := c.Param("id")
+
+	var answerData struct {
+		QuestionID string `json:"question_id"`
+		UserAnswer string `json:"user_answer"`
+		IsCorrect  bool   `json:"is_correct"`
+		TimeSpent  int    `json:"time_spent_seconds"`
+	}
+
+	if err := c.ShouldBindJSON(&answerData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Process answer through adaptive logic
+	result, err := h.Service.ProcessAnswer(
+		context.Background(),
+		sessionID,
+		answerData.QuestionID,
+		answerData.UserAnswer,
+		answerData.IsCorrect,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Store the answer record
+	answer := models.QuizAnswer{
+		SessionID:        sessionID,
+		QuestionID:       answerData.QuestionID,
+		UserAnswer:       answerData.UserAnswer,
+		IsCorrect:        answerData.IsCorrect,
+		PointsEarned:     result.PointsEarned,
+		TimeSpentSeconds: answerData.TimeSpent,
+		AnsweredAt:       time.Now(),
+	}
+
+	if h.AnswerService != nil {
+		_ = h.AnswerService.CreateAnswer(context.Background(), &answer)
+	}
+
+	// Return adaptive result
+	response := gin.H{
+		"is_correct":    result.IsCorrect,
+		"points_earned": result.PointsEarned,
+		"stage_update":  result.StageUpdate,
+		"is_complete":   result.IsComplete,
+	}
+
+	if result.StageUpdate {
+		response["next_stage"] = result.NextStage
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func (h *SessionHandler) NextQuestion(c *gin.Context) {
 	sessionID := c.Param("id")
-	session, err := h.Service.GetSession(context.Background(), sessionID)
+
+	// Get next question based on adaptive logic
+	question, err := h.Service.GetNextQuestion(context.Background(), sessionID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "No next question available",
+			"details": err.Error(),
+		})
 		return
 	}
-	question, err := h.Service.GetNextQuestion(context.Background(), session.QuizID, session.AnsweredQuestionIDs)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "No next question"})
-		return
-	}
+
 	c.JSON(http.StatusOK, question)
 }
 
@@ -103,4 +176,26 @@ func (h *SessionHandler) PauseSession(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Session paused"})
+}
+
+// GetSessionStatus returns current adaptive session status
+func (h *SessionHandler) GetSessionStatus(c *gin.Context) {
+	sessionID := c.Param("id")
+
+	session, err := h.Service.GetSession(context.Background(), sessionID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+		return
+	}
+
+	status := gin.H{
+		"session_id":      session.ID,
+		"current_stage":   session.CurrentStage,
+		"total_questions": session.TotalQuestionsAsked,
+		"current_score":   session.FinalScore,
+		"status":          session.Status,
+		"stage_progress":  session.StageProgress,
+	}
+
+	c.JSON(http.StatusOK, status)
 }

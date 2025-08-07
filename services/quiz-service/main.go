@@ -3,13 +3,12 @@ package main
 import (
 	"log"
 	"os"
-	"time"
-
 	"quiz-service/internal/db"
 	"quiz-service/internal/event"
 	"quiz-service/internal/handlers"
 	"quiz-service/internal/repository"
 	"quiz-service/internal/service"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -67,10 +66,10 @@ func main() {
 		quizRepo,
 		questionRepo,
 	)
-	sessionHandler := handlers.NewSessionHandler(sessionService)
 	answerRepo := repository.NewAnswerRepository(database)
 	answerService := service.NewAnswerService(answerRepo)
 	answerHandler := handlers.NewAnswerHandler(answerService)
+	sessionHandler := handlers.NewSessionHandler(sessionService, answerService)
 
 	// Public routes
 	resultRepo := repository.NewResultRepository(database)
@@ -177,4 +176,50 @@ func main() {
 	}
 
 	r.Run(":6666")
+}
+
+func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, publisher *event.EventPublisher) {
+	// Protected session routes with adaptive logic
+	protectedSession := r.Group("/protected/quizz/session")
+	{
+		// Create new adaptive session
+		protectedSession.POST("/", sessionHandler.CreateSession)
+
+		// Submit answer - now with adaptive processing
+		protectedSession.POST("/:id/answer", func(c *gin.Context) {
+			sessionHandler.SubmitAnswer(c)
+			if publisher != nil {
+				publisher.Publish("quiz.answer.submitted", gin.H{"session_id": c.Param("id")})
+			}
+		})
+
+		// Get next question based on adaptive logic
+		protectedSession.GET("/:id/next", func(c *gin.Context) {
+			sessionHandler.NextQuestion(c)
+			if publisher != nil {
+				publisher.Publish("quiz.question.requested", gin.H{"session_id": c.Param("id")})
+			}
+		})
+
+		// Get current session status
+		protectedSession.GET("/:id/status", sessionHandler.GetSessionStatus)
+
+		// Submit/complete session
+		protectedSession.POST("/:id/submit", func(c *gin.Context) {
+			sessionHandler.SubmitSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.completed", gin.H{"session_id": c.Param("id")})
+			}
+		})
+
+		// Pause session
+		protectedSession.POST("/:id/pause", sessionHandler.PauseSession)
+	}
+
+	// Public session routes
+	publicSession := r.Group("/public/quizz/session")
+	{
+		publicSession.GET("/:id", sessionHandler.GetSession)
+		publicSession.GET("/:id/status", sessionHandler.GetSessionStatus)
+	}
 }
