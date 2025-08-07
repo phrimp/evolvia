@@ -1,3 +1,4 @@
+// services/quiz-service/internal/models/session.go
 package models
 
 import "time"
@@ -26,4 +27,17 @@ type QuizSession struct {
 	Status              string                   `bson:"status" json:"status"`
 	FinalScore          float64                  `bson:"final_score" json:"final_score"`
 	CompletionType      string                   `bson:"completion_type" json:"completion_type"`
+
+	// New field to store skill information and other metadata
+	Metadata map[string]interface{} `bson:"metadata,omitempty" json:"metadata,omitempty"`
+}
+
+// SessionMetadata structure for type-safe access to metadata
+type SessionMetadata struct {
+	SkillID        string                 `json:"skill_id"`
+	SkillName      string                 `json:"skill_name"`
+	SkillTags      []string               `json:"skill_tags"`
+	QuestionPools  map[string][]string    `json:"question_pools,omitempty"`
+	QuizStartTime  int64                  `json:"quiz_start_time"`
+	AdaptiveConfig map[string]interface{} `json:"adaptive_config,omitempty"`
 }

@@ -3,6 +3,7 @@ package selection
 import (
 	"context"
 	"fmt"
+	"quiz-service/internal/models"
 	"quiz-service/internal/repository"
 )
 
@@ -20,24 +21,379 @@ func NewPoolManager(questionRepo *repository.QuestionRepository) *PoolManager {
 	}
 }
 
-// GetQuizPool retrieves all questions for a quiz with skill information
-func (pm *PoolManager) GetQuizPool(ctx context.Context, quizID string, skillInfo *SkillInfo) (*QuizPool, error) {
+// SelectAdaptiveQuestionsWithBloom selects questions with Bloom's level consideration
+func (pm *PoolManager) SelectAdaptiveQuestionsWithBloom(
+	ctx context.Context,
+	quizID string,
+	skillInfo *SkillInfo,
+	difficulty string,
+	count int,
+	excludeIDs []string,
+	bloomDistribution map[string]float64,
+) (*SelectionResult, error) {
+	// Get quiz pool
+	pool, err := pm.GetQuizPoolWithBloom(ctx, quizID, skillInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare selection criteria with Bloom's distribution
+	criteria := &SelectionCriteria{
+		SkillID:           skillInfo.ID,
+		SkillTags:         skillInfo.Tags,
+		Difficulty:        difficulty,
+		ExcludeIDs:        excludeIDs,
+		Count:             count,
+		MinTagMatch:       0,
+		WeightExponent:    2.0,
+		BloomDistribution: bloomDistribution,
+	}
+
+	// Select questions using enhanced weighted selection
+	result, err := pm.selector.SelectQuestionsWithBloom(pool.Questions, criteria, bloomDistribution)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select questions: %w", err)
+	}
+
+	// Enhance result with coverage statistics
+	pm.enhanceResultStats(result, pool)
+
+	// If we don't have enough questions, try relaxing constraints
+	if len(result.Questions) < count {
+		// Try with relaxed Bloom's distribution
+		relaxedDist := pm.getRelaxedBloomDistribution(difficulty)
+		criteria.BloomDistribution = relaxedDist
+		result, err = pm.selector.SelectQuestionsWithBloom(pool.Questions, criteria, relaxedDist)
+		if err != nil {
+			return nil, err
+		}
+		pm.enhanceResultStats(result, pool)
+	}
+
+	return result, nil
+}
+
+// SelectRecoveryQuestionsWithBloom selects recovery questions with Bloom's consideration
+func (pm *PoolManager) SelectRecoveryQuestionsWithBloom(
+	ctx context.Context,
+	quizID string,
+	skillInfo *SkillInfo,
+	difficulty string,
+	count int,
+	excludeIDs []string,
+	bloomDistribution map[string]float64,
+) (*SelectionResult, error) {
+	// For recovery, use a simplified Bloom's distribution
+	recoveryDist := pm.getRecoveryBloomDistribution(difficulty)
+
+	pool, err := pm.GetQuizPoolWithBloom(ctx, quizID, skillInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	criteria := &SelectionCriteria{
+		SkillID:           skillInfo.ID,
+		SkillTags:         skillInfo.Tags,
+		Difficulty:        difficulty,
+		ExcludeIDs:        excludeIDs,
+		Count:             count,
+		MinTagMatch:       1,   // Prefer at least 1 tag match for recovery
+		WeightExponent:    1.5, // Less aggressive weighting
+		BloomDistribution: recoveryDist,
+	}
+
+	result, err := pm.selector.SelectQuestionsWithBloom(pool.Questions, criteria, recoveryDist)
+	if err != nil {
+		return nil, err
+	}
+
+	pm.enhanceResultStats(result, pool)
+
+	// If not enough questions, relax constraints
+	if len(result.Questions) < count {
+		criteria.MinTagMatch = 0
+		result, err = pm.selector.SelectQuestionsWithBloom(pool.Questions, criteria, recoveryDist)
+		if err != nil {
+			return nil, err
+		}
+		pm.enhanceResultStats(result, pool)
+	}
+
+	return result, nil
+}
+
+// GetQuizPoolWithBloom retrieves quiz pool with Bloom's level analysis
+func (pm *PoolManager) GetQuizPoolWithBloom(ctx context.Context, quizID string, skillInfo *SkillInfo) (*QuizPool, error) {
 	// Get all questions for the quiz
 	questions, err := pm.questionRepo.FindByQuizID(ctx, quizID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get questions: %w", err)
 	}
 
+	// Calculate Bloom's distribution
+	bloomDist := make(map[string]int)
+	diffMatrix := make(map[string]map[string]int)
+
+	for _, q := range questions {
+		// Count Bloom's levels
+		bloomLevel := q.BloomLevel
+		if bloomLevel == "" {
+			bloomLevel = "unknown"
+		}
+		bloomDist[bloomLevel]++
+
+		// Build difficulty-Bloom matrix
+		if diffMatrix[q.DifficultyLevel] == nil {
+			diffMatrix[q.DifficultyLevel] = make(map[string]int)
+		}
+		diffMatrix[q.DifficultyLevel][bloomLevel]++
+	}
+
 	return &QuizPool{
-		ID:         quizID,
-		SkillID:    skillInfo.ID,
-		SkillTags:  skillInfo.Tags,
-		Questions:  questions,
-		TotalCount: len(questions),
+		ID:                quizID,
+		SkillID:           skillInfo.ID,
+		SkillTags:         skillInfo.Tags,
+		Questions:         questions,
+		TotalCount:        len(questions),
+		BloomDistribution: bloomDist,
+		DifficultyMatrix:  diffMatrix,
 	}, nil
 }
 
-// SelectAdaptiveQuestions selects questions for adaptive quiz stage
+// ValidateQuizPoolWithBloom validates if pool has sufficient questions across Bloom's levels
+func (pm *PoolManager) ValidateQuizPoolWithBloom(
+	ctx context.Context,
+	quizID string,
+	skillInfo *SkillInfo,
+) (bool, *QuizPoolValidation, error) {
+	pool, err := pm.GetQuizPoolWithBloom(ctx, quizID, skillInfo)
+	if err != nil {
+		return false, nil, err
+	}
+
+	validation := &QuizPoolValidation{
+		TotalQuestions:        pool.TotalCount,
+		DifficultyCount:       make(map[string]int),
+		BloomCount:            pool.BloomDistribution,
+		DifficultyBloomMatrix: pool.DifficultyMatrix,
+		MissingLevels:         []string{},
+		Warnings:              []string{},
+	}
+
+	// Count by difficulty
+	for _, q := range pool.Questions {
+		validation.DifficultyCount[q.DifficultyLevel]++
+	}
+
+	// Check minimum requirements for adaptive quiz
+	requiredPerDifficulty := map[string]int{
+		"easy":   8, // 5 initial + 3 recovery
+		"medium": 8,
+		"hard":   8,
+	}
+
+	isValid := true
+	for difficulty, required := range requiredPerDifficulty {
+		actual := validation.DifficultyCount[difficulty]
+		if actual < required {
+			isValid = false
+			validation.Warnings = append(validation.Warnings,
+				fmt.Sprintf("Insufficient %s questions: need %d, have %d", difficulty, required, actual))
+		}
+	}
+
+	// Check Bloom's level coverage
+	requiredBloomLevels := []string{"remember", "understand", "apply", "analyze"}
+	for _, level := range requiredBloomLevels {
+		if validation.BloomCount[level] == 0 {
+			validation.MissingLevels = append(validation.MissingLevels, level)
+			validation.Warnings = append(validation.Warnings,
+				fmt.Sprintf("No questions for Bloom's level: %s", level))
+		}
+	}
+
+	// Check distribution balance
+	pm.validateBloomBalance(validation)
+
+	validation.IsValid = isValid && len(validation.MissingLevels) == 0
+
+	return validation.IsValid, validation, nil
+}
+
+// validateBloomBalance checks if Bloom's distribution is balanced
+func (pm *PoolManager) validateBloomBalance(validation *QuizPoolValidation) {
+	// Check if any difficulty level lacks diversity in Bloom's levels
+	for difficulty, bloomCounts := range validation.DifficultyBloomMatrix {
+		uniqueLevels := 0
+		for _, count := range bloomCounts {
+			if count > 0 {
+				uniqueLevels++
+			}
+		}
+
+		if uniqueLevels < 2 {
+			validation.Warnings = append(validation.Warnings,
+				fmt.Sprintf("%s difficulty has insufficient Bloom's diversity (only %d levels)",
+					difficulty, uniqueLevels))
+		}
+	}
+}
+
+// getRecoveryBloomDistribution returns simplified Bloom's distribution for recovery
+func (pm *PoolManager) getRecoveryBloomDistribution(difficulty string) map[string]float64 {
+	// For recovery, focus on lower Bloom's levels to help students succeed
+	switch difficulty {
+	case "easy":
+		return map[string]float64{
+			"remember":   0.6,
+			"understand": 0.4,
+		}
+	case "medium":
+		return map[string]float64{
+			"remember":   0.3,
+			"understand": 0.4,
+			"apply":      0.3,
+		}
+	case "hard":
+		return map[string]float64{
+			"understand": 0.3,
+			"apply":      0.4,
+			"analyze":    0.3,
+		}
+	default:
+		return map[string]float64{
+			"remember":   0.4,
+			"understand": 0.4,
+			"apply":      0.2,
+		}
+	}
+}
+
+// getRelaxedBloomDistribution returns a more flexible Bloom's distribution
+func (pm *PoolManager) getRelaxedBloomDistribution(difficulty string) map[string]float64 {
+	// More balanced distribution when strict requirements can't be met
+	return map[string]float64{
+		"remember":   0.2,
+		"understand": 0.2,
+		"apply":      0.2,
+		"analyze":    0.2,
+		"evaluate":   0.1,
+		"create":     0.1,
+	}
+}
+
+// enhanceResultStats adds detailed statistics to selection result
+func (pm *PoolManager) enhanceResultStats(result *SelectionResult, pool *QuizPool) {
+	// Calculate Bloom's coverage
+	bloomCoverage := make(map[string]int)
+	tagCoverage := make(map[string]int)
+
+	for _, q := range result.Questions {
+		bloomCoverage[q.BloomLevel]++
+		for _, tag := range q.TopicTags {
+			tagCoverage[tag]++
+		}
+	}
+
+	result.BloomCoverage = bloomCoverage
+	result.TagCoverage = tagCoverage
+
+	// Add selection statistics
+	stats := SelectionStats{
+		TotalQuestionsScanned: pool.TotalCount,
+		QuestionsFiltered:     pool.TotalCount - result.TotalCandidates,
+		BloomLevelHits:        bloomCoverage,
+		DifficultyHits:        make(map[string]int),
+	}
+
+	for _, q := range result.Questions {
+		stats.DifficultyHits[q.DifficultyLevel]++
+	}
+
+	// Calculate averages
+	if len(result.Weights) > 0 {
+		totalWeight := 0.0
+		totalMatches := 0
+		for _, w := range result.Weights {
+			totalWeight += w.Weight
+			totalMatches += w.TagMatches
+		}
+		stats.AverageWeight = totalWeight / float64(len(result.Weights))
+		stats.AverageTagMatch = float64(totalMatches) / float64(len(result.Weights))
+	}
+
+	result.SelectionStats = stats
+}
+
+// GetQuestionDistributionWithBloom analyzes question distribution including Bloom's levels
+func (pm *PoolManager) GetQuestionDistributionWithBloom(
+	ctx context.Context,
+	quizID string,
+	skillInfo *SkillInfo,
+) (map[string]interface{}, error) {
+	pool, err := pm.GetQuizPoolWithBloom(ctx, quizID, skillInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Analyze tag matching distribution
+	tagMatchDistribution := map[int]int{}
+	bloomTagCorrelation := make(map[string]map[int]int) // bloom_level -> tag_matches -> count
+
+	for _, q := range pool.Questions {
+		matches, _ := pm.selector.countTagMatches(q.TopicTags, skillInfo.Tags)
+		tagMatchDistribution[matches]++
+
+		// Track correlation between Bloom's level and tag matches
+		bloomLevel := q.BloomLevel
+		if bloomLevel == "" {
+			bloomLevel = "unknown"
+		}
+		if bloomTagCorrelation[bloomLevel] == nil {
+			bloomTagCorrelation[bloomLevel] = make(map[int]int)
+		}
+		bloomTagCorrelation[bloomLevel][matches]++
+	}
+
+	// Get top matching questions for each Bloom's level
+	topByBloom := make(map[string][]WeightedQuestion)
+	for level := range BloomLevelWeights {
+		topByBloom[level] = pm.getTopMatchingByBloom(pool.Questions, skillInfo.Tags, level, 3)
+	}
+
+	return map[string]interface{}{
+		"total_questions":         pool.TotalCount,
+		"difficulty_distribution": pool.DifficultyMatrix,
+		"bloom_distribution":      pool.BloomDistribution,
+		"tag_match_distribution":  tagMatchDistribution,
+		"bloom_tag_correlation":   bloomTagCorrelation,
+		"top_questions_by_bloom":  topByBloom,
+		"skill_tags":              skillInfo.Tags,
+	}, nil
+}
+
+// getTopMatchingByBloom returns top matching questions for a specific Bloom's level
+func (pm *PoolManager) getTopMatchingByBloom(
+	questions []models.Question,
+	skillTags []string,
+	bloomLevel string,
+	limit int,
+) []WeightedQuestion {
+	var filtered []models.Question
+	for _, q := range questions {
+		if q.BloomLevel == bloomLevel {
+			filtered = append(filtered, q)
+		}
+	}
+
+	return pm.selector.GetTopMatchingQuestions(filtered, skillTags, limit)
+}
+
+// Legacy methods preserved for backward compatibility
+func (pm *PoolManager) GetQuizPool(ctx context.Context, quizID string, skillInfo *SkillInfo) (*QuizPool, error) {
+	return pm.GetQuizPoolWithBloom(ctx, quizID, skillInfo)
+}
+
 func (pm *PoolManager) SelectAdaptiveQuestions(
 	ctx context.Context,
 	quizID string,
@@ -46,43 +402,17 @@ func (pm *PoolManager) SelectAdaptiveQuestions(
 	count int,
 	excludeIDs []string,
 ) (*SelectionResult, error) {
-	// Get quiz pool
-	pool, err := pm.GetQuizPool(ctx, quizID, skillInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	// Prepare selection criteria
-	criteria := &SelectionCriteria{
-		SkillID:        skillInfo.ID,
-		SkillTags:      skillInfo.Tags,
-		Difficulty:     difficulty,
-		ExcludeIDs:     excludeIDs,
-		Count:          count,
-		MinTagMatch:    0,   // Accept any, but prefer higher matches
-		WeightExponent: 2.0, // Square the match count for stronger preference
-	}
-
-	// Select questions using weighted selection
-	result, err := pm.selector.SelectQuestions(pool.Questions, criteria)
-	if err != nil {
-		return nil, fmt.Errorf("failed to select questions: %w", err)
-	}
-
-	// If we don't have enough questions with the criteria, relax constraints
-	if len(result.Questions) < count {
-		// Try without difficulty filter
-		criteria.Difficulty = ""
-		result, err = pm.selector.SelectQuestions(pool.Questions, criteria)
-		if err != nil {
-			return nil, err
+	// Use default Bloom's distribution
+	bloomDist := DifficultyBloomMatrix[difficulty]
+	if bloomDist == nil {
+		bloomDist = map[string]float64{
+			"remember": 0.2, "understand": 0.2, "apply": 0.2,
+			"analyze": 0.2, "evaluate": 0.1, "create": 0.1,
 		}
 	}
-
-	return result, nil
+	return pm.SelectAdaptiveQuestionsWithBloom(ctx, quizID, skillInfo, difficulty, count, excludeIDs, bloomDist)
 }
 
-// SelectRecoveryQuestions selects questions for recovery stage
 func (pm *PoolManager) SelectRecoveryQuestions(
 	ctx context.Context,
 	quizID string,
@@ -91,121 +421,18 @@ func (pm *PoolManager) SelectRecoveryQuestions(
 	count int,
 	excludeIDs []string,
 ) (*SelectionResult, error) {
-	// For recovery, we might want to select questions with higher tag matches
-	// to give the user a better chance
-	pool, err := pm.GetQuizPool(ctx, quizID, skillInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	criteria := &SelectionCriteria{
-		SkillID:        skillInfo.ID,
-		SkillTags:      skillInfo.Tags,
-		Difficulty:     difficulty,
-		ExcludeIDs:     excludeIDs,
-		Count:          count,
-		MinTagMatch:    1,   // Prefer questions with at least 1 tag match for recovery
-		WeightExponent: 1.5, // Less aggressive weighting for recovery
-	}
-
-	result, err := pm.selector.SelectQuestions(pool.Questions, criteria)
-	if err != nil {
-		return nil, err
-	}
-
-	// If not enough questions, relax the minimum match requirement
-	if len(result.Questions) < count {
-		criteria.MinTagMatch = 0
-		result, err = pm.selector.SelectQuestions(pool.Questions, criteria)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return result, nil
+	bloomDist := pm.getRecoveryBloomDistribution(difficulty)
+	return pm.SelectRecoveryQuestionsWithBloom(ctx, quizID, skillInfo, difficulty, count, excludeIDs, bloomDist)
 }
 
-// GetQuestionDistribution analyzes question distribution in a pool
-func (pm *PoolManager) GetQuestionDistribution(
-	ctx context.Context,
-	quizID string,
-	skillInfo *SkillInfo,
-) (map[string]interface{}, error) {
-	pool, err := pm.GetQuizPool(ctx, quizID, skillInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	// Count by difficulty
-	difficultyCount := map[string]int{
-		"easy":   0,
-		"medium": 0,
-		"hard":   0,
-	}
-
-	// Count by tag matches
-	tagMatchDistribution := map[int]int{}
-
-	for _, q := range pool.Questions {
-		// Count difficulty
-		difficultyCount[q.DifficultyLevel]++
-
-		// Count tag matches
-		matches, _ := pm.selector.countTagMatches(q.TopicTags, skillInfo.Tags)
-		tagMatchDistribution[matches]++
-	}
-
-	// Get top matching questions for analysis
-	topMatches := pm.selector.GetTopMatchingQuestions(pool.Questions, skillInfo.Tags, 10)
-
-	return map[string]interface{}{
-		"total_questions":         pool.TotalCount,
-		"difficulty_distribution": difficultyCount,
-		"tag_match_distribution":  tagMatchDistribution,
-		"top_matching_questions":  topMatches,
-		"skill_tags":              skillInfo.Tags,
-	}, nil
-}
-
-// ValidateQuizPool checks if a quiz pool has enough questions for adaptive quiz
 func (pm *PoolManager) ValidateQuizPool(
 	ctx context.Context,
 	quizID string,
 	skillInfo *SkillInfo,
 ) (bool, map[string]int, error) {
-	pool, err := pm.GetQuizPool(ctx, quizID, skillInfo)
+	isValid, validation, err := pm.ValidateQuizPoolWithBloom(ctx, quizID, skillInfo)
 	if err != nil {
 		return false, nil, err
 	}
-
-	// Count questions by difficulty
-	counts := map[string]int{
-		"easy":   0,
-		"medium": 0,
-		"hard":   0,
-	}
-
-	for _, q := range pool.Questions {
-		counts[q.DifficultyLevel]++
-	}
-
-	// Minimum requirements for adaptive quiz
-	// Easy: 5 initial + 3 recovery = 8
-	// Medium: 5 initial + 3 recovery = 8
-	// Hard: 5 initial + 3 recovery = 8
-	minRequired := map[string]int{
-		"easy":   8,
-		"medium": 8,
-		"hard":   8,
-	}
-
-	isValid := true
-	for difficulty, required := range minRequired {
-		if counts[difficulty] < required {
-			isValid = false
-			break
-		}
-	}
-
-	return isValid, counts, nil
+	return isValid, validation.DifficultyCount, nil
 }
