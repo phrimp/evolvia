@@ -61,6 +61,21 @@ func (s *UserSkillService) AddUserSkill(ctx context.Context, userSkill *models.U
 		return nil, fmt.Errorf("skill not found")
 	}
 
+	for _, rel := range skill.Relations {
+		if rel.RelationType == models.RelationPrerequisite {
+			prereqSkill, err := s.userSkillRepo.GetByUserAndSkill(ctx, userSkill.UserID, rel.SkillID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check prerequisite skill: %w", err)
+			}
+			if prereqSkill == nil {
+				return nil, fmt.Errorf("prerequisite skill is missing")
+			}
+			if prereqSkill.Level != models.SkillLevelIntermediate {
+				return nil, fmt.Errorf("prerequisite skill must be at intermediate level")
+			}
+		}
+	}
+
 	// Check if user already has this skill
 	existing, err := s.userSkillRepo.GetByUserAndSkill(ctx, userSkill.UserID, userSkill.SkillID)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"quiz-service/internal/models"
 	"quiz-service/internal/repository"
 	"quiz-service/internal/selection"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -113,52 +114,95 @@ func (s *SessionService) CreateSession(ctx context.Context, session *models.Quiz
 }
 
 // CreateSessionWithSkillValidation creates session with skill validation
-func (s *SessionService) CreateSessionWithSkillValidation(
+func (s *SessionService) CreateSessionWithSkillValidationAndMastery(
 	ctx context.Context,
 	quizID string,
 	userID string,
 	skillID string,
 	skillTags []string,
 	skillName string,
+	currentBloomLevel string, // From request (first-time only)
+	masteryScore int, // From request (first-time only)
 ) (*models.QuizSession, error) {
-	// Validate quiz exists
+	// Step 1: Check for past results
+	var startingBloomLevel string
+	var startingDifficulty string
+
+	if s.ResultRepo != nil {
+		// Look for any past result for this user+skill combination
+		pastResults, err := s.ResultRepo.FindByUser(ctx, userID)
+		if err == nil && len(pastResults) > 0 {
+			// Find results for this skill
+			for _, result := range pastResults {
+				// Check if this result has the same skill_id in metadata
+				if session, err := s.Repo.FindByID(ctx, result.SessionID); err == nil {
+					if metadata := session.Metadata; metadata != nil {
+						if sid, ok := metadata["skill_id"].(string); ok && sid == skillID {
+							// Found past result for this skill - derive starting level
+							startingBloomLevel = s.deriveBloomFromResult(&result)
+							startingDifficulty = s.deriveDifficultyFromResult(&result)
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Step 2: If no past results, use provided values or defaults
+	if startingBloomLevel == "" {
+		if currentBloomLevel != "" {
+			startingBloomLevel = currentBloomLevel
+		} else {
+			startingBloomLevel = "remember" // Default
+		}
+
+		// Map mastery score (0-10) to difficulty
+		if masteryScore > 0 {
+			if masteryScore <= 3 {
+				startingDifficulty = "easy"
+			} else if masteryScore <= 7 {
+				startingDifficulty = "medium"
+			} else {
+				startingDifficulty = "hard"
+			}
+		} else {
+			startingDifficulty = "easy" // Default
+		}
+	}
+
+	// Step 3: Continue with normal session creation but store mastery info
 	quiz, err := s.QuizRepo.FindByID(ctx, quizID)
 	if err != nil {
 		return nil, fmt.Errorf("quiz not found: %w", err)
 	}
 
-	// Create skill info
 	skillInfo := &selection.SkillInfo{
 		ID:   skillID,
 		Name: skillName,
 		Tags: skillTags,
 	}
 
-	// Validate quiz pool has sufficient questions
+	// Validate pool
 	isValid, validation, err := s.poolManager.ValidateQuizPoolWithBloom(ctx, quizID, skillInfo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate quiz pool: %w", err)
 	}
-
 	if !isValid {
 		return nil, fmt.Errorf("insufficient questions in pool: %v", validation.Warnings)
 	}
 
-	// Pre-generate question pools (optional optimization)
-	questionPools, err := s.pregenerateQuestionPools(ctx, quizID, skillInfo)
-	if err != nil {
-		// Log warning but don't fail
-		fmt.Printf("Warning: Failed to pre-generate pools: %v\n", err)
-	}
+	// Map Bloom level to initial stage
+	initialStage := s.mapBloomToStage(startingBloomLevel)
 
-	// Create session
+	// Create session with adjusted starting point
 	session := &models.QuizSession{
 		QuizID:       quizID,
 		UserID:       userID,
 		SessionToken: s.generateSessionToken(),
 		StartTime:    time.Now(),
 		Status:       "active",
-		CurrentStage: "easy",
+		CurrentStage: initialStage,
 		StageProgress: map[string]models.StageProgress{
 			"easy":   {Attempted: 0, Correct: 0, Passed: false, Score: 0},
 			"medium": {Attempted: 0, Correct: 0, Passed: false, Score: 0},
@@ -168,12 +212,13 @@ func (s *SessionService) CreateSessionWithSkillValidation(
 		QuestionsUsed:       []string{},
 		FinalScore:          0,
 		Metadata: map[string]interface{}{
-			"skill_id":        skillID,
-			"skill_name":      skillName,
-			"skill_tags":      skillTags,
-			"question_pools":  questionPools,
-			"quiz_config":     quiz.StageConfig,
-			"quiz_start_time": time.Now().Unix(),
+			"skill_id":             skillID,
+			"skill_name":           skillName,
+			"skill_tags":           skillTags,
+			"starting_bloom_level": startingBloomLevel,
+			"starting_difficulty":  startingDifficulty,
+			"quiz_config":          quiz.StageConfig,
+			"quiz_start_time":      time.Now().Unix(),
 		},
 	}
 
@@ -189,15 +234,55 @@ func (s *SessionService) CreateSessionWithSkillValidation(
 	// Publish event
 	if s.EventPublisher != nil {
 		s.EventPublisher.Publish("quiz.session.created", map[string]interface{}{
-			"session_id": session.ID,
-			"quiz_id":    quizID,
-			"user_id":    userID,
-			"skill_id":   skillID,
-			"skill_tags": skillTags,
+			"session_id":           session.ID,
+			"quiz_id":              quizID,
+			"user_id":              userID,
+			"skill_id":             skillID,
+			"starting_bloom_level": startingBloomLevel,
+			"starting_difficulty":  startingDifficulty,
 		})
 	}
 
 	return session, nil
+}
+
+// Helper: Map Bloom taxonomy level to stage
+func (s *SessionService) mapBloomToStage(bloomLevel string) string {
+	bloomToStageMap := map[string]string{
+		"remember":   "easy",
+		"understand": "easy",
+		"apply":      "medium",
+		"analyze":    "medium",
+		"evaluate":   "hard",
+		"create":     "hard",
+	}
+
+	if stage, ok := bloomToStageMap[strings.ToLower(bloomLevel)]; ok {
+		return stage
+	}
+	return "easy" // Default
+}
+
+// Helper: Derive Bloom level from past result
+func (s *SessionService) deriveBloomFromResult(result *models.QuizResult) string {
+	// Check highest stage completed successfully
+	if breakdown, ok := result.StageBreakdown["hard"]; ok && breakdown.Passed {
+		return "evaluate" // High performance
+	}
+	if breakdown, ok := result.StageBreakdown["medium"]; ok && breakdown.Passed {
+		return "apply" // Medium performance
+	}
+	return "understand" // Default to lower level
+}
+
+// Helper: Derive difficulty from past result
+func (s *SessionService) deriveDifficultyFromResult(result *models.QuizResult) string {
+	if result.Percentage >= 80 {
+		return "hard"
+	} else if result.Percentage >= 60 {
+		return "medium"
+	}
+	return "easy"
 }
 
 // UpdateSession updates session fields
@@ -570,8 +655,27 @@ func (s *SessionService) selectQuestionsWithBloomCriteria(
 	skillInfo *selection.SkillInfo,
 	criteria *adaptive.QuestionRequest,
 ) ([]models.Question, error) {
+	// Get session to check for starting level override
+	session, _ := s.Repo.FindByID(ctx, criteria.SessionID)
+
 	difficulty := s.mapStageToDifficulty(criteria.Stage)
 	bloomDist := s.getBloomDistribution(difficulty)
+
+	// Override with starting level for first questions
+	if session != nil && session.TotalQuestionsAsked == 0 {
+		if metadata := session.Metadata; metadata != nil {
+			// Check for starting difficulty override
+			if startDiff, ok := metadata["starting_difficulty"].(string); ok && startDiff != "" {
+				difficulty = startDiff
+			}
+
+			// Check for starting Bloom level override
+			if startBloom, ok := metadata["starting_bloom_level"].(string); ok && startBloom != "" {
+				// Create custom distribution favoring the starting Bloom level
+				bloomDist = s.getCustomBloomDistribution(startBloom)
+			}
+		}
+	}
 
 	var result *selection.SelectionResult
 	var err error
@@ -591,6 +695,37 @@ func (s *SessionService) selectQuestionsWithBloomCriteria(
 	}
 
 	return result.Questions, nil
+}
+
+// Add this helper method for custom Bloom distribution
+func (s *SessionService) getCustomBloomDistribution(targetBloom string) map[string]float64 {
+	// Create distribution heavily weighted toward the target Bloom level
+	dist := map[string]float64{
+		"remember":   0.1,
+		"understand": 0.1,
+		"apply":      0.1,
+		"analyze":    0.1,
+		"evaluate":   0.1,
+		"create":     0.1,
+	}
+
+	// Give 50% weight to target level
+	if _, ok := dist[strings.ToLower(targetBloom)]; ok {
+		dist[strings.ToLower(targetBloom)] = 0.5
+	}
+
+	// Normalize to sum to 1.0
+	total := 0.0
+	for _, v := range dist {
+		total += v
+	}
+	if total > 0 {
+		for k := range dist {
+			dist[k] = dist[k] / total
+		}
+	}
+
+	return dist
 }
 
 func (s *SessionService) getSkillInfoFromSession(session *models.QuizSession) *selection.SkillInfo {

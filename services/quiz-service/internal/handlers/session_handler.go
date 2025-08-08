@@ -41,6 +41,9 @@ func (h *SessionHandler) CreateSession(c *gin.Context) {
 		SkillID   string   `json:"skill_id" binding:"required"`
 		SkillName string   `json:"skill_name"`
 		SkillTags []string `json:"skill_tags"`
+		// New fields for initial mastery (first-time only)
+		CurrentBloomLevel string `json:"current_bloom_level"` // e.g., "apply", "analyze"
+		MasteryScore      int    `json:"mastery_score"`       // 0-10 scale
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -66,13 +69,15 @@ func (h *SessionHandler) CreateSession(c *gin.Context) {
 	}
 
 	// Create session with skill validation
-	session, err := h.Service.CreateSessionWithSkillValidation(
+	session, err := h.Service.CreateSessionWithSkillValidationAndMastery(
 		context.Background(),
 		req.QuizID,
 		userID,
 		req.SkillID,
 		req.SkillTags,
 		req.SkillName,
+		req.CurrentBloomLevel,
+		req.MasteryScore,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
