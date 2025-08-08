@@ -429,142 +429,28 @@ func (s *CategoryService) BatchCreateCategories(ctx context.Context, categories 
 
 // processCategoriesInOrder sorts categories to ensure parents are created before children
 func (s *CategoryService) processCategoriesInOrder(ctx context.Context, categories []*models.SkillCategory) ([]*models.SkillCategory, error) {
-	// Create maps for processing
-	categoryByName := make(map[string]*models.SkillCategory)
-	processed := make([]*models.SkillCategory, 0, len(categories))
-	processing := make(map[string]bool)
-
 	for _, category := range categories {
-		categoryByName[category.Name] = category
-	}
-
-	processCategory := func(name string) error {
-		if processing[name] {
-			return fmt.Errorf("circular dependency detected for category: %s", name)
-		}
-
-		category, exists := categoryByName[name]
-		if !exists {
-			return nil // Category not in this batch, assume it exists or will be handled separately
-		}
-
-		if category.Level == -1 { // Mark as already processed
-			return nil
-		}
-
-		processing[name] = true
-		defer func() { processing[name] = false }()
-
 		// Calculate level and path
 		if category.ParentID == nil {
 			// Root category
 			category.Level = 0
 			category.Path = "/" + category.Name
 		} else {
-			// Find parent to calculate level and path
+			// Parent must already exist (from previous batch)
 			parent, err := s.categoryRepo.GetByID(ctx, *category.ParentID)
 			if err != nil {
-				return fmt.Errorf("failed to get parent category: %w", err)
+				return nil, fmt.Errorf("failed to get parent category: %w", err)
+			}
+			if parent == nil {
+				return nil, fmt.Errorf("parent category not found: %s", category.ParentID.Hex())
 			}
 
-			if parent != nil {
-				// Parent exists in database
-				category.Level = parent.Level + 1
-				category.Path = parent.Path + "/" + category.Name
-			} else {
-				// Parent might be in this batch - we'll handle this in a second pass
-				category.Level = -1 // Mark as unprocessed
-				return nil
-			}
-		}
-
-		processed = append(processed, category)
-		category.Level = -1 // Mark as processed
-		return nil
-	}
-
-	// First pass: process categories with existing parents or no parents
-	for _, category := range categories {
-		if err := processCategory(category.Name); err != nil {
-			return nil, err
+			category.Level = parent.Level + 1
+			category.Path = parent.Path + "/" + category.Name
 		}
 	}
 
-	// Second pass: handle categories whose parents are in this batch
-	maxIterations := len(categories)
-	for iteration := 0; iteration < maxIterations; iteration++ {
-		progressMade := false
-
-		for _, category := range categories {
-			if category.Level != -1 { // Already processed
-				continue
-			}
-
-			if category.ParentID == nil {
-				// Root category
-				category.Level = 0
-				category.Path = "/" + category.Name
-				processed = append(processed, category)
-				category.Level = -1 // Mark as processed
-				progressMade = true
-				continue
-			}
-
-			// Find parent in processed list
-			var parentCategory *models.SkillCategory
-			for _, processedCat := range processed {
-				if processedCat.ID == *category.ParentID {
-					parentCategory = processedCat
-					break
-				}
-			}
-
-			// If parent not found in processed list, try to find by name in batch
-			if parentCategory == nil {
-				for _, batchCat := range categories {
-					if batchCat.ID == *category.ParentID ||
-						(category.ParentID != nil && batchCat.Name != "" && category.ParentID.IsZero()) {
-						// Handle case where ParentID is referenced by name in batch
-						parentCategory = batchCat
-						break
-					}
-				}
-			}
-
-			if parentCategory != nil && parentCategory.Level >= 0 {
-				category.Level = parentCategory.Level + 1
-				category.Path = parentCategory.Path + "/" + category.Name
-				processed = append(processed, category)
-				category.Level = -1 // Mark as processed
-				progressMade = true
-			}
-		}
-
-		if !progressMade {
-			// Check for unprocessed categories
-			var unprocessed []string
-			for _, category := range categories {
-				if category.Level != -1 {
-					unprocessed = append(unprocessed, category.Name)
-				}
-			}
-			if len(unprocessed) > 0 {
-				return nil, fmt.Errorf("cannot resolve parent dependencies for categories: %v", unprocessed)
-			}
-			break
-		}
-	}
-
-	// Reset levels to proper values
-	for _, category := range processed {
-		if category.Level == -1 {
-			// Recalculate level based on path
-			parts := strings.Split(strings.Trim(category.Path, "/"), "/")
-			category.Level = len(parts) - 1
-		}
-	}
-
-	return processed, nil
+	return categories, nil
 }
 
 // checkCircularReference checks if moving a category would create a circular reference
