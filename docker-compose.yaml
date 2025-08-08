@@ -814,7 +814,7 @@ services:
       - "traefik.http.routers.knowledge-service-public.rule=PathPrefix(`/public/knowledge`)"
       - "traefik.http.routers.knowledge-service-public.middlewares=global-cors@docker"
       # Protected routes with CORS and auth
-      - "traefik.http.routers.knowledge-service-secure.rule=PathPrefix(`/protected/skills`) || PathPrefix(`/protected/user-skills`)"
+      - "traefik.http.routers.knowledge-service-secure.rule=PathPrefix(`/protected/skills`) || PathPrefix(`/protected/user-skills`) || PathPrefix(`/protected/categories`)"
       - "traefik.http.routers.knowledge-service-secure.middlewares=global-cors@docker,auth-middleware"
       - "traefik.docker.network=microservices_template_traefik-net"
 

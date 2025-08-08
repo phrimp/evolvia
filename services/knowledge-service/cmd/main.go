@@ -84,7 +84,6 @@ func main() {
 		log.Fatalf("Failed to initialize user skill service: %v", err)
 	}
 
-	// ADD THIS BLOCK - Initialize category service
 	categoryService, err := services.NewCategoryService(categoryRepo, skillRepo, dataDir)
 	if err != nil {
 		log.Fatalf("Failed to initialize category service: %v", err)
@@ -111,7 +110,6 @@ func main() {
 	userSkillHandler := handlers.NewUserSkillHandler(userSkillService)
 	userSkillHandler.RegisterRoutes(app)
 
-	// ADD THIS BLOCK - Initialize and register category handler
 	categoryHandler := handlers.NewCategoryHandler(categoryService)
 	categoryHandler.RegisterRoutes(app)
 

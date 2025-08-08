@@ -446,3 +446,39 @@ type SkillSearchResult struct {
 	MatchScore    float64  `json:"match_score,omitempty"`
 	MatchedFields []string `json:"matched_fields,omitempty"`
 }
+
+type SkillWithStats struct {
+	ID                bson.ObjectID  `bson:"_id,omitempty" json:"id,omitempty"`
+	Name              string         `bson:"name" json:"name"`
+	Description       string         `bson:"description" json:"description"`
+	CategoryID        *bson.ObjectID `bson:"category_id,omitempty" json:"category_id,omitempty"`
+	CategoryName      string         `bson:"category_name,omitempty" json:"category_name,omitempty"`
+	Tags              []string       `bson:"tags" json:"tags"`
+	Metadata          SkillMetadata  `bson:"metadata" json:"metadata"`
+	UsageCount        int            `bson:"usage_count" json:"usage_count"`
+	UserCount         int            `bson:"user_count" json:"user_count"`
+	TotalEndorsements int            `bson:"total_endorsements" json:"total_endorsements"`
+	LastUsed          *time.Time     `bson:"last_used,omitempty" json:"last_used,omitempty"`
+	CreatedAt         time.Time      `bson:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `bson:"updated_at" json:"updated_at"`
+}
+
+// TopSkillsResponse represents the response for top skills endpoint
+type TopSkillsResponse struct {
+	Skills    []*SkillWithStats `json:"skills"`
+	Criteria  string            `json:"criteria"`
+	Count     int               `json:"count"`
+	Limit     int               `json:"limit"`
+	Timestamp time.Time         `json:"timestamp"`
+}
+
+// TopSkillsCriteria defines available criteria for top skills selection
+type TopSkillsCriteria string
+
+const (
+	TopSkillsByUsage        TopSkillsCriteria = "usage"        // Most frequently used
+	TopSkillsByPopularity   TopSkillsCriteria = "popularity"   // Most users
+	TopSkillsByEndorsements TopSkillsCriteria = "endorsements" // Most endorsed
+	TopSkillsByTrending     TopSkillsCriteria = "trending"     // Trending skills
+	TopSkillsByRecent       TopSkillsCriteria = "recent"       // Recently added
+)

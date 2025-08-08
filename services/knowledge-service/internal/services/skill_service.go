@@ -8,6 +8,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -466,4 +467,116 @@ func (s *SkillService) calculateMatchScore(skillWithCategory *models.SkillWithCa
 	}
 
 	return score, matchedFields
+}
+
+func (s *SkillService) GetTopSkills(ctx context.Context, criteria models.TopSkillsCriteria, limit int) (*models.TopSkillsResponse, error) {
+	if limit <= 0 {
+		limit = 5 // Default to 5
+	}
+	if limit > 50 {
+		limit = 50 // Maximum limit
+	}
+
+	var skills []*models.SkillWithStats
+	var err error
+
+	switch criteria {
+	case models.TopSkillsByUsage:
+		skills, err = s.repo.GetTopSkillsByUsage(ctx, limit)
+	case models.TopSkillsByPopularity:
+		skills, err = s.repo.GetTopSkillsByPopularity(ctx, limit)
+	case models.TopSkillsByEndorsements:
+		skills, err = s.repo.GetTopSkillsByEndorsements(ctx, limit)
+	case models.TopSkillsByTrending:
+		skills, err = s.repo.GetTopTrendingSkills(ctx, limit)
+	case models.TopSkillsByRecent:
+		skills, err = s.repo.GetTopRecentlyAddedSkills(ctx, limit)
+	default:
+		// Default to usage if criteria is invalid
+		skills, err = s.repo.GetTopSkillsByUsage(ctx, limit)
+		criteria = models.TopSkillsByUsage
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get top skills by %s: %w", criteria, err)
+	}
+
+	response := &models.TopSkillsResponse{
+		Skills:    skills,
+		Criteria:  string(criteria),
+		Count:     len(skills),
+		Limit:     limit,
+		Timestamp: time.Now(),
+	}
+
+	return response, nil
+}
+
+// GetTopSkillsByUsage retrieves the most frequently used skills (legacy method - kept for backward compatibility)
+func (s *SkillService) GetTopSkillsByUsage(ctx context.Context, limit int) ([]*models.SkillWithStats, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	return s.repo.GetTopSkillsByUsage(ctx, limit)
+}
+
+// GetTopSkillsByPopularity retrieves skills with the most users
+func (s *SkillService) GetTopSkillsByPopularity(ctx context.Context, limit int) ([]*models.SkillWithStats, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	return s.repo.GetTopSkillsByPopularity(ctx, limit)
+}
+
+// GetTopSkillsByEndorsements retrieves skills with the most endorsements
+func (s *SkillService) GetTopSkillsByEndorsements(ctx context.Context, limit int) ([]*models.SkillWithStats, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	return s.repo.GetTopSkillsByEndorsements(ctx, limit)
+}
+
+// GetTopTrendingSkills retrieves trending skills
+func (s *SkillService) GetTopTrendingSkills(ctx context.Context, limit int) ([]*models.SkillWithStats, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	return s.repo.GetTopTrendingSkills(ctx, limit)
+}
+
+// GetTopRecentlyAddedSkills retrieves recently added skills
+func (s *SkillService) GetTopRecentlyAddedSkills(ctx context.Context, limit int) ([]*models.SkillWithStats, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	return s.repo.GetTopRecentlyAddedSkills(ctx, limit)
+}
+
+// GetTopSkillsSummary retrieves a summary of top skills across all criteria
+func (s *SkillService) GetTopSkillsSummary(ctx context.Context, limit int) (map[string]*models.TopSkillsResponse, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+
+	criteria := []models.TopSkillsCriteria{
+		models.TopSkillsByUsage,
+		models.TopSkillsByPopularity,
+		models.TopSkillsByEndorsements,
+		models.TopSkillsByTrending,
+		models.TopSkillsByRecent,
+	}
+
+	summary := make(map[string]*models.TopSkillsResponse)
+
+	for _, criterion := range criteria {
+		response, err := s.GetTopSkills(ctx, criterion, limit)
+		if err != nil {
+			log.Printf("Failed to get top skills for criteria %s: %v", criterion, err)
+			// Continue with other criteria even if one fails
+			continue
+		}
+		summary[string(criterion)] = response
+	}
+
+	return summary, nil
 }

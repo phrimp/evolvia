@@ -652,3 +652,477 @@ func (r *SkillRepository) GetRelatedSkills(ctx context.Context, skillID bson.Obj
 
 	return skills, nil
 }
+
+func (r *SkillRepository) GetTopSkillsByUsage(ctx context.Context, limit int) ([]*models.SkillWithStats, error) {
+	pipeline := []bson.M{
+		// Match active skills only
+		{
+			"$match": bson.M{
+				"is_active": true,
+			},
+		},
+		// Join with user_skills to get user count
+		{
+			"$lookup": bson.M{
+				"from":         "user_skills",
+				"localField":   "_id",
+				"foreignField": "skill_id",
+				"as":           "user_skills",
+			},
+		},
+		// Join with categories
+		{
+			"$lookup": bson.M{
+				"from":         "categories",
+				"localField":   "category_id",
+				"foreignField": "_id",
+				"as":           "category",
+			},
+		},
+		// Add calculated fields
+		{
+			"$addFields": bson.M{
+				"user_count": bson.M{"$size": "$user_skills"},
+				"total_endorsements": bson.M{
+					"$sum": "$user_skills.endorsements",
+				},
+				"category_name": bson.M{
+					"$ifNull": []interface{}{
+						bson.M{"$arrayElemAt": []interface{}{"$category.name", 0}},
+						"",
+					},
+				},
+			},
+		},
+		// Sort by usage count descending
+		{
+			"$sort": bson.M{
+				"usage_count": -1,
+				"user_count":  -1,
+				"name":        1,
+			},
+		},
+		// Limit results
+		{
+			"$limit": limit,
+		},
+		// Project final structure
+		{
+			"$project": bson.M{
+				"_id":                1,
+				"name":               1,
+				"description":        1,
+				"category_id":        1,
+				"category_name":      1,
+				"tags":               1,
+				"metadata":           1,
+				"usage_count":        1,
+				"user_count":         1,
+				"total_endorsements": 1,
+				"last_used":          1,
+				"created_at":         1,
+				"updated_at":         1,
+			},
+		},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get top skills by usage: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var skills []*models.SkillWithStats
+	for cursor.Next(ctx) {
+		var skill models.SkillWithStats
+		if err := cursor.Decode(&skill); err != nil {
+			return nil, fmt.Errorf("failed to decode skill: %w", err)
+		}
+		skills = append(skills, &skill)
+	}
+
+	return skills, nil
+}
+
+// GetTopSkillsByPopularity retrieves skills with most users
+func (r *SkillRepository) GetTopSkillsByPopularity(ctx context.Context, limit int) ([]*models.SkillWithStats, error) {
+	pipeline := []bson.M{
+		// Match active skills only
+		{
+			"$match": bson.M{
+				"is_active": true,
+			},
+		},
+		// Join with user_skills to get user count
+		{
+			"$lookup": bson.M{
+				"from":         "user_skills",
+				"localField":   "_id",
+				"foreignField": "skill_id",
+				"as":           "user_skills",
+			},
+		},
+		// Join with categories
+		{
+			"$lookup": bson.M{
+				"from":         "categories",
+				"localField":   "category_id",
+				"foreignField": "_id",
+				"as":           "category",
+			},
+		},
+		// Add calculated fields
+		{
+			"$addFields": bson.M{
+				"user_count": bson.M{"$size": "$user_skills"},
+				"total_endorsements": bson.M{
+					"$sum": "$user_skills.endorsements",
+				},
+				"category_name": bson.M{
+					"$ifNull": []interface{}{
+						bson.M{"$arrayElemAt": []interface{}{"$category.name", 0}},
+						"",
+					},
+				},
+			},
+		},
+		// Filter out skills with no users
+		{
+			"$match": bson.M{
+				"user_count": bson.M{"$gt": 0},
+			},
+		},
+		// Sort by user count descending
+		{
+			"$sort": bson.M{
+				"user_count":  -1,
+				"usage_count": -1,
+				"name":        1,
+			},
+		},
+		// Limit results
+		{
+			"$limit": limit,
+		},
+		// Project final structure
+		{
+			"$project": bson.M{
+				"_id":                1,
+				"name":               1,
+				"description":        1,
+				"category_id":        1,
+				"category_name":      1,
+				"tags":               1,
+				"metadata":           1,
+				"usage_count":        1,
+				"user_count":         1,
+				"total_endorsements": 1,
+				"last_used":          1,
+				"created_at":         1,
+				"updated_at":         1,
+			},
+		},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get top skills by popularity: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var skills []*models.SkillWithStats
+	for cursor.Next(ctx) {
+		var skill models.SkillWithStats
+		if err := cursor.Decode(&skill); err != nil {
+			return nil, fmt.Errorf("failed to decode skill: %w", err)
+		}
+		skills = append(skills, &skill)
+	}
+
+	return skills, nil
+}
+
+// GetTopSkillsByEndorsements retrieves skills with most endorsements
+func (r *SkillRepository) GetTopSkillsByEndorsements(ctx context.Context, limit int) ([]*models.SkillWithStats, error) {
+	pipeline := []bson.M{
+		// Match active skills only
+		{
+			"$match": bson.M{
+				"is_active": true,
+			},
+		},
+		// Join with user_skills to get endorsement data
+		{
+			"$lookup": bson.M{
+				"from":         "user_skills",
+				"localField":   "_id",
+				"foreignField": "skill_id",
+				"as":           "user_skills",
+			},
+		},
+		// Join with categories
+		{
+			"$lookup": bson.M{
+				"from":         "categories",
+				"localField":   "category_id",
+				"foreignField": "_id",
+				"as":           "category",
+			},
+		},
+		// Add calculated fields
+		{
+			"$addFields": bson.M{
+				"user_count": bson.M{"$size": "$user_skills"},
+				"total_endorsements": bson.M{
+					"$sum": "$user_skills.endorsements",
+				},
+				"category_name": bson.M{
+					"$ifNull": []interface{}{
+						bson.M{"$arrayElemAt": []interface{}{"$category.name", 0}},
+						"",
+					},
+				},
+			},
+		},
+		// Filter out skills with no endorsements
+		{
+			"$match": bson.M{
+				"total_endorsements": bson.M{"$gt": 0},
+			},
+		},
+		// Sort by total endorsements descending
+		{
+			"$sort": bson.M{
+				"total_endorsements": -1,
+				"user_count":         -1,
+				"usage_count":        -1,
+				"name":               1,
+			},
+		},
+		// Limit results
+		{
+			"$limit": limit,
+		},
+		// Project final structure
+		{
+			"$project": bson.M{
+				"_id":                1,
+				"name":               1,
+				"description":        1,
+				"category_id":        1,
+				"category_name":      1,
+				"tags":               1,
+				"metadata":           1,
+				"usage_count":        1,
+				"user_count":         1,
+				"total_endorsements": 1,
+				"last_used":          1,
+				"created_at":         1,
+				"updated_at":         1,
+			},
+		},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get top skills by endorsements: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var skills []*models.SkillWithStats
+	for cursor.Next(ctx) {
+		var skill models.SkillWithStats
+		if err := cursor.Decode(&skill); err != nil {
+			return nil, fmt.Errorf("failed to decode skill: %w", err)
+		}
+		skills = append(skills, &skill)
+	}
+
+	return skills, nil
+}
+
+// GetTopTrendingSkills retrieves trending skills
+func (r *SkillRepository) GetTopTrendingSkills(ctx context.Context, limit int) ([]*models.SkillWithStats, error) {
+	pipeline := []bson.M{
+		// Match active and trending skills
+		{
+			"$match": bson.M{
+				"is_active":         true,
+				"metadata.trending": true,
+			},
+		},
+		// Join with user_skills to get user data
+		{
+			"$lookup": bson.M{
+				"from":         "user_skills",
+				"localField":   "_id",
+				"foreignField": "skill_id",
+				"as":           "user_skills",
+			},
+		},
+		// Join with categories
+		{
+			"$lookup": bson.M{
+				"from":         "categories",
+				"localField":   "category_id",
+				"foreignField": "_id",
+				"as":           "category",
+			},
+		},
+		// Add calculated fields
+		{
+			"$addFields": bson.M{
+				"user_count": bson.M{"$size": "$user_skills"},
+				"total_endorsements": bson.M{
+					"$sum": "$user_skills.endorsements",
+				},
+				"category_name": bson.M{
+					"$ifNull": []interface{}{
+						bson.M{"$arrayElemAt": []interface{}{"$category.name", 0}},
+						"",
+					},
+				},
+			},
+		},
+		// Sort by market demand and usage
+		{
+			"$sort": bson.M{
+				"metadata.market_demand": -1,
+				"user_count":             -1,
+				"usage_count":            -1,
+				"name":                   1,
+			},
+		},
+		// Limit results
+		{
+			"$limit": limit,
+		},
+		// Project final structure
+		{
+			"$project": bson.M{
+				"_id":                1,
+				"name":               1,
+				"description":        1,
+				"category_id":        1,
+				"category_name":      1,
+				"tags":               1,
+				"metadata":           1,
+				"usage_count":        1,
+				"user_count":         1,
+				"total_endorsements": 1,
+				"last_used":          1,
+				"created_at":         1,
+				"updated_at":         1,
+			},
+		},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get top trending skills: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var skills []*models.SkillWithStats
+	for cursor.Next(ctx) {
+		var skill models.SkillWithStats
+		if err := cursor.Decode(&skill); err != nil {
+			return nil, fmt.Errorf("failed to decode skill: %w", err)
+		}
+		skills = append(skills, &skill)
+	}
+
+	return skills, nil
+}
+
+// GetTopRecentlyAddedSkills retrieves recently added skills
+func (r *SkillRepository) GetTopRecentlyAddedSkills(ctx context.Context, limit int) ([]*models.SkillWithStats, error) {
+	pipeline := []bson.M{
+		// Match active skills only
+		{
+			"$match": bson.M{
+				"is_active": true,
+			},
+		},
+		// Join with user_skills to get user data
+		{
+			"$lookup": bson.M{
+				"from":         "user_skills",
+				"localField":   "_id",
+				"foreignField": "skill_id",
+				"as":           "user_skills",
+			},
+		},
+		// Join with categories
+		{
+			"$lookup": bson.M{
+				"from":         "categories",
+				"localField":   "category_id",
+				"foreignField": "_id",
+				"as":           "category",
+			},
+		},
+		// Add calculated fields
+		{
+			"$addFields": bson.M{
+				"user_count": bson.M{"$size": "$user_skills"},
+				"total_endorsements": bson.M{
+					"$sum": "$user_skills.endorsements",
+				},
+				"category_name": bson.M{
+					"$ifNull": []interface{}{
+						bson.M{"$arrayElemAt": []interface{}{"$category.name", 0}},
+						"",
+					},
+				},
+			},
+		},
+		// Sort by creation date descending
+		{
+			"$sort": bson.M{
+				"created_at":  -1,
+				"user_count":  -1,
+				"usage_count": -1,
+			},
+		},
+		// Limit results
+		{
+			"$limit": limit,
+		},
+		// Project final structure
+		{
+			"$project": bson.M{
+				"_id":                1,
+				"name":               1,
+				"description":        1,
+				"category_id":        1,
+				"category_name":      1,
+				"tags":               1,
+				"metadata":           1,
+				"usage_count":        1,
+				"user_count":         1,
+				"total_endorsements": 1,
+				"last_used":          1,
+				"created_at":         1,
+				"updated_at":         1,
+			},
+		},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get top recently added skills: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var skills []*models.SkillWithStats
+	for cursor.Next(ctx) {
+		var skill models.SkillWithStats
+		if err := cursor.Decode(&skill); err != nil {
+			return nil, fmt.Errorf("failed to decode skill: %w", err)
+		}
+		skills = append(skills, &skill)
+	}
+
+	return skills, nil
+}

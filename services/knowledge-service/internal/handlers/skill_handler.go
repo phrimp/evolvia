@@ -30,24 +30,25 @@ func (h *SkillHandler) RegisterRoutes(app *fiber.App) {
 	// All skill routes are protected and require permissions
 	protectedGroup := app.Group("/protected/skills")
 
+	protectedGroup.Get("/category/:categoryID", h.GetSkillsByCategory)
 	// Skill CRUD operations - require specific permissions
-	protectedGroup.Post("/", h.CreateSkill, utils.PermissionRequired(middleware.WriteSkillPermission))
 	protectedGroup.Get("/", h.ListSkills)
+	protectedGroup.Post("/", h.CreateSkill, utils.PermissionRequired(middleware.WriteSkillPermission))
 	protectedGroup.Get("/:id", h.GetSkill)
 	protectedGroup.Put("/:id", h.UpdateSkill, utils.PermissionRequired(middleware.UpdateSkillPermission))
 	protectedGroup.Delete("/:id", h.DeleteSkill, utils.PermissionRequired(middleware.DeleteSkillPermission))
 
 	// Skill search and query operations - require read permissions
 	protectedGroup.Get("/search", h.SearchSkills)
-	protectedGroup.Get("/category/:categoryID", h.GetSkillsByCategory)
-	protectedGroup.Get("/popular", h.GetMostUsedSkills)
+	protectedGroup.Get("/top", h.GetTopSkills)
+	protectedGroup.Get("/top/summary", h.GetTopSkillsSummary)
+	protectedGroup.Get("/popular", h.GetMostUsedSkills) // Keep for backward compatibility
 	protectedGroup.Get("/:id/related/:relationType", h.GetRelatedSkills)
 
 	// Skill management operations - require admin permissions
 	protectedGroup.Post("/batch", h.BatchCreateSkills, utils.PermissionRequired(middleware.AdminSkillPermission))
 	protectedGroup.Post("/reload-data", h.ReloadSkillData, utils.PermissionRequired(middleware.AdminSkillPermission))
 	protectedGroup.Get("/statistics", h.GetSkillStatistics, utils.RequireAnyPermission(middleware.AdminSkillPermission, middleware.ReadKnowledgeAnalyticsPermission))
-
 	// Health check
 	protectedGroup.Get("/health", h.HealthCheck)
 }
@@ -433,31 +434,6 @@ func (h *SkillHandler) GetSkillsByCategory(c fiber.Ctx) error {
 	})
 }
 
-func (h *SkillHandler) GetMostUsedSkills(c fiber.Ctx) error {
-	limit, _ := strconv.Atoi(c.Query("limit", "10"))
-	if limit < 1 || limit > 100 {
-		limit = 10
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	skills, err := h.skillService.GetMostUsedSkills(ctx, limit)
-	if err != nil {
-		log.Printf("Failed to get most used skills: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to retrieve most used skills",
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"data": fiber.Map{
-			"skills": skills,
-			"count":  len(skills),
-		},
-	})
-}
-
 func (h *SkillHandler) GetRelatedSkills(c fiber.Ctx) error {
 	skillIDStr := c.Params("id")
 	if skillIDStr == "" {
@@ -612,4 +588,105 @@ func (h *SkillHandler) isValidRelationType(relationType models.RelationType) boo
 		relationType == models.RelationComplement ||
 		relationType == models.RelationAlternative ||
 		relationType == models.RelationSpecialization
+}
+
+func (h *SkillHandler) GetTopSkills(c fiber.Ctx) error {
+	// Parse query parameters
+	criteriaStr := c.Query("criteria", "usage") // Default to usage
+	limit, _ := strconv.Atoi(c.Query("limit", "5"))
+
+	// Validate and convert criteria
+	var criteria models.TopSkillsCriteria
+	switch strings.ToLower(criteriaStr) {
+	case "usage":
+		criteria = models.TopSkillsByUsage
+	case "popularity":
+		criteria = models.TopSkillsByPopularity
+	case "endorsements":
+		criteria = models.TopSkillsByEndorsements
+	case "trending":
+		criteria = models.TopSkillsByTrending
+	case "recent":
+		criteria = models.TopSkillsByRecent
+	default:
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid criteria. Valid options: usage, popularity, endorsements, trending, recent",
+		})
+	}
+
+	// Validate limit
+	if limit < 1 || limit > 50 {
+		limit = 5 // Default to 5
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := h.skillService.GetTopSkills(ctx, criteria, limit)
+	if err != nil {
+		log.Printf("Failed to get top skills: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve top skills",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": response,
+	})
+}
+
+// GetTopSkillsSummary retrieves a summary of top skills across all criteria
+func (h *SkillHandler) GetTopSkillsSummary(c fiber.Ctx) error {
+	limit, _ := strconv.Atoi(c.Query("limit", "5"))
+
+	// Validate limit
+	if limit < 1 || limit > 20 {
+		limit = 5 // Default to 5 for summary
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	summary, err := h.skillService.GetTopSkillsSummary(ctx, limit)
+	if err != nil {
+		log.Printf("Failed to get top skills summary: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve top skills summary",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"summary":            summary,
+			"total_categories":   len(summary),
+			"limit_per_category": limit,
+			"generated_at":       time.Now(),
+		},
+	})
+}
+
+// Update GetMostUsedSkills to use the new repository method
+func (h *SkillHandler) GetMostUsedSkills(c fiber.Ctx) error {
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	skills, err := h.skillService.GetTopSkillsByUsage(ctx, limit)
+	if err != nil {
+		log.Printf("Failed to get most used skills: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve most used skills",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"skills": skills,
+			"count":  len(skills),
+		},
+	})
 }
