@@ -457,6 +457,31 @@ func (r *CategoryRepository) loadCategoriesFromFile(filePath string) ([]*models.
 	return categories, nil
 }
 
+func (r *CategoryRepository) BatchCreate(ctx context.Context, categories []*models.SkillCategory) error {
+	if len(categories) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	docs := make([]any, len(categories))
+
+	for i, category := range categories {
+		if category.ID.IsZero() {
+			category.ID = bson.NewObjectID()
+		}
+		category.CreatedAt = now
+		category.UpdatedAt = now
+		docs[i] = category
+	}
+
+	_, err := r.collection.InsertMany(ctx, docs)
+	if err != nil {
+		return fmt.Errorf("failed to batch create categories: %w", err)
+	}
+
+	return nil
+}
+
 // CategoryListOptions defines options for listing categories
 type CategoryListOptions struct {
 	Limit       int

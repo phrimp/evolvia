@@ -42,6 +42,7 @@ func (h *CategoryHandler) RegisterRoutes(app *fiber.App) {
 	// Category management operations
 	protectedGroup.Get("/:id/children", h.GetCategoryChildren)
 	protectedGroup.Post("/:id/move", h.MoveCategory, utils.PermissionRequired(middleware.UpdateSkillPermission))
+	protectedGroup.Post("/batch", h.BatchCreateCategories, utils.PermissionRequired(middleware.AdminSkillPermission)) // NEW ENDPOINT
 	protectedGroup.Get("/statistics", h.GetCategoryStatistics, utils.RequireAnyPermission(middleware.AdminSkillPermission, middleware.ReadKnowledgeAnalyticsPermission))
 
 	// Health check
@@ -458,6 +459,77 @@ func (h *CategoryHandler) GetCategoryStatistics(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"data": fiber.Map{
 			"statistics": stats,
+		},
+	})
+}
+
+func (h *CategoryHandler) BatchCreateCategories(c fiber.Ctx) error {
+	var categories []*models.SkillCategory
+
+	if err := c.Bind().Body(&categories); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if len(categories) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "No categories provided",
+		})
+	}
+
+	if len(categories) > 100 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Too many categories (maximum 100 allowed)",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := h.categoryService.BatchCreateCategories(ctx, categories)
+	if err != nil {
+		log.Printf("Failed to batch create categories: %v", err)
+
+		if strings.Contains(err.Error(), "validation failed") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "already exists") {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		if strings.Contains(err.Error(), "circular dependency") || strings.Contains(err.Error(), "cannot resolve parent dependencies") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		if strings.Contains(err.Error(), "parent category not found") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		if strings.Contains(err.Error(), "too many categories") || strings.Contains(err.Error(), "no categories provided") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to create categories",
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "Categories created successfully",
+		"data": fiber.Map{
+			"count": len(categories),
 		},
 	})
 }
