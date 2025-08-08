@@ -28,6 +28,7 @@ func NewSkillHandler(skillService *services.SkillService) *SkillHandler {
 
 func (h *SkillHandler) RegisterRoutes(app *fiber.App) {
 	// All skill routes are protected and require permissions
+	publibGroup := app.Group("/public/knowledge")
 	protectedGroup := app.Group("/protected/skills")
 
 	protectedGroup.Get("/category/:categoryID", h.GetSkillsByCategory)
@@ -40,9 +41,9 @@ func (h *SkillHandler) RegisterRoutes(app *fiber.App) {
 
 	// Skill search and query operations - require read permissions
 	protectedGroup.Get("/search", h.SearchSkills)
-	protectedGroup.Get("/top", h.GetTopSkills)
-	protectedGroup.Get("/top/summary", h.GetTopSkillsSummary)
-	protectedGroup.Get("/popular", h.GetMostUsedSkills) // Keep for backward compatibility
+	publibGroup.Get("/top", h.GetTopSkills)
+	publibGroup.Get("/top/summary", h.GetTopSkillsSummary)
+	publibGroup.Get("/popular", h.GetMostUsedSkills) // Keep for backward compatibility
 	protectedGroup.Get("/:id/related/:relationType", h.GetRelatedSkills)
 
 	// Skill management operations - require admin permissions
