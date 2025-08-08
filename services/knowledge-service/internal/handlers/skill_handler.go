@@ -46,6 +46,8 @@ func (h *SkillHandler) RegisterRoutes(app *fiber.App) {
 	protectedGroup.Post("/batch", h.BatchCreateSkills, utils.PermissionRequired(middleware.AdminSkillPermission))
 	protectedGroup.Post("/reload-data", h.ReloadSkillData, utils.PermissionRequired(middleware.AdminSkillPermission))
 	protectedGroup.Get("/statistics", h.GetSkillStatistics, utils.RequireAnyPermission(middleware.AdminSkillPermission, middleware.ReadKnowledgeAnalyticsPermission))
+	protectedGroup.Post("/by-tags", h.GetSkillsByTags)
+	protectedGroup.Get("/search-by-tag-category", h.SearchSkillsByTagCategory)
 	// Health check
 	protectedGroup.Get("/health", h.HealthCheck)
 	protectedGroup.Get("/:id", h.GetSkill)
@@ -128,9 +130,19 @@ func (h *SkillHandler) GetSkill(c fiber.Ctx) error {
 		})
 	}
 
+	// Ensure legacy tags are migrated for response
+	skill.MigrateLegacyTags()
+
+	// Format response with explicit tag categories
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"data": fiber.Map{
 			"skill": skill,
+			"tags": fiber.Map{
+				"primary_tags":   skill.TaggedSkill.PrimaryTags,
+				"secondary_tags": skill.TaggedSkill.SecondaryTags,
+				"related_tags":   skill.TaggedSkill.RelatedTags,
+				"all_tags":       skill.GetAllTags(), // For backward compatibility
+			},
 		},
 	})
 }
@@ -689,5 +701,110 @@ func (h *SkillHandler) GetMostUsedSkills(c fiber.Ctx) error {
 			"skills": skills,
 			"count":  len(skills),
 		},
+	})
+}
+
+func (h *SkillHandler) GetSkillsByTags(c fiber.Ctx) error {
+	var req struct {
+		PrimaryTags   []string `json:"primary_tags"`
+		SecondaryTags []string `json:"secondary_tags"`
+		RelatedTags   []string `json:"related_tags"`
+	}
+
+	if err := c.Bind().Body(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Validate that at least one tag is provided
+	if len(req.PrimaryTags) == 0 && len(req.SecondaryTags) == 0 && len(req.RelatedTags) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "At least one tag must be provided",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	skills, err := h.skillService.GetSkillsByWeightedTags(ctx, req.PrimaryTags, req.SecondaryTags, req.RelatedTags)
+	if err != nil {
+		log.Printf("Failed to get skills by tags: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve skills",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"skills": skills,
+			"count":  len(skills),
+			"query": fiber.Map{
+				"primary_tags":   req.PrimaryTags,
+				"secondary_tags": req.SecondaryTags,
+				"related_tags":   req.RelatedTags,
+			},
+		},
+	})
+}
+
+// SearchSkillsByTagCategory searches skills within a specific tag category
+func (h *SkillHandler) SearchSkillsByTagCategory(c fiber.Ctx) error {
+	category := c.Query("category") // "primary", "secondary", "related", or "all"
+	tagsStr := c.Query("tags")
+
+	if tagsStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Tags parameter is required",
+		})
+	}
+
+	// Parse comma-separated tags
+	tags := strings.Split(tagsStr, ",")
+	for i, tag := range tags {
+		tags[i] = strings.TrimSpace(tag)
+	}
+
+	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	skills, err := h.skillService.SearchByTagCategory(ctx, category, tags, limit)
+	if err != nil {
+		log.Printf("Failed to search skills by tag category: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to search skills",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": fiber.Map{
+			"skills":   skills,
+			"count":    len(skills),
+			"category": category,
+			"tags":     tags,
+		},
+	})
+}
+
+// MigrateLegacyTags endpoint to trigger migration of all legacy tags
+func (h *SkillHandler) MigrateLegacyTags(c fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	err := h.skillService.MigrateAllLegacyTags(ctx)
+	if err != nil {
+		log.Printf("Failed to migrate legacy tags: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to migrate legacy tags",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Legacy tags migrated successfully",
 	})
 }

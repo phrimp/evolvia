@@ -128,7 +128,12 @@ type Skill struct {
 	// Categorization
 	Category   *SkillCategory `bson:"category,omitempty" json:"category,omitempty"`
 	CategoryID *bson.ObjectID `bson:"category_id,omitempty" json:"category_id,omitempty"`
-	Tags       []string       `bson:"tags" json:"tags"`
+
+	// Legacy tags field (deprecated - kept for backward compatibility)
+	Tags []string `bson:"tags,omitempty" json:"tags,omitempty"`
+
+	// New categorized tags with weights
+	TaggedSkill TaggedSkill `bson:"tagged_skill" json:"tagged_skill"`
 
 	// Relationships with other skills
 	Relations []SkillRelation `bson:"relations" json:"relations"`
@@ -147,6 +152,17 @@ type Skill struct {
 	// Usage statistics
 	UsageCount int        `bson:"usage_count" json:"usage_count"`
 	LastUsed   *time.Time `bson:"last_used,omitempty" json:"last_used,omitempty"`
+}
+
+// GetAllTags returns all tags for backward compatibility
+func (s *Skill) GetAllTags() []string {
+	// If legacy tags exist and new tags don't, return legacy
+	if len(s.Tags) > 0 && len(s.TaggedSkill.PrimaryTags) == 0 &&
+		len(s.TaggedSkill.SecondaryTags) == 0 && len(s.TaggedSkill.RelatedTags) == 0 {
+		return s.Tags
+	}
+	// Otherwise return new categorized tags
+	return s.TaggedSkill.GetAllTags()
 }
 
 // SkillMatch represents a skill identified in text with detailed matching info
@@ -324,6 +340,22 @@ func GetSkillIndexes() []mongo.IndexModel {
 		},
 		{
 			Keys: bson.D{
+				{Key: "tagged_skill.primary_tags", Value: 1},
+			},
+		},
+		{
+			Keys: bson.D{
+				{Key: "tagged_skill.secondary_tags", Value: 1},
+			},
+		},
+		{
+			Keys: bson.D{
+				{Key: "tagged_skill.related_tags", Value: 1},
+			},
+		},
+
+		{
+			Keys: bson.D{
 				{Key: "identification_rules.secondary_patterns.text", Value: 1},
 			},
 		},
@@ -402,13 +434,19 @@ func GetSkillIndexes() []mongo.IndexModel {
 				{Key: "common_names", Value: "text"},
 				{Key: "technical_terms", Value: "text"},
 				{Key: "tags", Value: "text"},
+				{Key: "tagged_skill.primary_tags", Value: "text"},
+				{Key: "tagged_skill.secondary_tags", Value: "text"},
+				{Key: "tagged_skill.related_tags", Value: "text"},
 			},
 			Options: options.Index().SetWeights(bson.M{
-				"name":            10,
-				"description":     5,
-				"common_names":    8,
-				"technical_terms": 6,
-				"tags":            4,
+				"name":                        10,
+				"description":                 5,
+				"common_names":                8,
+				"technical_terms":             6,
+				"tags":                        4, // Legacy
+				"tagged_skill.primary_tags":   9, // High weight for primary
+				"tagged_skill.secondary_tags": 6, // Medium weight for secondary
+				"tagged_skill.related_tags":   3, // Low weight for related
 			}),
 		},
 	}
@@ -483,3 +521,118 @@ const (
 	TopSkillsByTrending     TopSkillsCriteria = "trending"     // Trending skills
 	TopSkillsByRecent       TopSkillsCriteria = "recent"       // Recently added
 )
+
+type TaggedSkill struct {
+	PrimaryTags   []string `bson:"primary_tags" json:"primary_tags"`     // Core skill concepts (highest weight)
+	SecondaryTags []string `bson:"secondary_tags" json:"secondary_tags"` // Supporting concepts (medium weight)
+	RelatedTags   []string `bson:"related_tags" json:"related_tags"`     // Peripheral concepts (lowest weight)
+}
+
+// GetAllTags returns all tags combined (for backward compatibility)
+func (ts *TaggedSkill) GetAllTags() []string {
+	allTags := make([]string, 0, len(ts.PrimaryTags)+len(ts.SecondaryTags)+len(ts.RelatedTags))
+	allTags = append(allTags, ts.PrimaryTags...)
+	allTags = append(allTags, ts.SecondaryTags...)
+	allTags = append(allTags, ts.RelatedTags...)
+	return allTags
+}
+
+// GetWeightedTags returns tags with their weights for scoring algorithms
+func (ts *TaggedSkill) GetWeightedTags() map[string]float64 {
+	weighted := make(map[string]float64)
+
+	// Primary tags have highest weight (1.0)
+	for _, tag := range ts.PrimaryTags {
+		weighted[tag] = 1.0
+	}
+
+	// Secondary tags have medium weight (0.6)
+	for _, tag := range ts.SecondaryTags {
+		if _, exists := weighted[tag]; !exists {
+			weighted[tag] = 0.6
+		}
+	}
+
+	// Related tags have lowest weight (0.3)
+	for _, tag := range ts.RelatedTags {
+		if _, exists := weighted[tag]; !exists {
+			weighted[tag] = 0.3
+		}
+	}
+
+	return weighted
+}
+
+// HasTag checks if a tag exists in any category
+func (ts *TaggedSkill) HasTag(tag string) bool {
+	for _, t := range ts.PrimaryTags {
+		if t == tag {
+			return true
+		}
+	}
+	for _, t := range ts.SecondaryTags {
+		if t == tag {
+			return true
+		}
+	}
+	for _, t := range ts.RelatedTags {
+		if t == tag {
+			return true
+		}
+	}
+	return false
+}
+
+// GetTagWeight returns the weight of a specific tag
+func (ts *TaggedSkill) GetTagWeight(tag string) float64 {
+	for _, t := range ts.PrimaryTags {
+		if t == tag {
+			return 1.0
+		}
+	}
+	for _, t := range ts.SecondaryTags {
+		if t == tag {
+			return 0.6
+		}
+	}
+	for _, t := range ts.RelatedTags {
+		if t == tag {
+			return 0.3
+		}
+	}
+	return 0.0
+}
+
+func (s *Skill) MigrateLegacyTags() {
+	if len(s.Tags) > 0 && len(s.TaggedSkill.PrimaryTags) == 0 {
+		// Simple migration strategy:
+		// - First 1-2 tags become primary
+		// - Next 2-3 tags become secondary
+		// - Rest become related
+
+		tagCount := len(s.Tags)
+
+		if tagCount > 0 {
+			// Determine primary tags (up to 2)
+			primaryCount := 1
+			if tagCount >= 4 {
+				primaryCount = 2
+			}
+			s.TaggedSkill.PrimaryTags = s.Tags[:primaryCount]
+
+			// Determine secondary tags
+			if tagCount > primaryCount {
+				secondaryEnd := primaryCount + 2
+				if secondaryEnd > tagCount {
+					secondaryEnd = tagCount
+				}
+				s.TaggedSkill.SecondaryTags = s.Tags[primaryCount:secondaryEnd]
+
+				// Rest become related tags
+				if secondaryEnd < tagCount {
+					s.TaggedSkill.RelatedTags = s.Tags[secondaryEnd:]
+				}
+			}
+		}
+	}
+}

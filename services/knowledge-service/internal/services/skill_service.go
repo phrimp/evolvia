@@ -580,3 +580,87 @@ func (s *SkillService) GetTopSkillsSummary(ctx context.Context, limit int) (map[
 
 	return summary, nil
 }
+
+func (s *SkillService) GetSkillsByWeightedTags(ctx context.Context, primaryTags, secondaryTags, relatedTags []string) ([]*models.Skill, error) {
+	// Validate input
+	if len(primaryTags) == 0 && len(secondaryTags) == 0 && len(relatedTags) == 0 {
+		return []*models.Skill{}, nil
+	}
+
+	skills, err := s.repo.GetSkillsByWeightedTags(ctx, primaryTags, secondaryTags, relatedTags, 50)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get skills by weighted tags: %w", err)
+	}
+
+	return skills, nil
+}
+
+// SearchByTagCategory searches for skills by specific tag category
+func (s *SkillService) SearchByTagCategory(ctx context.Context, category string, tags []string, limit int) ([]*models.Skill, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	return s.repo.SearchByTagCategory(ctx, category, tags, limit)
+}
+
+// MigrateAllLegacyTags migrates all existing skills to use categorized tags
+func (s *SkillService) MigrateAllLegacyTags(ctx context.Context) error {
+	log.Println("Starting migration of legacy tags to categorized tags...")
+	err := s.repo.MigrateAllLegacyTags(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to migrate legacy tags: %w", err)
+	}
+	log.Println("Migration completed successfully")
+	return nil
+}
+
+func (s *SkillService) validateSkillWithTags(skill *models.Skill) error {
+	if skill == nil {
+		return fmt.Errorf("skill cannot be nil")
+	}
+
+	if skill.Name == "" {
+		return fmt.Errorf("skill name is required")
+	}
+
+	if skill.Description == "" {
+		return fmt.Errorf("skill description is required")
+	}
+
+	// Validate that at least one primary tag exists
+	if len(skill.TaggedSkill.PrimaryTags) == 0 {
+		// If legacy tags exist, migrate them
+		if len(skill.Tags) > 0 {
+			skill.MigrateLegacyTags()
+		} else {
+			return fmt.Errorf("at least one primary tag is required")
+		}
+	}
+
+	// Validate no duplicate tags across categories
+	tagMap := make(map[string]bool)
+	for _, tag := range skill.TaggedSkill.PrimaryTags {
+		if tagMap[tag] {
+			return fmt.Errorf("duplicate tag found: %s", tag)
+		}
+		tagMap[tag] = true
+	}
+
+	for _, tag := range skill.TaggedSkill.SecondaryTags {
+		if tagMap[tag] {
+			return fmt.Errorf("tag '%s' cannot be in multiple categories", tag)
+		}
+		tagMap[tag] = true
+	}
+
+	for _, tag := range skill.TaggedSkill.RelatedTags {
+		if tagMap[tag] {
+			return fmt.Errorf("tag '%s' cannot be in multiple categories", tag)
+		}
+		tagMap[tag] = true
+	}
+
+	// Continue with existing validations...
+	return s.validateSkill(skill)
+}

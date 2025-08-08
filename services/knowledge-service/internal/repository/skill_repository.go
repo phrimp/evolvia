@@ -277,87 +277,6 @@ func (r *SkillRepository) List(ctx context.Context, opts ListOptions) ([]*models
 }
 
 // SearchByKeywords searches skills by keywords in various fields
-func (r *SkillRepository) SearchByKeywords(ctx context.Context, keywords string, limit int) ([]*models.Skill, error) {
-	if keywords == "" {
-		return []*models.Skill{}, nil
-	}
-
-	// Use aggregation pipeline to join with categories and search
-	pipeline := []bson.M{
-		// Match only active skills first
-		{
-			"$match": bson.M{
-				"is_active": true,
-			},
-		},
-		// Left join with categories collection
-		{
-			"$lookup": bson.M{
-				"from":         "categories",
-				"localField":   "category_id",
-				"foreignField": "_id",
-				"as":           "category",
-			},
-		},
-		// Add category name field for easier searching
-		{
-			"$addFields": bson.M{
-				"category_name": bson.M{
-					"$ifNull": []interface{}{
-						bson.M{"$arrayElemAt": []interface{}{"$category.name", 0}},
-						"",
-					},
-				},
-			},
-		},
-		// Filter by search keywords across multiple fields
-		{
-			"$match": bson.M{
-				"$or": []bson.M{
-					{"name": bson.M{"$regex": keywords, "$options": "i"}},
-					{"description": bson.M{"$regex": keywords, "$options": "i"}},
-					{"common_names": bson.M{"$regex": keywords, "$options": "i"}},
-					{"technical_terms": bson.M{"$regex": keywords, "$options": "i"}},
-					{"tags": bson.M{"$regex": keywords, "$options": "i"}},
-					{"category_name": bson.M{"$regex": keywords, "$options": "i"}},
-				},
-			},
-		},
-		// Sort by relevance (usage count) and name
-		{
-			"$sort": bson.M{
-				"usage_count": -1,
-				"name":        1,
-			},
-		},
-		// Remove the temporary category_name field and category array
-		{
-			"$unset": []string{"category_name", "category"},
-		},
-	}
-
-	// Add limit if specified
-	if limit > 0 {
-		pipeline = append(pipeline, bson.M{"$limit": limit})
-	}
-
-	cursor, err := r.collection.Aggregate(ctx, pipeline)
-	if err != nil {
-		return nil, fmt.Errorf("failed to search skills: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	var skills []*models.Skill
-	for cursor.Next(ctx) {
-		var skill models.Skill
-		if err := cursor.Decode(&skill); err != nil {
-			return nil, fmt.Errorf("failed to decode skill: %w", err)
-		}
-		skills = append(skills, &skill)
-	}
-
-	return skills, nil
-}
 
 func (r *SkillRepository) SearchByKeywordsWithCategories(ctx context.Context, keywords string, limit int) ([]*models.SkillWithCategory, error) {
 	if keywords == "" {
@@ -742,19 +661,6 @@ func (r *SkillRepository) GetMostUsed(ctx context.Context, limit int) ([]*models
 }
 
 // ListOptions defines options for listing skills
-type ListOptions struct {
-	Limit         int
-	Offset        int
-	SortBy        string
-	SortDesc      bool
-	ActiveOnly    bool
-	CategoryID    *bson.ObjectID
-	Tags          []string
-	Industry      []string
-	MinDifficulty int
-	MaxDifficulty int
-	Trending      *bool
-}
 
 // buildFilter constructs MongoDB filter from ListOptions
 func (r *SkillRepository) buildFilter(opts ListOptions) bson.M {
@@ -768,8 +674,27 @@ func (r *SkillRepository) buildFilter(opts ListOptions) bson.M {
 		filter["category_id"] = *opts.CategoryID
 	}
 
+	// Support both legacy tags and new categorized tags
 	if len(opts.Tags) > 0 {
-		filter["tags"] = bson.M{"$in": opts.Tags}
+		filter["$or"] = []bson.M{
+			{"tags": bson.M{"$in": opts.Tags}},
+			{"tagged_skill.primary_tags": bson.M{"$in": opts.Tags}},
+			{"tagged_skill.secondary_tags": bson.M{"$in": opts.Tags}},
+			{"tagged_skill.related_tags": bson.M{"$in": opts.Tags}},
+		}
+	}
+
+	// Add support for filtering by specific tag categories
+	if len(opts.PrimaryTags) > 0 {
+		filter["tagged_skill.primary_tags"] = bson.M{"$in": opts.PrimaryTags}
+	}
+
+	if len(opts.SecondaryTags) > 0 {
+		filter["tagged_skill.secondary_tags"] = bson.M{"$in": opts.SecondaryTags}
+	}
+
+	if len(opts.RelatedTags) > 0 {
+		filter["tagged_skill.related_tags"] = bson.M{"$in": opts.RelatedTags}
 	}
 
 	if len(opts.Industry) > 0 {
@@ -792,6 +717,23 @@ func (r *SkillRepository) buildFilter(opts ListOptions) bson.M {
 	}
 
 	return filter
+}
+
+type ListOptions struct {
+	Limit         int
+	Offset        int
+	SortBy        string
+	SortDesc      bool
+	ActiveOnly    bool
+	CategoryID    *bson.ObjectID
+	Tags          []string // Legacy support
+	PrimaryTags   []string // New: filter by primary tags
+	SecondaryTags []string // New: filter by secondary tags
+	RelatedTags   []string // New: filter by related tags
+	Industry      []string
+	MinDifficulty int
+	MaxDifficulty int
+	Trending      *bool
 }
 
 // BatchCreate inserts multiple skills at once
@@ -1326,4 +1268,347 @@ func (r *SkillRepository) GetTopRecentlyAddedSkills(ctx context.Context, limit i
 	}
 
 	return skills, nil
+}
+
+func (r *SkillRepository) SearchByKeywords(ctx context.Context, keywords string, limit int) ([]*models.Skill, error) {
+	if keywords == "" {
+		return []*models.Skill{}, nil
+	}
+
+	// Use aggregation pipeline to join with categories and search
+	pipeline := []bson.M{
+		// Match only active skills first
+		{
+			"$match": bson.M{
+				"is_active": true,
+			},
+		},
+		// Left join with categories collection
+		{
+			"$lookup": bson.M{
+				"from":         "categories",
+				"localField":   "category_id",
+				"foreignField": "_id",
+				"as":           "category",
+			},
+		},
+		// Add category name field for easier searching
+		{
+			"$addFields": bson.M{
+				"category_name": bson.M{
+					"$ifNull": []interface{}{
+						bson.M{"$arrayElemAt": []interface{}{"$category.name", 0}},
+						"",
+					},
+				},
+			},
+		},
+		// Filter by search keywords across multiple fields including categorized tags
+		{
+			"$match": bson.M{
+				"$or": []bson.M{
+					{"name": bson.M{"$regex": keywords, "$options": "i"}},
+					{"description": bson.M{"$regex": keywords, "$options": "i"}},
+					{"common_names": bson.M{"$regex": keywords, "$options": "i"}},
+					{"technical_terms": bson.M{"$regex": keywords, "$options": "i"}},
+					{"tags": bson.M{"$regex": keywords, "$options": "i"}}, // Legacy
+					{"tagged_skill.primary_tags": bson.M{"$regex": keywords, "$options": "i"}},
+					{"tagged_skill.secondary_tags": bson.M{"$regex": keywords, "$options": "i"}},
+					{"tagged_skill.related_tags": bson.M{"$regex": keywords, "$options": "i"}},
+					{"category_name": bson.M{"$regex": keywords, "$options": "i"}},
+				},
+			},
+		},
+		// Sort by relevance (usage count) and name
+		{
+			"$sort": bson.M{
+				"usage_count": -1,
+				"name":        1,
+			},
+		},
+		// Remove the temporary category_name field and category array
+		{
+			"$unset": []string{"category_name", "category"},
+		},
+	}
+
+	// Add limit if specified
+	if limit > 0 {
+		pipeline = append(pipeline, bson.M{"$limit": limit})
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search skills: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var skills []*models.Skill
+	for cursor.Next(ctx) {
+		var skill models.Skill
+		if err := cursor.Decode(&skill); err != nil {
+			return nil, fmt.Errorf("failed to decode skill: %w", err)
+		}
+		// Migrate legacy tags if needed
+		skill.MigrateLegacyTags()
+		skills = append(skills, &skill)
+	}
+
+	return skills, nil
+}
+
+// SearchByTagCategory searches for skills by specific tag category
+func (r *SkillRepository) SearchByTagCategory(ctx context.Context, tagCategory string, tags []string, limit int) ([]*models.Skill, error) {
+	if len(tags) == 0 {
+		return []*models.Skill{}, nil
+	}
+
+	var fieldPath string
+	switch tagCategory {
+	case "primary":
+		fieldPath = "tagged_skill.primary_tags"
+	case "secondary":
+		fieldPath = "tagged_skill.secondary_tags"
+	case "related":
+		fieldPath = "tagged_skill.related_tags"
+	default:
+		// Search across all categories
+		return r.SearchByTags(ctx, tags, limit)
+	}
+
+	filter := bson.M{
+		"is_active": true,
+		fieldPath:   bson.M{"$in": tags},
+	}
+
+	findOpts := options.Find().
+		SetSort(bson.M{"usage_count": -1, "name": 1})
+
+	if limit > 0 {
+		findOpts.SetLimit(int64(limit))
+	}
+
+	cursor, err := r.collection.Find(ctx, filter, findOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search by tag category: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var skills []*models.Skill
+	for cursor.Next(ctx) {
+		var skill models.Skill
+		if err := cursor.Decode(&skill); err != nil {
+			return nil, fmt.Errorf("failed to decode skill: %w", err)
+		}
+		skill.MigrateLegacyTags()
+		skills = append(skills, &skill)
+	}
+
+	return skills, nil
+}
+
+// SearchByTags searches across all tag categories
+func (r *SkillRepository) SearchByTags(ctx context.Context, tags []string, limit int) ([]*models.Skill, error) {
+	if len(tags) == 0 {
+		return []*models.Skill{}, nil
+	}
+
+	filter := bson.M{
+		"is_active": true,
+		"$or": []bson.M{
+			{"tags": bson.M{"$in": tags}}, // Legacy support
+			{"tagged_skill.primary_tags": bson.M{"$in": tags}},
+			{"tagged_skill.secondary_tags": bson.M{"$in": tags}},
+			{"tagged_skill.related_tags": bson.M{"$in": tags}},
+		},
+	}
+
+	findOpts := options.Find().
+		SetSort(bson.M{"usage_count": -1, "name": 1})
+
+	if limit > 0 {
+		findOpts.SetLimit(int64(limit))
+	}
+
+	cursor, err := r.collection.Find(ctx, filter, findOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search by tags: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var skills []*models.Skill
+	for cursor.Next(ctx) {
+		var skill models.Skill
+		if err := cursor.Decode(&skill); err != nil {
+			return nil, fmt.Errorf("failed to decode skill: %w", err)
+		}
+		skill.MigrateLegacyTags()
+		skills = append(skills, &skill)
+	}
+
+	return skills, nil
+}
+
+// GetSkillsByWeightedTags retrieves skills matching tags with weight consideration
+func (r *SkillRepository) GetSkillsByWeightedTags(ctx context.Context, primaryTags, secondaryTags, relatedTags []string, limit int) ([]*models.Skill, error) {
+	// Build a complex query that considers tag weights
+	orConditions := []bson.M{}
+
+	// Primary tags have highest priority
+	if len(primaryTags) > 0 {
+		orConditions = append(orConditions, bson.M{
+			"tagged_skill.primary_tags": bson.M{"$in": primaryTags},
+		})
+	}
+
+	// Secondary tags
+	if len(secondaryTags) > 0 {
+		orConditions = append(orConditions, bson.M{
+			"tagged_skill.secondary_tags": bson.M{"$in": secondaryTags},
+		})
+	}
+
+	// Related tags
+	if len(relatedTags) > 0 {
+		orConditions = append(orConditions, bson.M{
+			"tagged_skill.related_tags": bson.M{"$in": relatedTags},
+		})
+	}
+
+	if len(orConditions) == 0 {
+		return []*models.Skill{}, nil
+	}
+
+	pipeline := []bson.M{
+		{
+			"$match": bson.M{
+				"is_active": true,
+				"$or":       orConditions,
+			},
+		},
+		// Add a score based on tag matches
+		{
+			"$addFields": bson.M{
+				"match_score": bson.M{
+					"$add": []interface{}{
+						// Primary tag matches worth 3 points each
+						bson.M{
+							"$multiply": []interface{}{
+								3,
+								bson.M{
+									"$size": bson.M{
+										"$setIntersection": []interface{}{
+											"$tagged_skill.primary_tags",
+											primaryTags,
+										},
+									},
+								},
+							},
+						},
+						// Secondary tag matches worth 2 points each
+						bson.M{
+							"$multiply": []interface{}{
+								2,
+								bson.M{
+									"$size": bson.M{
+										"$setIntersection": []interface{}{
+											"$tagged_skill.secondary_tags",
+											secondaryTags,
+										},
+									},
+								},
+							},
+						},
+						// Related tag matches worth 1 point each
+						bson.M{
+							"$size": bson.M{
+								"$setIntersection": []interface{}{
+									"$tagged_skill.related_tags",
+									relatedTags,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// Sort by match score, then usage count
+		{
+			"$sort": bson.M{
+				"match_score": -1,
+				"usage_count": -1,
+				"name":        1,
+			},
+		},
+	}
+
+	if limit > 0 {
+		pipeline = append(pipeline, bson.M{"$limit": limit})
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get skills by weighted tags: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var skills []*models.Skill
+	for cursor.Next(ctx) {
+		var skill models.Skill
+		if err := cursor.Decode(&skill); err != nil {
+			return nil, fmt.Errorf("failed to decode skill: %w", err)
+		}
+		skill.MigrateLegacyTags()
+		skills = append(skills, &skill)
+	}
+
+	return skills, nil
+}
+
+func (r *SkillRepository) MigrateAllLegacyTags(ctx context.Context) error {
+	// Find all skills with legacy tags but no categorized tags
+	filter := bson.M{
+		"tags": bson.M{"$exists": true, "$ne": []string{}},
+		"$or": []bson.M{
+			{"tagged_skill": bson.M{"$exists": false}},
+			{"tagged_skill.primary_tags": bson.M{"$size": 0}},
+		},
+	}
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to find skills for migration: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var migratedCount int
+	for cursor.Next(ctx) {
+		var skill models.Skill
+		if err := cursor.Decode(&skill); err != nil {
+			log.Printf("Failed to decode skill for migration: %v", err)
+			continue
+		}
+
+		// Migrate the tags
+		skill.MigrateLegacyTags()
+
+		// Update the skill in database
+		update := bson.M{
+			"$set": bson.M{
+				"tagged_skill": skill.TaggedSkill,
+				"updated_at":   time.Now(),
+			},
+		}
+
+		_, err = r.collection.UpdateOne(ctx, bson.M{"_id": skill.ID}, update)
+		if err != nil {
+			log.Printf("Failed to update skill %s during migration: %v", skill.ID.Hex(), err)
+			continue
+		}
+
+		migratedCount++
+	}
+
+	log.Printf("Successfully migrated %d skills from legacy tags to categorized tags", migratedCount)
+	return nil
 }
