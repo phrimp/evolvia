@@ -63,6 +63,8 @@ func main() {
 	// Initialize repositories
 	skillRepo := repository.NewSkillRepository(mongo.Mongo_Database, "skills")
 	userSkillRepo := repository.NewUserSkillRepository(mongo.Mongo_Database, "user_skills")
+	// ADD THIS LINE - Initialize category repository
+	categoryRepo := repository.NewCategoryRepository(mongo.Mongo_Database, "categories")
 
 	// Initialize event publisher
 	eventPublisher, err := event.NewEventPublisher(cfg.RabbitMQ.URI)
@@ -80,6 +82,12 @@ func main() {
 	userSkillService, err := services.NewUserSkillService(userSkillRepo, skillRepo)
 	if err != nil {
 		log.Fatalf("Failed to initialize user skill service: %v", err)
+	}
+
+	// ADD THIS BLOCK - Initialize category service
+	categoryService, err := services.NewCategoryService(categoryRepo, skillRepo, dataDir)
+	if err != nil {
+		log.Fatalf("Failed to initialize category service: %v", err)
 	}
 
 	// Initialize event consumer with both services for skill detection
@@ -102,6 +110,10 @@ func main() {
 
 	userSkillHandler := handlers.NewUserSkillHandler(userSkillService)
 	userSkillHandler.RegisterRoutes(app)
+
+	// ADD THIS BLOCK - Initialize and register category handler
+	categoryHandler := handlers.NewCategoryHandler(categoryService)
+	categoryHandler.RegisterRoutes(app)
 
 	shutdownChan := make(chan os.Signal, 1)
 	doneChan := make(chan bool, 1)

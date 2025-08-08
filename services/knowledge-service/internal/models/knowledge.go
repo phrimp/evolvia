@@ -49,11 +49,33 @@ type SkillRelation struct {
 
 // SkillCategory represents hierarchical categorization
 type SkillCategory struct {
-	ID       bson.ObjectID  `bson:"_id,omitempty" json:"id,omitempty"`
-	Name     string         `bson:"name" json:"name"`
-	ParentID *bson.ObjectID `bson:"parent_id,omitempty" json:"parent_id,omitempty"`
-	Path     string         `bson:"path" json:"path"`   // e.g., "Technology/Programming/Web Development"
-	Level    int            `bson:"level" json:"level"` // Depth in hierarchy
+	ID        bson.ObjectID  `bson:"_id,omitempty" json:"id,omitempty"`
+	Name      string         `bson:"name" json:"name"`
+	ParentID  *bson.ObjectID `bson:"parent_id,omitempty" json:"parent_id,omitempty"`
+	Path      string         `bson:"path" json:"path"`   // e.g., "Technology/Programming/Web Development"
+	Level     int            `bson:"level" json:"level"` // Depth in hierarchy
+	CreatedAt time.Time      `bson:"created_at" json:"created_at"`
+	UpdatedAt time.Time      `bson:"updated_at" json:"updated_at"`
+}
+
+type CategoryNode struct {
+	Category *SkillCategory
+	Children []*CategoryNode `json:"children"`
+}
+
+// CategoryStatistics contains statistical information about categories
+type CategoryStatistics struct {
+	TotalCategories int                       `json:"total_categories"`
+	RootCategories  int                       `json:"root_categories"`
+	MaxDepth        int                       `json:"max_depth"`
+	ByLevel         map[int]int               `json:"by_level"`
+	TopCategories   []*CategoryWithSkillCount `json:"top_categories"`
+}
+
+// CategoryWithSkillCount represents a category with associated skill count
+type CategoryWithSkillCount struct {
+	*SkillCategory
+	SkillCount int `json:"skill_count"`
 }
 
 // SkillMetadata contains additional skill information
@@ -173,18 +195,19 @@ type SkillGraph struct {
 
 // UserSkill represents a user's skill proficiency
 type UserSkill struct {
-	ID               bson.ObjectID            `bson:"_id,omitempty" json:"id,omitempty"`
-	UserID           bson.ObjectID            `bson:"user_id" json:"user_id"`
-	SkillID          bson.ObjectID            `bson:"skill_id" json:"skill_id"`
-	Level            SkillLevel               `bson:"level" json:"level"`
-	Confidence       float64                  `bson:"confidence" json:"confidence"`
-	YearsExperience  int                      `bson:"years_experience" json:"years_experience"`
-	LastUsed         *time.Time               `bson:"last_used,omitempty" json:"last_used,omitempty"`
-	Verified         bool                     `bson:"verified" json:"verified"`
-	Endorsements     int                      `bson:"endorsements" json:"endorsements"`
-	BloomsAssessment BloomsTaxonomyAssessment `bson:"blooms_assessment" json:"blooms_assessment"`
-	CreatedAt        time.Time                `bson:"created_at" json:"created_at"`
-	UpdatedAt        time.Time                `bson:"updated_at" json:"updated_at"`
+	ID                  bson.ObjectID            `bson:"_id,omitempty" json:"id,omitempty"`
+	UserID              bson.ObjectID            `bson:"user_id" json:"user_id"`
+	SkillID             bson.ObjectID            `bson:"skill_id" json:"skill_id"`
+	Level               SkillLevel               `bson:"level" json:"level"`
+	Confidence          float64                  `bson:"confidence" json:"confidence"`
+	YearsExperience     int                      `bson:"years_experience" json:"years_experience"`
+	LastUsed            *time.Time               `bson:"last_used,omitempty" json:"last_used,omitempty"`
+	Verified            bool                     `bson:"verified" json:"verified"`
+	Endorsements        int                      `bson:"endorsements" json:"endorsements"`
+	BloomsAssessment    BloomsTaxonomyAssessment `bson:"blooms_assessment" json:"blooms_assessment"`
+	CreatedAt           time.Time                `bson:"created_at" json:"created_at"`
+	UpdatedAt           time.Time                `bson:"updated_at" json:"updated_at"`
+	VerificationHistory []SkillProgressHistory   `bson:"verification_history" json:"verification_history"`
 }
 
 type BloomsTaxonomyAssessment struct {
@@ -395,4 +418,15 @@ type UserSkillWithDetails struct {
 	SkillName        string   `json:"skill_name"`
 	SkillDescription string   `json:"skill_description,omitempty"`
 	SkillTags        []string `json:"skill_tags,omitempty"`
+}
+
+type SkillProgressHistory struct {
+	ID                bson.ObjectID            `bson:"_id,omitempty"`
+	UserID            bson.ObjectID            `bson:"user_id"`
+	SkillID           bson.ObjectID            `bson:"skill_id"`
+	BloomsSnapshot    BloomsTaxonomyAssessment `bson:"blooms_snapshot"`
+	TotalHours        float64                  `bson:"total_hours"`
+	VerificationCount int                      `bson:"verification_count"`
+	Timestamp         time.Time                `bson:"timestamp"`
+	TriggerEvent      string                   `bson:"trigger_event"` // "verification", "learning_session", "manual"
 }
