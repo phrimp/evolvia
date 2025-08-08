@@ -418,32 +418,9 @@ func (r *SkillRepository) SearchByKeywordsWithCategories(ctx context.Context, ke
 				"name":        1,
 			},
 		},
-		// Project the final structure
+		// Remove the temporary category_info array
 		{
-			"$project": bson.M{
-				"_id":                  1,
-				"name":                 1,
-				"description":          1,
-				"identification_rules": 1,
-				"common_names":         1,
-				"abbreviations":        1,
-				"technical_terms":      1,
-				"category":             1,
-				"category_id":          1,
-				"tags":                 1,
-				"relations":            1,
-				"metadata":             1,
-				"version":              1,
-				"is_active":            1,
-				"created_at":           1,
-				"updated_at":           1,
-				"created_by":           1,
-				"updated_by":           1,
-				"usage_count":          1,
-				"last_used":            1,
-				"category_name":        1,
-				"category_path":        1,
-			},
+			"$unset": "category_info",
 		},
 	}
 
@@ -460,14 +437,238 @@ func (r *SkillRepository) SearchByKeywordsWithCategories(ctx context.Context, ke
 
 	var results []*models.SkillWithCategory
 	for cursor.Next(ctx) {
-		var result models.SkillWithCategory
-		if err := cursor.Decode(&result); err != nil {
-			return nil, fmt.Errorf("failed to decode skill with category: %w", err)
+		// First decode into a map to handle the flat structure
+		var doc bson.M
+		if err := cursor.Decode(&doc); err != nil {
+			return nil, fmt.Errorf("failed to decode document: %w", err)
 		}
-		results = append(results, &result)
+
+		// Create the skill object
+		skill := &models.Skill{
+			ID:             doc["_id"].(bson.ObjectID),
+			Name:           getStringFromDoc(doc, "name"),
+			Description:    getStringFromDoc(doc, "description"),
+			CommonNames:    getStringArrayFromDoc(doc, "common_names"),
+			Abbreviations:  getStringArrayFromDoc(doc, "abbreviations"),
+			TechnicalTerms: getStringArrayFromDoc(doc, "technical_terms"),
+			Tags:           getStringArrayFromDoc(doc, "tags"),
+			IsActive:       getBoolFromDoc(doc, "is_active"),
+			Version:        getIntFromDoc(doc, "version"),
+			UsageCount:     getIntFromDoc(doc, "usage_count"),
+			CreatedAt:      getTimeFromDoc(doc, "created_at"),
+			UpdatedAt:      getTimeFromDoc(doc, "updated_at"),
+		}
+
+		// Handle optional fields
+		if catID, ok := doc["category_id"].(bson.ObjectID); ok {
+			skill.CategoryID = &catID
+		}
+
+		if lastUsed, ok := doc["last_used"].(time.Time); ok {
+			skill.LastUsed = &lastUsed
+		}
+
+		// Handle nested structs
+		if identRules, ok := doc["identification_rules"].(bson.M); ok {
+			skill.IdentificationRules = parseIdentificationRules(identRules)
+		}
+
+		if metadata, ok := doc["metadata"].(bson.M); ok {
+			skill.Metadata = parseMetadata(metadata)
+		}
+
+		if relations, ok := doc["relations"].([]interface{}); ok {
+			skill.Relations = parseRelations(relations)
+		}
+
+		if category, ok := doc["category"].(bson.M); ok {
+			skill.Category = parseCategory(category)
+		}
+
+		if createdBy, ok := doc["created_by"].(bson.ObjectID); ok {
+			skill.CreatedBy = &createdBy
+		}
+
+		if updatedBy, ok := doc["updated_by"].(bson.ObjectID); ok {
+			skill.UpdatedBy = &updatedBy
+		}
+
+		// Create the result with category information
+		result := &models.SkillWithCategory{
+			Skill:        skill,
+			CategoryName: getStringFromDoc(doc, "category_name"),
+			CategoryPath: getStringFromDoc(doc, "category_path"),
+		}
+
+		results = append(results, result)
 	}
 
 	return results, nil
+}
+
+// Helper functions to safely extract values from BSON document
+func getStringFromDoc(doc bson.M, key string) string {
+	if val, ok := doc[key].(string); ok {
+		return val
+	}
+	return ""
+}
+
+func getStringArrayFromDoc(doc bson.M, key string) []string {
+	if val, ok := doc[key].([]interface{}); ok {
+		result := make([]string, 0, len(val))
+		for _, v := range val {
+			if str, ok := v.(string); ok {
+				result = append(result, str)
+			}
+		}
+		return result
+	}
+	return []string{}
+}
+
+func getBoolFromDoc(doc bson.M, key string) bool {
+	if val, ok := doc[key].(bool); ok {
+		return val
+	}
+	return false
+}
+
+func getIntFromDoc(doc bson.M, key string) int {
+	if val, ok := doc[key].(int32); ok {
+		return int(val)
+	}
+	if val, ok := doc[key].(int64); ok {
+		return int(val)
+	}
+	if val, ok := doc[key].(int); ok {
+		return val
+	}
+	return 0
+}
+
+func getTimeFromDoc(doc bson.M, key string) time.Time {
+	if val, ok := doc[key].(time.Time); ok {
+		return val
+	}
+	return time.Time{}
+}
+
+func parseIdentificationRules(data bson.M) models.SkillIdentificationRules {
+	rules := models.SkillIdentificationRules{}
+
+	if primaryPatterns, ok := data["primary_patterns"].([]interface{}); ok {
+		rules.PrimaryPatterns = parseKeywordPatterns(primaryPatterns)
+	}
+
+	if secondaryPatterns, ok := data["secondary_patterns"].([]interface{}); ok {
+		rules.SecondaryPatterns = parseKeywordPatterns(secondaryPatterns)
+	}
+
+	if academicPatterns, ok := data["academic_patterns"].([]interface{}); ok {
+		rules.AcademicPatterns = parseKeywordPatterns(academicPatterns)
+	}
+
+	if negativePatterns, ok := data["negative_patterns"].([]interface{}); ok {
+		rules.NegativePatterns = parseKeywordPatterns(negativePatterns)
+	}
+
+	rules.MinPrimaryMatches = getIntFromDoc(data, "min_primary_matches")
+	rules.MinSecondaryMatches = getIntFromDoc(data, "min_secondary_matches")
+	rules.MinAcademicMatch = getIntFromDoc(data, "min_academic_matches")
+
+	if minScore, ok := data["min_total_score"].(float64); ok {
+		rules.MinTotalScore = minScore
+	}
+
+	rules.ContextWindow = getIntFromDoc(data, "context_window")
+
+	return rules
+}
+
+func parseKeywordPatterns(data []interface{}) []models.KeywordPattern {
+	patterns := make([]models.KeywordPattern, 0, len(data))
+	for _, item := range data {
+		if pattern, ok := item.(bson.M); ok {
+			kp := models.KeywordPattern{
+				Text:            getStringFromDoc(pattern, "text"),
+				Type:            getStringFromDoc(pattern, "type"),
+				CaseSensitive:   getBoolFromDoc(pattern, "case_sensitive"),
+				MinWordBoundary: getBoolFromDoc(pattern, "min_word_boundary"),
+			}
+			if weight, ok := pattern["weight"].(float64); ok {
+				kp.Weight = weight
+			}
+			patterns = append(patterns, kp)
+		}
+	}
+	return patterns
+}
+
+func parseMetadata(data bson.M) models.SkillMetadata {
+	metadata := models.SkillMetadata{
+		Industry:    getStringArrayFromDoc(data, "industry"),
+		JobRoles:    getStringArrayFromDoc(data, "job_roles"),
+		Difficulty:  getIntFromDoc(data, "difficulty"),
+		TimeToLearn: getIntFromDoc(data, "time_to_learn"),
+		Trending:    getBoolFromDoc(data, "trending"),
+	}
+
+	if demand, ok := data["market_demand"].(float64); ok {
+		metadata.MarketDemand = demand
+	}
+
+	return metadata
+}
+
+func parseRelations(data []interface{}) []models.SkillRelation {
+	relations := make([]models.SkillRelation, 0, len(data))
+	for _, item := range data {
+		if rel, ok := item.(bson.M); ok {
+			relation := models.SkillRelation{
+				Description: getStringFromDoc(rel, "description"),
+			}
+
+			if skillID, ok := rel["skill_id"].(bson.ObjectID); ok {
+				relation.SkillID = skillID
+			}
+
+			if relType, ok := rel["relation_type"].(string); ok {
+				relation.RelationType = models.RelationType(relType)
+			}
+
+			if strength, ok := rel["strength"].(float64); ok {
+				relation.Strength = strength
+			}
+
+			relations = append(relations, relation)
+		}
+	}
+	return relations
+}
+
+func parseCategory(data bson.M) *models.SkillCategory {
+	if len(data) == 0 {
+		return nil
+	}
+
+	category := &models.SkillCategory{
+		Name:      getStringFromDoc(data, "name"),
+		Path:      getStringFromDoc(data, "path"),
+		Level:     getIntFromDoc(data, "level"),
+		CreatedAt: getTimeFromDoc(data, "created_at"),
+		UpdatedAt: getTimeFromDoc(data, "updated_at"),
+	}
+
+	if id, ok := data["_id"].(bson.ObjectID); ok {
+		category.ID = id
+	}
+
+	if parentID, ok := data["parent_id"].(bson.ObjectID); ok {
+		category.ParentID = &parentID
+	}
+
+	return category
 }
 
 // GetByCategory retrieves skills by category
