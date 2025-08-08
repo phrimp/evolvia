@@ -349,11 +349,6 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 			}
 		})
 
-		// Health check for session service
-		protectedSession.GET("/health", func(c *gin.Context) {
-			sessionHandler.HealthCheck(c)
-			// No event publishing for health checks to avoid spam
-		})
 	}
 
 	// === PUBLIC SESSION ROUTES ===
@@ -404,11 +399,6 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 			}
 		})
 
-		// Public health check
-		publicSession.GET("/health", func(c *gin.Context) {
-			sessionHandler.HealthCheck(c)
-			// No event publishing for health checks
-		})
 	}
 
 	// === MIDDLEWARE SETUP FOR SESSION ROUTES ===

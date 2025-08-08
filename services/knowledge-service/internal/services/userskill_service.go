@@ -12,15 +12,17 @@ import (
 )
 
 type UserSkillService struct {
-	userSkillRepo *repository.UserSkillRepository
-	skillRepo     *repository.SkillRepository
+	userSkillRepo                *repository.UserSkillRepository
+	skillVerificationHistoryRepo *repository.SkillVerificationHistoryRepository
+	skillRepo                    *repository.SkillRepository
 }
 
 // NewUserSkillService creates a new user skill service
-func NewUserSkillService(userSkillRepo *repository.UserSkillRepository, skillRepo *repository.SkillRepository) (*UserSkillService, error) {
+func NewUserSkillService(userSkillRepo *repository.UserSkillRepository, skillRepo *repository.SkillRepository, skillVerificationHistoryRepo *repository.SkillVerificationHistoryRepository) (*UserSkillService, error) {
 	service := &UserSkillService{
-		userSkillRepo: userSkillRepo,
-		skillRepo:     skillRepo,
+		userSkillRepo:                userSkillRepo,
+		skillRepo:                    skillRepo,
+		skillVerificationHistoryRepo: skillVerificationHistoryRepo,
 	}
 
 	// Initialize indexes
@@ -93,6 +95,7 @@ func (s *UserSkillService) AddUserSkill(ctx context.Context, userSkill *models.U
 		Analyze:     0.0,
 		Evaluate:    0.0,
 		Create:      0.0,
+		Verified:    false,
 		LastUpdated: now,
 	}
 
@@ -417,7 +420,20 @@ func (s *UserSkillService) UpdateBloomsAssessment(ctx context.Context, userID, s
 		return fmt.Errorf("user skill not found")
 	}
 
-	return s.userSkillRepo.UpdateBloomsAssessment(ctx, userID, skillID, assessment)
+	err = s.userSkillRepo.UpdateBloomsAssessment(ctx, userID, skillID, assessment)
+	if err != nil {
+		return err
+	}
+	s.skillVerificationHistoryRepo.Create(ctx, &models.SkillProgressHistory{
+		UserID:            userID,
+		SkillID:           skillID,
+		BloomsSnapshot:    *assessment,
+		TotalHours:        0,
+		VerificationCount: 1,
+		TriggerEvent:      "self-assessment",
+	})
+
+	return nil
 }
 
 func (s *UserSkillService) GetBloomsAssessment(ctx context.Context, userID, skillID bson.ObjectID) (*models.BloomsTaxonomyAssessment, error) {

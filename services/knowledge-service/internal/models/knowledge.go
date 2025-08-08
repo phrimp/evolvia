@@ -217,6 +217,7 @@ type BloomsTaxonomyAssessment struct {
 	Analyze     float64   `bson:"analyze" json:"analyze"`       // Breaking down complex problems
 	Evaluate    float64   `bson:"evaluate" json:"evaluate"`     // Assessing and comparing solutions
 	Create      float64   `bson:"create" json:"create"`         // Building original projects/solutions
+	Verified    bool      `bson:"verified" json:"verified"`
 	LastUpdated time.Time `bson:"last_updated" json:"last_updated"`
 }
 

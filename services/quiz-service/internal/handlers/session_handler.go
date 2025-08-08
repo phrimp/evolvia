@@ -681,16 +681,6 @@ func (h *SessionHandler) generateSessionStatistics(session *models.QuizSession) 
 	return stats
 }
 
-// Health check endpoint for session service
-func (h *SessionHandler) HealthCheck(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"service":   "quiz-session-service",
-		"status":    "healthy",
-		"timestamp": time.Now(),
-		"version":   "1.0.0",
-	})
-}
-
 // GetBatchSessions retrieves multiple sessions (for admin purposes)
 func (h *SessionHandler) GetBatchSessions(c *gin.Context) {
 	// Parse query parameters

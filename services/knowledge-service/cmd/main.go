@@ -63,8 +63,8 @@ func main() {
 	// Initialize repositories
 	skillRepo := repository.NewSkillRepository(mongo.Mongo_Database, "skills")
 	userSkillRepo := repository.NewUserSkillRepository(mongo.Mongo_Database, "user_skills")
-	// ADD THIS LINE - Initialize category repository
 	categoryRepo := repository.NewCategoryRepository(mongo.Mongo_Database, "categories")
+	skillVerificationHistoryRepo := repository.NewSkillVerificationHistoryRepository(mongo.Mongo_Database, "verification_history")
 
 	// Initialize event publisher
 	eventPublisher, err := event.NewEventPublisher(cfg.RabbitMQ.URI)
@@ -79,7 +79,7 @@ func main() {
 		log.Fatalf("Failed to initialize skill service: %v", err)
 	}
 
-	userSkillService, err := services.NewUserSkillService(userSkillRepo, skillRepo)
+	userSkillService, err := services.NewUserSkillService(userSkillRepo, skillRepo, skillVerificationHistoryRepo)
 	if err != nil {
 		log.Fatalf("Failed to initialize user skill service: %v", err)
 	}
