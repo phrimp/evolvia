@@ -406,6 +406,8 @@ func (s *CategoryService) BatchCreateCategories(ctx context.Context, categories 
 		}
 		uniqueKey := fmt.Sprintf("%s_%s", category.Name, parentKey)
 
+		log.Println("$$$$$$$$$$$$$$$$", uniqueKey)
+
 		if nameMap[uniqueKey] {
 			return fmt.Errorf("duplicate category name '%s' under same parent at index %d", category.Name, i)
 		}
@@ -432,14 +434,11 @@ func (s *CategoryService) processCategoriesInOrder(ctx context.Context, categori
 	processed := make([]*models.SkillCategory, 0, len(categories))
 	processing := make(map[string]bool)
 
-	// Index categories by name
 	for _, category := range categories {
 		categoryByName[category.Name] = category
 	}
 
-	// Recursive function to process category and its dependencies
-	var processCategory func(string) error
-	processCategory = func(name string) error {
+	processCategory := func(name string) error {
 		if processing[name] {
 			return fmt.Errorf("circular dependency detected for category: %s", name)
 		}
