@@ -321,7 +321,7 @@ func (h *SkillHandler) SearchSkills(c fiber.Ctx) error {
 	keywords := c.Query("q")
 	if keywords == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Search keywords are required",
+			"error": "Search keywords are required (use 'q' parameter)",
 		})
 	}
 
@@ -330,24 +330,72 @@ func (h *SkillHandler) SearchSkills(c fiber.Ctx) error {
 		limit = 20
 	}
 
+	// Check if enhanced search is requested
+	includeCategory := c.Query("includeCategory", "true") == "true"
+	searchMode := c.Query("mode", "basic") // basic, enhanced, advanced
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	skills, err := h.skillService.SearchSkills(ctx, keywords, limit)
-	if err != nil {
-		log.Printf("Failed to search skills: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to search skills",
+	switch searchMode {
+	case "advanced":
+		// Advanced search with match scoring
+		results, err := h.skillService.SearchSkillsAdvanced(ctx, keywords, limit)
+		if err != nil {
+			log.Printf("Failed to perform advanced search for skills: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to search skills",
+			})
+		}
+
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"data": fiber.Map{
+				"results":  results,
+				"keywords": keywords,
+				"count":    len(results),
+				"mode":     "advanced",
+			},
+		})
+
+	case "enhanced":
+		// Enhanced search with category information
+		results, err := h.skillService.SearchSkillsWithCategories(ctx, keywords, limit, includeCategory)
+		if err != nil {
+			log.Printf("Failed to perform enhanced search for skills: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to search skills",
+			})
+		}
+
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"data": fiber.Map{
+				"skills":           results,
+				"keywords":         keywords,
+				"count":            len(results),
+				"mode":             "enhanced",
+				"include_category": includeCategory,
+			},
+		})
+
+	default:
+		// Basic search (backward compatibility)
+		skills, err := h.skillService.SearchSkills(ctx, keywords, limit)
+		if err != nil {
+			log.Printf("Failed to search skills: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to search skills",
+			})
+		}
+
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"data": fiber.Map{
+				"skills":   skills,
+				"keywords": keywords,
+				"count":    len(skills),
+				"mode":     "basic",
+			},
 		})
 	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"data": fiber.Map{
-			"skills":   skills,
-			"keywords": keywords,
-			"count":    len(skills),
-		},
-	})
 }
 
 func (h *SkillHandler) GetSkillsByCategory(c fiber.Ctx) error {

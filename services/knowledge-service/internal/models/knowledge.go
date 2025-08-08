@@ -430,3 +430,19 @@ type SkillProgressHistory struct {
 	Timestamp         time.Time                `bson:"timestamp"`
 	TriggerEvent      string                   `bson:"trigger_event"` // "verification", "learning_session", "manual"
 }
+
+// Add this to your internal/models/knowledge.go file
+
+// SkillWithCategory represents a skill with its category information for search results
+type SkillWithCategory struct {
+	*Skill
+	CategoryName string `bson:"category_name,omitempty" json:"category_name,omitempty"`
+	CategoryPath string `bson:"category_path,omitempty" json:"category_path,omitempty"`
+}
+
+// SkillSearchResult represents enhanced search results with match scoring
+type SkillSearchResult struct {
+	*SkillWithCategory
+	MatchScore    float64  `json:"match_score,omitempty"`
+	MatchedFields []string `json:"matched_fields,omitempty"`
+}

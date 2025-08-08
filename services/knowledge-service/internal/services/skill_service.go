@@ -6,6 +6,8 @@ import (
 	"knowledge-service/internal/models"
 	"knowledge-service/internal/repository"
 	"log"
+	"sort"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -321,4 +323,147 @@ type SkillStatistics struct {
 // Helper function to create a boolean pointer
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+func (s *SkillService) SearchSkillsWithCategories(ctx context.Context, keywords string, limit int, includeCategory bool) ([]*models.SkillWithCategory, error) {
+	if limit <= 0 {
+		limit = 20 // Default limit
+	}
+
+	if includeCategory {
+		return s.repo.SearchByKeywordsWithCategories(ctx, keywords, limit)
+	}
+
+	// Fallback to regular search and convert to SkillWithCategory
+	skills, err := s.repo.SearchByKeywords(ctx, keywords, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []*models.SkillWithCategory
+	for _, skill := range skills {
+		result := &models.SkillWithCategory{
+			Skill: skill,
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
+// SearchSkillsAdvanced provides advanced search with match scoring and field matching
+func (s *SkillService) SearchSkillsAdvanced(ctx context.Context, keywords string, limit int) ([]*models.SkillSearchResult, error) {
+	if limit <= 0 {
+		limit = 20 // Default limit
+	}
+
+	// Get skills with category information
+	skillsWithCategories, err := s.repo.SearchByKeywordsWithCategories(ctx, keywords, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to search results with match scoring
+	var results []*models.SkillSearchResult
+	keywordsLower := strings.ToLower(keywords)
+
+	for _, skillWithCategory := range skillsWithCategories {
+		matchScore, matchedFields := s.calculateMatchScore(skillWithCategory, keywordsLower)
+
+		result := &models.SkillSearchResult{
+			SkillWithCategory: skillWithCategory,
+			MatchScore:        matchScore,
+			MatchedFields:     matchedFields,
+		}
+		results = append(results, result)
+	}
+
+	// Sort by match score (highest first)
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].MatchScore != results[j].MatchScore {
+			return results[i].MatchScore > results[j].MatchScore
+		}
+		// Secondary sort by usage count
+		return results[i].UsageCount > results[j].UsageCount
+	})
+
+	return results, nil
+}
+
+// calculateMatchScore calculates relevance score and identifies matched fields
+func (s *SkillService) calculateMatchScore(skillWithCategory *models.SkillWithCategory, keywords string) (float64, []string) {
+	var score float64
+	var matchedFields []string
+
+	skill := skillWithCategory.Skill
+
+	// Check name match (highest weight)
+	if strings.Contains(strings.ToLower(skill.Name), keywords) {
+		score += 10.0
+		matchedFields = append(matchedFields, "name")
+		// Exact match bonus
+		if strings.ToLower(skill.Name) == keywords {
+			score += 5.0
+		}
+	}
+
+	// Check category name match (high weight)
+	if skillWithCategory.CategoryName != "" && strings.Contains(strings.ToLower(skillWithCategory.CategoryName), keywords) {
+		score += 8.0
+		matchedFields = append(matchedFields, "category")
+	}
+
+	// Check common names (high weight)
+	for _, commonName := range skill.CommonNames {
+		if strings.Contains(strings.ToLower(commonName), keywords) {
+			score += 7.0
+			matchedFields = append(matchedFields, "common_names")
+			break
+		}
+	}
+
+	// Check technical terms (medium weight)
+	for _, term := range skill.TechnicalTerms {
+		if strings.Contains(strings.ToLower(term), keywords) {
+			score += 5.0
+			matchedFields = append(matchedFields, "technical_terms")
+			break
+		}
+	}
+
+	// Check description (medium weight)
+	if strings.Contains(strings.ToLower(skill.Description), keywords) {
+		score += 4.0
+		matchedFields = append(matchedFields, "description")
+	}
+
+	// Check tags (medium weight)
+	for _, tag := range skill.Tags {
+		if strings.Contains(strings.ToLower(tag), keywords) {
+			score += 3.0
+			matchedFields = append(matchedFields, "tags")
+			break
+		}
+	}
+
+	// Check abbreviations (lower weight)
+	for _, abbrev := range skill.Abbreviations {
+		if strings.Contains(strings.ToLower(abbrev), keywords) {
+			score += 2.0
+			matchedFields = append(matchedFields, "abbreviations")
+			break
+		}
+	}
+
+	// Boost score based on usage count (popularity factor)
+	if skill.UsageCount > 0 {
+		score += float64(skill.UsageCount) * 0.1
+	}
+
+	// Boost score for trending skills
+	if skill.Metadata.Trending {
+		score += 1.0
+	}
+
+	return score, matchedFields
 }

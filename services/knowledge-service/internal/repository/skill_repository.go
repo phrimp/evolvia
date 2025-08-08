@@ -282,29 +282,66 @@ func (r *SkillRepository) SearchByKeywords(ctx context.Context, keywords string,
 		return []*models.Skill{}, nil
 	}
 
-	// Create text search filter
-	filter := bson.M{
-		"$and": []bson.M{
-			{"is_active": true},
-			{
+	// Use aggregation pipeline to join with categories and search
+	pipeline := []bson.M{
+		// Match only active skills first
+		{
+			"$match": bson.M{
+				"is_active": true,
+			},
+		},
+		// Left join with categories collection
+		{
+			"$lookup": bson.M{
+				"from":         "categories",
+				"localField":   "category_id",
+				"foreignField": "_id",
+				"as":           "category",
+			},
+		},
+		// Add category name field for easier searching
+		{
+			"$addFields": bson.M{
+				"category_name": bson.M{
+					"$ifNull": []interface{}{
+						bson.M{"$arrayElemAt": []interface{}{"$category.name", 0}},
+						"",
+					},
+				},
+			},
+		},
+		// Filter by search keywords across multiple fields
+		{
+			"$match": bson.M{
 				"$or": []bson.M{
 					{"name": bson.M{"$regex": keywords, "$options": "i"}},
 					{"description": bson.M{"$regex": keywords, "$options": "i"}},
 					{"common_names": bson.M{"$regex": keywords, "$options": "i"}},
 					{"technical_terms": bson.M{"$regex": keywords, "$options": "i"}},
 					{"tags": bson.M{"$regex": keywords, "$options": "i"}},
+					{"category_name": bson.M{"$regex": keywords, "$options": "i"}},
 				},
 			},
 		},
+		// Sort by relevance (usage count) and name
+		{
+			"$sort": bson.M{
+				"usage_count": -1,
+				"name":        1,
+			},
+		},
+		// Remove the temporary category_name field and category array
+		{
+			"$unset": []string{"category_name", "category"},
+		},
 	}
 
-	findOpts := options.Find()
+	// Add limit if specified
 	if limit > 0 {
-		findOpts.SetLimit(int64(limit))
+		pipeline = append(pipeline, bson.M{"$limit": limit})
 	}
-	findOpts.SetSort(bson.M{"usage_count": -1, "name": 1})
 
-	cursor, err := r.collection.Find(ctx, filter, findOpts)
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search skills: %w", err)
 	}
@@ -320,6 +357,117 @@ func (r *SkillRepository) SearchByKeywords(ctx context.Context, keywords string,
 	}
 
 	return skills, nil
+}
+
+func (r *SkillRepository) SearchByKeywordsWithCategories(ctx context.Context, keywords string, limit int) ([]*models.SkillWithCategory, error) {
+	if keywords == "" {
+		return []*models.SkillWithCategory{}, nil
+	}
+
+	// Use aggregation pipeline to join with categories and search
+	pipeline := []bson.M{
+		// Match only active skills first
+		{
+			"$match": bson.M{
+				"is_active": true,
+			},
+		},
+		// Left join with categories collection
+		{
+			"$lookup": bson.M{
+				"from":         "categories",
+				"localField":   "category_id",
+				"foreignField": "_id",
+				"as":           "category_info",
+			},
+		},
+		// Add category name field for easier searching
+		{
+			"$addFields": bson.M{
+				"category_name": bson.M{
+					"$ifNull": []interface{}{
+						bson.M{"$arrayElemAt": []interface{}{"$category_info.name", 0}},
+						"",
+					},
+				},
+				"category_path": bson.M{
+					"$ifNull": []interface{}{
+						bson.M{"$arrayElemAt": []interface{}{"$category_info.path", 0}},
+						"",
+					},
+				},
+			},
+		},
+		// Filter by search keywords across multiple fields
+		{
+			"$match": bson.M{
+				"$or": []bson.M{
+					{"name": bson.M{"$regex": keywords, "$options": "i"}},
+					{"description": bson.M{"$regex": keywords, "$options": "i"}},
+					{"common_names": bson.M{"$regex": keywords, "$options": "i"}},
+					{"technical_terms": bson.M{"$regex": keywords, "$options": "i"}},
+					{"tags": bson.M{"$regex": keywords, "$options": "i"}},
+					{"category_name": bson.M{"$regex": keywords, "$options": "i"}},
+				},
+			},
+		},
+		// Sort by relevance (usage count) and name
+		{
+			"$sort": bson.M{
+				"usage_count": -1,
+				"name":        1,
+			},
+		},
+		// Project the final structure
+		{
+			"$project": bson.M{
+				"_id":                  1,
+				"name":                 1,
+				"description":          1,
+				"identification_rules": 1,
+				"common_names":         1,
+				"abbreviations":        1,
+				"technical_terms":      1,
+				"category":             1,
+				"category_id":          1,
+				"tags":                 1,
+				"relations":            1,
+				"metadata":             1,
+				"version":              1,
+				"is_active":            1,
+				"created_at":           1,
+				"updated_at":           1,
+				"created_by":           1,
+				"updated_by":           1,
+				"usage_count":          1,
+				"last_used":            1,
+				"category_name":        1,
+				"category_path":        1,
+			},
+		},
+	}
+
+	// Add limit if specified
+	if limit > 0 {
+		pipeline = append(pipeline, bson.M{"$limit": limit})
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search skills with categories: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var results []*models.SkillWithCategory
+	for cursor.Next(ctx) {
+		var result models.SkillWithCategory
+		if err := cursor.Decode(&result); err != nil {
+			return nil, fmt.Errorf("failed to decode skill with category: %w", err)
+		}
+		results = append(results, &result)
+	}
+
+	return results, nil
 }
 
 // GetByCategory retrieves skills by category
