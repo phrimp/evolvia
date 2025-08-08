@@ -146,3 +146,64 @@ var DifficultyBloomMatrix = map[string]map[string]float64{
 		"create":   0.2,
 	},
 }
+
+// TagWeightConfig defines weight multipliers for different tag categories
+type TagWeightConfig struct {
+	PrimaryWeight   float64 `json:"primary_weight"`    // Weight for primary tags (default: 3.0)
+	SecondaryWeight float64 `json:"secondary_weight"`  // Weight for secondary tags (default: 1.5)
+	RelatedWeight   float64 `json:"related_weight"`    // Weight for related tags (default: 0.5)
+	ExactMatchBonus float64 `json:"exact_match_bonus"` // Bonus for exact skill ID match (default: 2.0)
+}
+
+// EnhancedSkillInfo extends SkillInfo with categorized tags and weights
+type EnhancedSkillInfo struct {
+	ID            string          `json:"id"`
+	Name          string          `json:"name"`
+	PrimaryTags   []string        `json:"primary_tags"`   // Core concepts - highest weight
+	SecondaryTags []string        `json:"secondary_tags"` // Supporting concepts - medium weight
+	RelatedTags   []string        `json:"related_tags"`   // Peripheral concepts - low weight
+	TagWeights    TagWeightConfig `json:"tag_weights"`    // Weight configuration
+}
+
+// EnhancedWeightedQuestion provides detailed weight breakdown
+type EnhancedWeightedQuestion struct {
+	Question    models.Question `json:"question"`
+	TotalWeight float64         `json:"total_weight"`
+
+	// Tag matching breakdown
+	PrimaryMatches   int      `json:"primary_matches"`
+	SecondaryMatches int      `json:"secondary_matches"`
+	RelatedMatches   int      `json:"related_matches"`
+	MatchedPrimary   []string `json:"matched_primary"`
+	MatchedSecondary []string `json:"matched_secondary"`
+	MatchedRelated   []string `json:"matched_related"`
+
+	// Weight components
+	TagWeight        float64            `json:"tag_weight"`
+	BloomWeight      float64            `json:"bloom_weight"`
+	SkillMatchBonus  float64            `json:"skill_match_bonus"`
+	WeightComponents map[string]float64 `json:"weight_components"`
+}
+
+// EnhancedSelectionCriteria extends selection criteria with tag weights
+type EnhancedSelectionCriteria struct {
+	SkillInfo         *EnhancedSkillInfo `json:"skill_info"`
+	Difficulty        string             `json:"difficulty"`
+	ExcludeIDs        []string           `json:"exclude_ids"`
+	Count             int                `json:"count"`
+	MinPrimaryMatch   int                `json:"min_primary_match"`
+	MinSecondaryMatch int                `json:"min_secondary_match"`
+	PreferExactSkill  bool               `json:"prefer_exact_skill"`
+	WeightExponent    float64            `json:"weight_exponent"`
+	BloomDistribution map[string]float64 `json:"bloom_distribution"`
+}
+
+// Default tag weight configuration
+func DefaultTagWeightConfig() TagWeightConfig {
+	return TagWeightConfig{
+		PrimaryWeight:   3.0, // Primary tags are 3x base weight
+		SecondaryWeight: 1.5, // Secondary tags are 1.5x base weight
+		RelatedWeight:   0.5, // Related tags are 0.5x base weight
+		ExactMatchBonus: 2.0, // 2x multiplier for exact skill match
+	}
+}

@@ -168,17 +168,6 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 			}
 		})
 
-		// Create simple session (backward compatibility)
-		protectedSession.POST("/simple", func(c *gin.Context) {
-			sessionHandler.CreateSimpleSession(c)
-			if publisher != nil {
-				publisher.Publish("quiz.session.simple_created", gin.H{
-					"user_id":   c.GetHeader("X-User-ID"),
-					"timestamp": time.Now(),
-				})
-			}
-		})
-
 		// Update session information
 		protectedSession.PUT("/:id", func(c *gin.Context) {
 			sessionHandler.UpdateSession(c)

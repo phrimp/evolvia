@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"quiz-service/internal/models"
 	"quiz-service/internal/repository"
+	"strings"
 )
 
 // PoolManager manages quiz pools and question selection
@@ -435,4 +436,208 @@ func (pm *PoolManager) ValidateQuizPool(
 		return false, nil, err
 	}
 	return isValid, validation.DifficultyCount, nil
+}
+
+func (pm *PoolManager) SelectAdaptiveQuestionsWithEnhancedWeights(
+	ctx context.Context,
+	quizID string,
+	skillInfo *EnhancedSkillInfo,
+	difficulty string,
+	count int,
+	excludeIDs []string,
+	bloomDistribution map[string]float64,
+) (*SelectionResult, error) {
+	// Get quiz pool
+	pool, err := pm.GetQuizPoolForEnhancedSkill(ctx, quizID, skillInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare enhanced selection criteria
+	criteria := &EnhancedSelectionCriteria{
+		SkillInfo:         skillInfo,
+		Difficulty:        difficulty,
+		ExcludeIDs:        excludeIDs,
+		Count:             count,
+		MinPrimaryMatch:   0, // Don't require but prefer
+		MinSecondaryMatch: 0,
+		PreferExactSkill:  true,
+		WeightExponent:    2.0,
+		BloomDistribution: bloomDistribution,
+	}
+
+	// Use enhanced weighted selection
+	result, err := pm.selector.SelectQuestionsWithEnhancedWeights(
+		pool.Questions,
+		criteria,
+		skillInfo.TagWeights,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select questions with enhanced weights: %w", err)
+	}
+
+	// Enhance result with coverage statistics
+	pm.enhanceResultStats(result, pool)
+
+	// If we don't have enough questions, try relaxing constraints
+	if len(result.Questions) < count {
+		// Relax to allow any tag match
+		criteria.MinPrimaryMatch = 0
+		criteria.MinSecondaryMatch = 0
+		criteria.WeightExponent = 1.5 // Less aggressive weighting
+
+		result, err = pm.selector.SelectQuestionsWithEnhancedWeights(
+			pool.Questions,
+			criteria,
+			skillInfo.TagWeights,
+		)
+		if err != nil {
+			return nil, err
+		}
+		pm.enhanceResultStats(result, pool)
+	}
+
+	return result, nil
+}
+
+// SelectRecoveryQuestionsWithEnhancedWeights selects recovery questions with tag weights
+func (pm *PoolManager) SelectRecoveryQuestionsWithEnhancedWeights(
+	ctx context.Context,
+	quizID string,
+	skillInfo *EnhancedSkillInfo,
+	difficulty string,
+	count int,
+	excludeIDs []string,
+	bloomDistribution map[string]float64,
+) (*SelectionResult, error) {
+	// For recovery, use simplified Bloom's distribution
+	recoveryDist := pm.getRecoveryBloomDistribution(difficulty)
+
+	pool, err := pm.GetQuizPoolForEnhancedSkill(ctx, quizID, skillInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Adjust weights for recovery - emphasize primary tags more
+	recoveryWeights := TagWeightConfig{
+		PrimaryWeight:   skillInfo.TagWeights.PrimaryWeight * 1.5, // Boost primary tags
+		SecondaryWeight: skillInfo.TagWeights.SecondaryWeight,
+		RelatedWeight:   skillInfo.TagWeights.RelatedWeight * 0.5, // Reduce related tags
+		ExactMatchBonus: skillInfo.TagWeights.ExactMatchBonus,
+	}
+
+	enhancedSkillInfo := *skillInfo
+	enhancedSkillInfo.TagWeights = recoveryWeights
+
+	criteria := &EnhancedSelectionCriteria{
+		SkillInfo:         &enhancedSkillInfo,
+		Difficulty:        difficulty,
+		ExcludeIDs:        excludeIDs,
+		Count:             count,
+		MinPrimaryMatch:   0, // Prefer but don't require
+		MinSecondaryMatch: 0,
+		PreferExactSkill:  true,
+		WeightExponent:    1.5, // Less aggressive for recovery
+		BloomDistribution: recoveryDist,
+	}
+
+	result, err := pm.selector.SelectQuestionsWithEnhancedWeights(
+		pool.Questions,
+		criteria,
+		recoveryWeights,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	pm.enhanceResultStats(result, pool)
+
+	return result, nil
+}
+
+// GetQuizPoolForEnhancedSkill retrieves quiz pool for enhanced skill info
+func (pm *PoolManager) GetQuizPoolForEnhancedSkill(
+	ctx context.Context,
+	quizID string,
+	skillInfo *EnhancedSkillInfo,
+) (*QuizPool, error) {
+	// Get all questions for the quiz
+	questions, err := pm.questionRepo.FindByQuizID(ctx, quizID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get questions: %w", err)
+	}
+
+	// Merge all tags for pool creation
+	allTags := make([]string, 0)
+	allTags = append(allTags, skillInfo.PrimaryTags...)
+	allTags = append(allTags, skillInfo.SecondaryTags...)
+	allTags = append(allTags, skillInfo.RelatedTags...)
+
+	// Calculate Bloom's distribution and difficulty matrix
+	bloomDist := make(map[string]int)
+	diffMatrix := make(map[string]map[string]int)
+
+	// Also track tag category distribution
+	tagCategoryMatrix := make(map[string]map[string]int) // difficulty -> tag_category -> count
+
+	for _, q := range questions {
+		// Count Bloom's levels
+		bloomLevel := q.BloomLevel
+		if bloomLevel == "" {
+			bloomLevel = "unknown"
+		}
+		bloomDist[bloomLevel]++
+
+		// Build difficulty-Bloom matrix
+		if diffMatrix[q.DifficultyLevel] == nil {
+			diffMatrix[q.DifficultyLevel] = make(map[string]int)
+		}
+		diffMatrix[q.DifficultyLevel][bloomLevel]++
+
+		// Track tag category matches
+		if tagCategoryMatrix[q.DifficultyLevel] == nil {
+			tagCategoryMatrix[q.DifficultyLevel] = make(map[string]int)
+		}
+
+		primaryMatches := pm.countTagMatches(q.TopicTags, skillInfo.PrimaryTags)
+		secondaryMatches := pm.countTagMatches(q.TopicTags, skillInfo.SecondaryTags)
+		relatedMatches := pm.countTagMatches(q.TopicTags, skillInfo.RelatedTags)
+
+		if primaryMatches > 0 {
+			tagCategoryMatrix[q.DifficultyLevel]["primary"]++
+		}
+		if secondaryMatches > 0 {
+			tagCategoryMatrix[q.DifficultyLevel]["secondary"]++
+		}
+		if relatedMatches > 0 {
+			tagCategoryMatrix[q.DifficultyLevel]["related"]++
+		}
+	}
+
+	return &QuizPool{
+		ID:                quizID,
+		SkillID:           skillInfo.ID,
+		SkillTags:         allTags,
+		Questions:         questions,
+		TotalCount:        len(questions),
+		BloomDistribution: bloomDist,
+		DifficultyMatrix:  diffMatrix,
+	}, nil
+}
+
+// Add helper method to count tag matches
+func (pm *PoolManager) countTagMatches(questionTags []string, targetTags []string) int {
+	matches := 0
+	targetMap := make(map[string]bool)
+	for _, tag := range targetTags {
+		targetMap[strings.ToLower(tag)] = true
+	}
+
+	for _, qTag := range questionTags {
+		if targetMap[strings.ToLower(qTag)] {
+			matches++
+		}
+	}
+
+	return matches
 }

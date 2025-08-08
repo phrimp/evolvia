@@ -17,15 +17,15 @@ import (
 
 // SessionService handles quiz session operations
 type SessionService struct {
-	Repo            *repository.SessionRepository
-	QuizRepo        *repository.QuizRepository
-	QuestionRepo    *repository.QuestionRepository
-	ResultRepo      *repository.ResultRepository
-	EventPublisher  *event.EventPublisher
-	adaptiveManager *adaptive.Manager
-	poolManager     *selection.PoolManager
-	// Cache for skill info per session
-	sessionSkillCache map[string]*selection.SkillInfo
+	Repo                      *repository.SessionRepository
+	QuizRepo                  *repository.QuizRepository
+	QuestionRepo              *repository.QuestionRepository
+	ResultRepo                *repository.ResultRepository
+	EventPublisher            *event.EventPublisher
+	adaptiveManager           *adaptive.Manager
+	poolManager               *selection.PoolManager
+	sessionSkillCache         map[string]*selection.SkillInfo
+	sessionEnhancedSkillCache map[string]*selection.EnhancedSkillInfo // Add this
 }
 
 // NewSessionService creates a new session service
@@ -35,12 +35,13 @@ func NewSessionService(
 	questionRepo *repository.QuestionRepository,
 ) *SessionService {
 	return &SessionService{
-		Repo:              repo,
-		QuizRepo:          quizRepo,
-		QuestionRepo:      questionRepo,
-		adaptiveManager:   adaptive.NewManager(nil), // Uses default config
-		poolManager:       selection.NewPoolManager(questionRepo),
-		sessionSkillCache: make(map[string]*selection.SkillInfo),
+		Repo:                      repo,
+		QuizRepo:                  quizRepo,
+		QuestionRepo:              questionRepo,
+		adaptiveManager:           adaptive.NewManager(nil),
+		poolManager:               selection.NewPoolManager(questionRepo),
+		sessionSkillCache:         make(map[string]*selection.SkillInfo),
+		sessionEnhancedSkillCache: make(map[string]*selection.EnhancedSkillInfo), // Initialize
 	}
 }
 
@@ -54,91 +55,26 @@ func (s *SessionService) GetSession(ctx context.Context, id string) (*models.Qui
 	return s.Repo.FindByID(ctx, id)
 }
 
-// CreateSession creates a new quiz session with skill information
-func (s *SessionService) CreateSession(ctx context.Context, session *models.QuizSession) error {
-	// Initialize adaptive session state
-	adaptiveSession := adaptive.NewAdaptiveSession(session.ID)
-
-	// Initialize stage progress if not set
-	if session.StageProgress == nil {
-		session.StageProgress = map[string]models.StageProgress{
-			"easy": {
-				Attempted: 0,
-				Correct:   0,
-				Passed:    false,
-				Score:     0,
-			},
-			"medium": {
-				Attempted: 0,
-				Correct:   0,
-				Passed:    false,
-				Score:     0,
-			},
-			"hard": {
-				Attempted: 0,
-				Correct:   0,
-				Passed:    false,
-				Score:     0,
-			},
-		}
-	}
-
-	// Set default values
-	session.Status = "active"
-	session.CurrentStage = "easy"
-	session.TotalQuestionsAsked = 0
-	session.QuestionsUsed = []string{}
-	session.FinalScore = 0
-
-	// Store adaptive state reference
-	fmt.Printf("Adaptive session initialized: %+v\n", adaptiveSession)
-
-	// Create session
-	err := s.Repo.Create(ctx, session)
-	if err != nil {
-		return fmt.Errorf("failed to create session: %w", err)
-	}
-
-	// Publish session started event
-	if s.EventPublisher != nil {
-		s.EventPublisher.Publish("quiz.session.started", map[string]interface{}{
-			"session_id": session.ID,
-			"quiz_id":    session.QuizID,
-			"user_id":    session.UserID,
-			"skill_id":   s.extractSkillID(session),
-			"timestamp":  time.Now(),
-		})
-	}
-
-	return nil
-}
-
 // CreateSessionWithSkillValidation creates session with skill validation
-func (s *SessionService) CreateSessionWithSkillValidationAndMastery(
+func (s *SessionService) CreateSessionWithEnhancedSkillInfo(
 	ctx context.Context,
 	quizID string,
 	userID string,
-	skillID string,
-	skillTags []string,
-	skillName string,
-	currentBloomLevel string, // From request (first-time only)
-	masteryScore int, // From request (first-time only)
+	skillInfo *selection.EnhancedSkillInfo,
+	currentBloomLevel string,
+	masteryScore int,
 ) (*models.QuizSession, error) {
-	// Step 1: Check for past results
+	// Step 1: Check for past results (existing logic)
 	var startingBloomLevel string
 	var startingDifficulty string
 
 	if s.ResultRepo != nil {
-		// Look for any past result for this user+skill combination
 		pastResults, err := s.ResultRepo.FindByUser(ctx, userID)
 		if err == nil && len(pastResults) > 0 {
-			// Find results for this skill
 			for _, result := range pastResults {
-				// Check if this result has the same skill_id in metadata
 				if session, err := s.Repo.FindByID(ctx, result.SessionID); err == nil {
 					if metadata := session.Metadata; metadata != nil {
-						if sid, ok := metadata["skill_id"].(string); ok && sid == skillID {
-							// Found past result for this skill - derive starting level
+						if sid, ok := metadata["skill_id"].(string); ok && sid == skillInfo.ID {
 							startingBloomLevel = s.deriveBloomFromResult(&result)
 							startingDifficulty = s.deriveDifficultyFromResult(&result)
 							break
@@ -149,15 +85,14 @@ func (s *SessionService) CreateSessionWithSkillValidationAndMastery(
 		}
 	}
 
-	// Step 2: If no past results, use provided values or defaults
+	// Step 2: Set defaults if no past results
 	if startingBloomLevel == "" {
 		if currentBloomLevel != "" {
 			startingBloomLevel = currentBloomLevel
 		} else {
-			startingBloomLevel = "remember" // Default
+			startingBloomLevel = "remember"
 		}
 
-		// Map mastery score (0-10) to difficulty
 		if masteryScore > 0 {
 			if masteryScore <= 3 {
 				startingDifficulty = "easy"
@@ -167,24 +102,24 @@ func (s *SessionService) CreateSessionWithSkillValidationAndMastery(
 				startingDifficulty = "hard"
 			}
 		} else {
-			startingDifficulty = "easy" // Default
+			startingDifficulty = "easy"
 		}
 	}
 
-	// Step 3: Continue with normal session creation but store mastery info
+	// Step 3: Validate quiz pool with enhanced skill info
 	quiz, err := s.QuizRepo.FindByID(ctx, quizID)
 	if err != nil {
 		return nil, fmt.Errorf("quiz not found: %w", err)
 	}
 
-	skillInfo := &selection.SkillInfo{
-		ID:   skillID,
-		Name: skillName,
-		Tags: skillTags,
+	// Convert to standard SkillInfo for validation (backward compatibility)
+	standardSkillInfo := &selection.SkillInfo{
+		ID:   skillInfo.ID,
+		Name: skillInfo.Name,
+		Tags: s.mergeTags(skillInfo),
 	}
 
-	// Validate pool
-	isValid, validation, err := s.poolManager.ValidateQuizPoolWithBloom(ctx, quizID, skillInfo)
+	isValid, validation, err := s.poolManager.ValidateQuizPoolWithBloom(ctx, quizID, standardSkillInfo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate quiz pool: %w", err)
 	}
@@ -192,10 +127,9 @@ func (s *SessionService) CreateSessionWithSkillValidationAndMastery(
 		return nil, fmt.Errorf("insufficient questions in pool: %v", validation.Warnings)
 	}
 
-	// Map Bloom level to initial stage
 	initialStage := s.mapBloomToStage(startingBloomLevel)
 
-	// Create session with adjusted starting point
+	// Create session with enhanced metadata
 	session := &models.QuizSession{
 		QuizID:       quizID,
 		UserID:       userID,
@@ -212,9 +146,12 @@ func (s *SessionService) CreateSessionWithSkillValidationAndMastery(
 		QuestionsUsed:       []string{},
 		FinalScore:          0,
 		Metadata: map[string]interface{}{
-			"skill_id":             skillID,
-			"skill_name":           skillName,
-			"skill_tags":           skillTags,
+			"skill_id":             skillInfo.ID,
+			"skill_name":           skillInfo.Name,
+			"primary_tags":         skillInfo.PrimaryTags,
+			"secondary_tags":       skillInfo.SecondaryTags,
+			"related_tags":         skillInfo.RelatedTags,
+			"tag_weights":          skillInfo.TagWeights,
 			"starting_bloom_level": startingBloomLevel,
 			"starting_difficulty":  startingDifficulty,
 			"quiz_config":          quiz.StageConfig,
@@ -222,22 +159,22 @@ func (s *SessionService) CreateSessionWithSkillValidationAndMastery(
 		},
 	}
 
-	// Store in repository
 	err = s.Repo.Create(ctx, session)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
-	// Cache skill info
-	s.sessionSkillCache[session.ID] = skillInfo
+	// Cache enhanced skill info
+	s.sessionSkillCache[session.ID] = standardSkillInfo
+	s.sessionEnhancedSkillCache[session.ID] = skillInfo // Add new cache for enhanced info
 
-	// Publish event
 	if s.EventPublisher != nil {
 		s.EventPublisher.Publish("quiz.session.created", map[string]interface{}{
 			"session_id":           session.ID,
 			"quiz_id":              quizID,
 			"user_id":              userID,
-			"skill_id":             skillID,
+			"skill_id":             skillInfo.ID,
+			"tag_distribution":     s.getTagDistribution(skillInfo),
 			"starting_bloom_level": startingBloomLevel,
 			"starting_difficulty":  startingDifficulty,
 		})
@@ -655,28 +592,42 @@ func (s *SessionService) selectQuestionsWithBloomCriteria(
 	skillInfo *selection.SkillInfo,
 	criteria *adaptive.QuestionRequest,
 ) ([]models.Question, error) {
-	// Get session to check for starting level override
 	session, _ := s.Repo.FindByID(ctx, criteria.SessionID)
 
 	difficulty := s.mapStageToDifficulty(criteria.Stage)
 	bloomDist := s.getBloomDistribution(difficulty)
 
-	// Override with starting level for first questions
-	if session != nil && session.TotalQuestionsAsked == 0 {
-		if metadata := session.Metadata; metadata != nil {
-			// Check for starting difficulty override
-			if startDiff, ok := metadata["starting_difficulty"].(string); ok && startDiff != "" {
-				difficulty = startDiff
-			}
+	// Check if we have enhanced skill info
+	enhancedSkillInfo := s.getEnhancedSkillInfoFromSession(session)
 
-			// Check for starting Bloom level override
-			if startBloom, ok := metadata["starting_bloom_level"].(string); ok && startBloom != "" {
-				// Create custom distribution favoring the starting Bloom level
-				bloomDist = s.getCustomBloomDistribution(startBloom)
-			}
+	if enhancedSkillInfo != nil {
+		// Use enhanced selection with tag weights
+		var result *selection.SelectionResult
+		var err error
+
+		if criteria.IsRecovery {
+			result, err = s.poolManager.SelectRecoveryQuestionsWithEnhancedWeights(
+				ctx, quizID, enhancedSkillInfo, difficulty, 1, criteria.ExcludeIDs, bloomDist,
+			)
+		} else {
+			result, err = s.poolManager.SelectAdaptiveQuestionsWithEnhancedWeights(
+				ctx, quizID, enhancedSkillInfo, difficulty, 1, criteria.ExcludeIDs, bloomDist,
+			)
 		}
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to select questions with enhanced weights: %w", err)
+		}
+
+		// Log selection quality for monitoring
+		if result != nil && len(result.Questions) > 0 {
+			s.logSelectionQuality(session.ID, result)
+		}
+
+		return result.Questions, nil
 	}
 
+	// Fallback to original logic if no enhanced info
 	var result *selection.SelectionResult
 	var err error
 
@@ -695,6 +646,122 @@ func (s *SessionService) selectQuestionsWithBloomCriteria(
 	}
 
 	return result.Questions, nil
+}
+
+func (s *SessionService) getEnhancedSkillInfoFromSession(session *models.QuizSession) *selection.EnhancedSkillInfo {
+	if session == nil || session.Metadata == nil {
+		return nil
+	}
+
+	metadata := session.Metadata
+
+	// Check cache first
+	if cached, ok := s.sessionEnhancedSkillCache[session.ID]; ok {
+		return cached
+	}
+
+	// Reconstruct from metadata
+	enhancedInfo := &selection.EnhancedSkillInfo{
+		TagWeights: selection.TagWeightConfig{
+			PrimaryWeight:   3.0, // Default
+			SecondaryWeight: 1.5, // Default
+			RelatedWeight:   0.5, // Default
+			ExactMatchBonus: 2.0, // Default
+		},
+	}
+
+	// Extract basic info
+	if id, ok := metadata["skill_id"].(string); ok {
+		enhancedInfo.ID = id
+	}
+	if name, ok := metadata["skill_name"].(string); ok {
+		enhancedInfo.Name = name
+	}
+
+	// Extract categorized tags
+	if primaryTags, ok := s.extractStringSlice(metadata["primary_tags"]); ok {
+		enhancedInfo.PrimaryTags = primaryTags
+	}
+	if secondaryTags, ok := s.extractStringSlice(metadata["secondary_tags"]); ok {
+		enhancedInfo.SecondaryTags = secondaryTags
+	}
+	if relatedTags, ok := s.extractStringSlice(metadata["related_tags"]); ok {
+		enhancedInfo.RelatedTags = relatedTags
+	}
+
+	// Extract tag weights if present
+	if weights, ok := metadata["tag_weights"].(map[string]interface{}); ok {
+		if pw, ok := weights["primary_weight"].(float64); ok {
+			enhancedInfo.TagWeights.PrimaryWeight = pw
+		}
+		if sw, ok := weights["secondary_weight"].(float64); ok {
+			enhancedInfo.TagWeights.SecondaryWeight = sw
+		}
+		if rw, ok := weights["related_weight"].(float64); ok {
+			enhancedInfo.TagWeights.RelatedWeight = rw
+		}
+		if eb, ok := weights["exact_match_bonus"].(float64); ok {
+			enhancedInfo.TagWeights.ExactMatchBonus = eb
+		}
+	}
+
+	// Cache if we have valid info
+	if enhancedInfo.ID != "" {
+		s.sessionEnhancedSkillCache[session.ID] = enhancedInfo
+		return enhancedInfo
+	}
+
+	return nil
+}
+
+// Add helper methods
+func (s *SessionService) extractStringSlice(data interface{}) ([]string, bool) {
+	switch v := data.(type) {
+	case []string:
+		return v, true
+	case []interface{}:
+		result := make([]string, 0, len(v))
+		for _, item := range v {
+			if str, ok := item.(string); ok {
+				result = append(result, str)
+			}
+		}
+		return result, true
+	}
+	return nil, false
+}
+
+func (s *SessionService) mergeTags(skillInfo *selection.EnhancedSkillInfo) []string {
+	// Merge all tags for backward compatibility
+	allTags := make([]string, 0)
+	allTags = append(allTags, skillInfo.PrimaryTags...)
+	allTags = append(allTags, skillInfo.SecondaryTags...)
+	allTags = append(allTags, skillInfo.RelatedTags...)
+	return allTags
+}
+
+func (s *SessionService) getTagDistribution(skillInfo *selection.EnhancedSkillInfo) map[string]int {
+	return map[string]int{
+		"primary":   len(skillInfo.PrimaryTags),
+		"secondary": len(skillInfo.SecondaryTags),
+		"related":   len(skillInfo.RelatedTags),
+	}
+}
+
+func (s *SessionService) logSelectionQuality(sessionID string, result *selection.SelectionResult) {
+	// Log selection quality metrics for monitoring
+	fmt.Printf("[Selection Quality] Session: %s, Candidates: %d, Avg Match: %.2f\n",
+		sessionID, result.TotalCandidates, result.AverageMatch)
+
+	if s.EventPublisher != nil {
+		s.EventPublisher.Publish("quiz.selection.quality", map[string]interface{}{
+			"session_id":       sessionID,
+			"total_candidates": result.TotalCandidates,
+			"average_match":    result.AverageMatch,
+			"bloom_coverage":   result.BloomCoverage,
+			"tag_coverage":     result.TagCoverage,
+		})
+	}
 }
 
 // Add this helper method for custom Bloom distribution
