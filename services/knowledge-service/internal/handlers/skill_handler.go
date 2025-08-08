@@ -35,16 +35,12 @@ func (h *SkillHandler) RegisterRoutes(app *fiber.App) {
 	// Skill CRUD operations - require specific permissions
 	protectedGroup.Get("/", h.ListSkills)
 	protectedGroup.Post("/", h.CreateSkill, utils.PermissionRequired(middleware.WriteSkillPermission))
-	protectedGroup.Get("/:id", h.GetSkill)
-	protectedGroup.Put("/:id", h.UpdateSkill, utils.PermissionRequired(middleware.UpdateSkillPermission))
-	protectedGroup.Delete("/:id", h.DeleteSkill, utils.PermissionRequired(middleware.DeleteSkillPermission))
 
 	// Skill search and query operations - require read permissions
 	protectedGroup.Get("/search", h.SearchSkills)
 	publibGroup.Get("/top", h.GetTopSkills)
 	publibGroup.Get("/top/summary", h.GetTopSkillsSummary)
 	publibGroup.Get("/popular", h.GetMostUsedSkills) // Keep for backward compatibility
-	protectedGroup.Get("/:id/related/:relationType", h.GetRelatedSkills)
 
 	// Skill management operations - require admin permissions
 	protectedGroup.Post("/batch", h.BatchCreateSkills, utils.PermissionRequired(middleware.AdminSkillPermission))
@@ -52,6 +48,10 @@ func (h *SkillHandler) RegisterRoutes(app *fiber.App) {
 	protectedGroup.Get("/statistics", h.GetSkillStatistics, utils.RequireAnyPermission(middleware.AdminSkillPermission, middleware.ReadKnowledgeAnalyticsPermission))
 	// Health check
 	protectedGroup.Get("/health", h.HealthCheck)
+	protectedGroup.Get("/:id", h.GetSkill)
+	protectedGroup.Put("/:id", h.UpdateSkill, utils.PermissionRequired(middleware.UpdateSkillPermission))
+	protectedGroup.Delete("/:id", h.DeleteSkill, utils.PermissionRequired(middleware.DeleteSkillPermission))
+	protectedGroup.Get("/:id/related/:relationType", h.GetRelatedSkills)
 }
 
 func (h *SkillHandler) CreateSkill(c fiber.Ctx) error {
