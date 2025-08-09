@@ -141,6 +141,7 @@ func (r *SkillRepository) Create(ctx context.Context, skill *models.Skill) (*mod
 		}
 		skill.Relations[i].Description = related_skill.Description
 		skill.Relations[i].TaggedSkill = related_skill.TaggedSkill
+		skill.Relations[i].Name = related_skill.Name
 	}
 
 	_, err := r.collection.InsertOne(ctx, skill)

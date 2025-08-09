@@ -38,6 +38,7 @@ type KeywordPattern struct {
 // SkillRelation represents relationship between skills
 type SkillRelation struct {
 	SkillID      bson.ObjectID `bson:"skill_id" json:"skill_id"`
+	Name         string        `bson:"name" json:"name"`
 	RelationType RelationType  `bson:"relation_type" json:"relation_type"`
 	Strength     float64       `bson:"strength" json:"strength"` // 0.0 to 1.0
 	Description  string        `bson:"description,omitempty" json:"description,omitempty"`
