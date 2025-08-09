@@ -62,6 +62,9 @@ func (s *UserSkillService) AddUserSkill(ctx context.Context, userSkill *models.U
 	if skill == nil {
 		return nil, fmt.Errorf("skill not found")
 	}
+	if !skill.Addable {
+		return nil, fmt.Errorf("this skill cannot be added")
+	}
 
 	for _, rel := range skill.Relations {
 		if rel.RelationType == models.RelationPrerequisite {

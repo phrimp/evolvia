@@ -149,6 +149,7 @@ type Skill struct {
 	// Usage statistics
 	UsageCount int        `bson:"usage_count" json:"usage_count"`
 	LastUsed   *time.Time `bson:"last_used,omitempty" json:"last_used,omitempty"`
+	Addable    bool       `bson:"addable" json:"addable"`
 }
 
 // GetAllTags returns all tags for backward compatibility

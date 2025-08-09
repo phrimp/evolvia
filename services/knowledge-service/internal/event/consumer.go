@@ -237,7 +237,7 @@ func (c *EventConsumer) detectSkillsFromText(ctx context.Context, text string) (
 	// Get all active skills for matching
 	skills, _, err := c.skillService.ListSkills(ctx, repository.ListOptions{
 		ActiveOnly: true,
-		Limit:      1000, // Get more skills for better matching
+		Limit:      2000, // Get more skills for better matching
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get skills for matching: %w", err)
@@ -258,6 +258,9 @@ func (c *EventConsumer) detectSkillsFromText(ctx context.Context, text string) (
 
 // matchSkillInText checks if a skill is mentioned in the text
 func (c *EventConsumer) matchSkillInText(skill *models.Skill, textLower string) *SkillMatch {
+	if !skill.Addable {
+		return nil
+	}
 	rawScore := 0.0
 	var bestMatch string
 
