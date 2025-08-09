@@ -71,7 +71,7 @@ func main() {
 	answerRepo := repository.NewAnswerRepository(database)
 	answerService := service.NewAnswerService(answerRepo)
 	_ = handlers.NewAnswerHandler(answerService)
-	sessionHandler := handlers.NewSessionHandler(sessionService, answerService)
+	sessionHandler := handlers.NewSessionHandler(sessionService, answerService, questionService)
 
 	// Public routes
 	resultRepo := repository.NewResultRepository(database)

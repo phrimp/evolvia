@@ -596,11 +596,7 @@ func (h *SkillHandler) HealthCheck(c fiber.Ctx) error {
 // Helper functions
 func (h *SkillHandler) isValidRelationType(relationType models.RelationType) bool {
 	return relationType == models.RelationPrerequisite ||
-		relationType == models.RelationBuildsOn ||
-		relationType == models.RelationRelated ||
-		relationType == models.RelationComplement ||
-		relationType == models.RelationAlternative ||
-		relationType == models.RelationSpecialization
+		relationType == models.RelationBuildsOn
 }
 
 func (h *SkillHandler) GetTopSkills(c fiber.Ctx) error {

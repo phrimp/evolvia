@@ -17,13 +17,35 @@ type TimeBreakdown struct {
 	TimeByStage            map[string]int `bson:"time_by_stage" json:"time_by_stage"`
 }
 
+type BloomLevelPerformance struct {
+	QuestionsAttempted   int     `bson:"questions_attempted" json:"questions_attempted"`
+	QuestionsCorrect     int     `bson:"questions_correct" json:"questions_correct"`
+	ActualScore          float64 `bson:"actual_score" json:"actual_score"`
+	PossibleScore        float64 `bson:"possible_score" json:"possible_score"`
+	AccuracyPercentage   float64 `bson:"accuracy_percentage" json:"accuracy_percentage"`
+	ScorePercentage      float64 `bson:"score_percentage" json:"score_percentage"`
+	AverageQuestionScore float64 `bson:"avg_question_score" json:"avg_question_score"`
+	EfficiencyRating     string  `bson:"efficiency_rating" json:"efficiency_rating"`
+	TotalTimeSpent       int     `bson:"total_time_spent" json:"total_time_spent"`
+	AverageTimePerQ      float64 `bson:"avg_time_per_question" json:"avg_time_per_question"`
+}
+
+type CognitiveProfile struct {
+	DominantStrengths       []string `bson:"dominant_strengths" json:"dominant_strengths"`
+	GrowthAreas             []string `bson:"growth_areas" json:"growth_areas"`
+	CognitiveComplexity     float64  `bson:"cognitive_complexity" json:"cognitive_complexity"`
+	OverallPercentage       float64  `bson:"overall_percentage" json:"overall_percentage"`
+	LearningRecommendations []string `bson:"learning_recommendations" json:"learning_recommendations"`
+}
+
 type BloomBreakdown struct {
-	Remember   map[string]int `bson:"remember" json:"remember"`
-	Understand map[string]int `bson:"understand" json:"understand"`
-	Apply      map[string]int `bson:"apply" json:"apply"`
-	Analyze    map[string]int `bson:"analyze" json:"analyze"`
-	Evaluate   map[string]int `bson:"evaluate" json:"evaluate"`
-	Create     map[string]int `bson:"create" json:"create"`
+	Remember   BloomLevelPerformance `bson:"remember" json:"remember"`
+	Understand BloomLevelPerformance `bson:"understand" json:"understand"`
+	Apply      BloomLevelPerformance `bson:"apply" json:"apply"`
+	Analyze    BloomLevelPerformance `bson:"analyze" json:"analyze"`
+	Evaluate   BloomLevelPerformance `bson:"evaluate" json:"evaluate"`
+	Create     BloomLevelPerformance `bson:"create" json:"create"`
+	Summary    CognitiveProfile      `bson:"summary" json:"summary"`
 }
 
 type QuizResult struct {

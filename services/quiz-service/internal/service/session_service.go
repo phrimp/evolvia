@@ -8,6 +8,7 @@ import (
 	"quiz-service/internal/models"
 	"quiz-service/internal/repository"
 	"quiz-service/internal/selection"
+	"sort"
 	"strings"
 	"time"
 
@@ -145,7 +146,7 @@ func (s *SessionService) CreateSessionWithEnhancedSkillInfo(
 		TotalQuestionsAsked: 0,
 		QuestionsUsed:       []string{},
 		FinalScore:          0,
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"skill_id":             skillInfo.ID,
 			"skill_name":           skillInfo.Name,
 			"primary_tags":         skillInfo.PrimaryTags,
@@ -169,7 +170,7 @@ func (s *SessionService) CreateSessionWithEnhancedSkillInfo(
 	s.sessionEnhancedSkillCache[session.ID] = skillInfo // Add new cache for enhanced info
 
 	if s.EventPublisher != nil {
-		s.EventPublisher.Publish("quiz.session.created", map[string]interface{}{
+		s.EventPublisher.Publish("quiz.session.created", map[string]any{
 			"session_id":           session.ID,
 			"quiz_id":              quizID,
 			"user_id":              userID,
@@ -223,7 +224,7 @@ func (s *SessionService) deriveDifficultyFromResult(result *models.QuizResult) s
 }
 
 // UpdateSession updates session fields
-func (s *SessionService) UpdateSession(ctx context.Context, id string, update map[string]interface{}) error {
+func (s *SessionService) UpdateSession(ctx context.Context, id string, update map[string]any) error {
 	return s.Repo.Update(ctx, id, update)
 }
 
@@ -232,6 +233,7 @@ func (s *SessionService) ProcessAnswer(
 	ctx context.Context,
 	sessionID string,
 	questionID string,
+	question *models.Question,
 	userAnswer string,
 	isCorrect bool,
 ) (*adaptive.AnswerResult, error) {
@@ -244,8 +246,8 @@ func (s *SessionService) ProcessAnswer(
 	// Reconstruct adaptive session
 	adaptiveSession := s.reconstructAdaptiveSession(session)
 
-	// Process answer through adaptive manager
-	result, err := s.adaptiveManager.ProcessAnswer(adaptiveSession, isCorrect)
+	// Process answer through adaptive manager with question object
+	result, err := s.adaptiveManager.ProcessAnswer(adaptiveSession, question, isCorrect)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +277,7 @@ func (s *SessionService) ProcessAnswer(
 
 	// Publish answer event
 	if s.EventPublisher != nil {
-		s.EventPublisher.Publish("quiz.question.answered", map[string]interface{}{
+		s.EventPublisher.Publish("quiz.question.answered", map[string]any{
 			"session_id":    sessionID,
 			"question_id":   questionID,
 			"is_correct":    isCorrect,
@@ -595,7 +597,18 @@ func (s *SessionService) selectQuestionsWithBloomCriteria(
 	session, _ := s.Repo.FindByID(ctx, criteria.SessionID)
 
 	difficulty := s.mapStageToDifficulty(criteria.Stage)
-	bloomDist := s.getBloomDistribution(difficulty)
+
+	// Use custom Bloom distribution if user has starting bloom level
+	var bloomDist map[string]float64
+	if session != nil && session.Metadata != nil {
+		if startingBloomLevel, ok := session.Metadata["starting_bloom_level"].(string); ok && startingBloomLevel != "" {
+			bloomDist = s.getCustomBloomDistribution(startingBloomLevel)
+		} else {
+			bloomDist = s.getBloomDistribution(difficulty)
+		}
+	} else {
+		bloomDist = s.getBloomDistribution(difficulty)
+	}
 
 	// Check if we have enhanced skill info
 	enhancedSkillInfo := s.getEnhancedSkillInfoFromSession(session)
@@ -841,47 +854,6 @@ func (s *SessionService) getSkillInfo(skillID string) *selection.SkillInfo {
 	}
 }
 
-func (s *SessionService) pregenerateQuestionPools(
-	ctx context.Context,
-	quizID string,
-	skillInfo *selection.SkillInfo,
-) (map[string][]string, error) {
-	pools := make(map[string][]string)
-	excludeIDs := []string{}
-
-	stages := []struct {
-		name       string
-		difficulty string
-		count      int
-	}{
-		{"easy_initial", "easy", 5},
-		{"easy_recovery", "easy", 3},
-		{"medium_initial", "medium", 5},
-		{"medium_recovery", "medium", 3},
-		{"hard_initial", "hard", 5},
-		{"hard_recovery", "hard", 3},
-	}
-
-	for _, stage := range stages {
-		result, err := s.poolManager.SelectAdaptiveQuestionsWithBloom(
-			ctx, quizID, skillInfo, stage.difficulty, stage.count,
-			excludeIDs, s.getBloomDistribution(stage.difficulty),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to select %s: %w", stage.name, err)
-		}
-
-		questionIDs := make([]string, len(result.Questions))
-		for i, q := range result.Questions {
-			questionIDs[i] = q.ID
-			excludeIDs = append(excludeIDs, q.ID)
-		}
-		pools[stage.name] = questionIDs
-	}
-
-	return pools, nil
-}
-
 func (s *SessionService) getQuestionFromPreGeneratedPool(
 	ctx context.Context,
 	session *models.QuizSession,
@@ -989,6 +961,147 @@ func (s *SessionService) calculateTimeRemaining(session *models.QuizSession) int
 	return remaining
 }
 
+// buildBloomBreakdown creates comprehensive Bloom taxonomy performance breakdown
+func (s *SessionService) buildBloomBreakdown(session *adaptive.AdaptiveSession) models.BloomBreakdown {
+	breakdown := models.BloomBreakdown{}
+
+	// Convert session performance to result format
+	for level, perf := range session.BloomPerformance {
+		// Calculate final metrics
+		perf.CalculateMetrics()
+
+		levelPerf := models.BloomLevelPerformance{
+			QuestionsAttempted:   perf.QuestionsAttempted,
+			QuestionsCorrect:     perf.QuestionsCorrect,
+			ActualScore:          perf.ActualScore,
+			PossibleScore:        perf.PossibleScore,
+			AccuracyPercentage:   perf.AccuracyPercentage,
+			ScorePercentage:      perf.ScorePercentage,
+			AverageQuestionScore: perf.AverageQuestionScore,
+			EfficiencyRating:     perf.EfficiencyRating,
+			TotalTimeSpent:       perf.TotalTimeSpent,
+			AverageTimePerQ:      perf.AverageTimePerQ,
+		}
+
+		// Assign to appropriate field
+		switch level {
+		case "remember":
+			breakdown.Remember = levelPerf
+		case "understand":
+			breakdown.Understand = levelPerf
+		case "apply":
+			breakdown.Apply = levelPerf
+		case "analyze":
+			breakdown.Analyze = levelPerf
+		case "evaluate":
+			breakdown.Evaluate = levelPerf
+		case "create":
+			breakdown.Create = levelPerf
+		}
+	}
+
+	// Generate cognitive profile
+	breakdown.Summary = s.generateCognitiveProfile(session.BloomPerformance)
+
+	return breakdown
+}
+
+// generateCognitiveProfile analyzes overall cognitive performance patterns
+func (s *SessionService) generateCognitiveProfile(performance map[string]*adaptive.BloomLevelPerformance) models.CognitiveProfile {
+	type levelScore struct {
+		name       string
+		percentage float64
+		complexity int
+	}
+
+	// Cognitive complexity weights for each Bloom level
+	complexityWeights := map[string]int{
+		"remember": 1, "understand": 2, "apply": 3,
+		"analyze": 4, "evaluate": 5, "create": 6,
+	}
+
+	var levels []levelScore
+	totalActual := 0.0
+	totalPossible := 0.0
+	weightedComplexity := 0.0
+
+	// Analyze performance per level
+	for level, perf := range performance {
+		if perf.QuestionsAttempted > 0 {
+			levels = append(levels, levelScore{
+				name:       level,
+				percentage: perf.ScorePercentage,
+				complexity: complexityWeights[level],
+			})
+
+			totalActual += perf.ActualScore
+			totalPossible += perf.PossibleScore
+			weightedComplexity += perf.ScorePercentage * float64(complexityWeights[level])
+		}
+	}
+
+	// Sort by performance for analysis
+	sort.Slice(levels, func(i, j int) bool {
+		return levels[i].percentage > levels[j].percentage
+	})
+
+	// Identify patterns
+	var strengths, growthAreas, recommendations []string
+
+	for i, level := range levels {
+		if i < 2 && level.percentage >= 75 {
+			strengths = append(strengths, level.name)
+		}
+		if i >= len(levels)-2 && level.percentage < 60 {
+			growthAreas = append(growthAreas, level.name)
+
+			// Generate recommendations
+			recommendations = append(recommendations,
+				s.generateLearningRecommendation(level.name, level.percentage))
+		}
+	}
+
+	avgComplexity := 0.0
+	if len(levels) > 0 {
+		avgComplexity = weightedComplexity / float64(len(levels))
+	}
+
+	overallPercentage := 0.0
+	if totalPossible > 0 {
+		overallPercentage = (totalActual / totalPossible) * 100
+	}
+
+	return models.CognitiveProfile{
+		DominantStrengths:       strengths,
+		GrowthAreas:             growthAreas,
+		CognitiveComplexity:     avgComplexity,
+		OverallPercentage:       overallPercentage,
+		LearningRecommendations: recommendations,
+	}
+}
+
+// generateLearningRecommendation creates personalized learning suggestions
+func (s *SessionService) generateLearningRecommendation(bloomLevel string, percentage float64) string {
+	recommendations := map[string]string{
+		"remember":   "Focus on memorization techniques and factual recall exercises",
+		"understand": "Practice explaining concepts in your own words and creating summaries",
+		"apply":      "Work on practical exercises and real-world problem-solving scenarios",
+		"analyze":    "Practice breaking down complex problems into components and identifying patterns",
+		"evaluate":   "Work on critical thinking exercises and making evidence-based judgments",
+		"create":     "Engage in project-based learning and original content creation",
+	}
+
+	base := recommendations[bloomLevel]
+
+	if percentage < 40 {
+		return base + " - Start with foundational concepts and guided practice"
+	} else if percentage < 60 {
+		return base + " - Focus on structured practice with immediate feedback"
+	} else {
+		return base + " - Practice with increasing complexity and independence"
+	}
+}
+
 func (s *SessionService) createQuizResult(session *models.QuizSession, completionType string, finalScore float64) *models.QuizResult {
 	// Calculate badge level
 	badgeLevel := "beginner"
@@ -1025,6 +1138,10 @@ func (s *SessionService) createQuizResult(session *models.QuizSession, completio
 		totalCorrect += progress.Correct
 	}
 
+	// Build comprehensive Bloom breakdown
+	adaptiveSession := s.reconstructAdaptiveSession(session)
+	bloomBreakdown := s.buildBloomBreakdown(adaptiveSession)
+
 	return &models.QuizResult{
 		SessionID:          session.ID,
 		UserID:             session.UserID,
@@ -1039,6 +1156,7 @@ func (s *SessionService) createQuizResult(session *models.QuizSession, completio
 			TotalTimeSeconds:       int(time.Since(session.StartTime).Seconds()),
 			AverageTimePerQuestion: float64(int(time.Since(session.StartTime).Seconds())) / float64(totalAttempted),
 		},
+		BloomBreakdown: bloomBreakdown,
 		CompletionType: completionType,
 		CreatedAt:      time.Now(),
 	}

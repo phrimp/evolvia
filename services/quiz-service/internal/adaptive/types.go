@@ -1,5 +1,7 @@
 package adaptive
 
+import "time"
+
 type Stage string
 
 const (
@@ -19,15 +21,31 @@ type StageStatus struct {
 	Score          float64 `json:"score"`
 }
 
+// BloomLevelPerformance tracks detailed performance per Bloom taxonomy level during session
+type BloomLevelPerformance struct {
+	QuestionsAttempted   int     `json:"questions_attempted"`
+	QuestionsCorrect     int     `json:"questions_correct"`
+	ActualScore          float64 `json:"actual_score"`
+	PossibleScore        float64 `json:"possible_score"`
+	TotalTimeSpent       int     `json:"total_time_spent"`
+	AccuracyPercentage   float64 `json:"accuracy_percentage"`
+	ScorePercentage      float64 `json:"score_percentage"`
+	AverageQuestionScore float64 `json:"avg_question_score"`
+	EfficiencyRating     string  `json:"efficiency_rating"`
+	AverageTimePerQ      float64 `json:"avg_time_per_question"`
+}
+
 // AdaptiveSession represents the adaptive quiz session state
 type AdaptiveSession struct {
-	SessionID           string                 `json:"session_id"`
-	CurrentStage        Stage                  `json:"current_stage"`
-	StageStatuses       map[Stage]*StageStatus `json:"stage_statuses"`
-	TotalQuestionsAsked int                    `json:"total_questions_asked"`
-	UsedQuestionIDs     []string               `json:"used_question_ids"`
-	IsComplete          bool                   `json:"is_complete"`
-	TotalScore          float64                `json:"total_score"`
+	SessionID           string                            `json:"session_id"`
+	CurrentStage        Stage                             `json:"current_stage"`
+	StageStatuses       map[Stage]*StageStatus            `json:"stage_statuses"`
+	TotalQuestionsAsked int                               `json:"total_questions_asked"`
+	UsedQuestionIDs     []string                          `json:"used_question_ids"`
+	IsComplete          bool                              `json:"is_complete"`
+	TotalScore          float64                           `json:"total_score"`
+	BloomPerformance    map[string]*BloomLevelPerformance `json:"bloom_performance"`
+	QuestionStartTime   time.Time                         `json:"question_start_time"`
 }
 
 // AdaptiveConfig holds the configuration for adaptive quiz behavior
@@ -99,7 +117,7 @@ func DefaultAdaptiveConfig() *AdaptiveConfig {
 
 // NewAdaptiveSession creates a new adaptive session
 func NewAdaptiveSession(sessionID string) *AdaptiveSession {
-	return &AdaptiveSession{
+	session := &AdaptiveSession{
 		SessionID:    sessionID,
 		CurrentStage: StageEasy,
 		StageStatuses: map[Stage]*StageStatus{
@@ -116,5 +134,45 @@ func NewAdaptiveSession(sessionID string) *AdaptiveSession {
 		UsedQuestionIDs: []string{},
 		IsComplete:      false,
 		TotalScore:      0,
+	}
+
+	session.InitializeBloomTracking()
+	return session
+}
+
+// InitializeBloomTracking sets up Bloom performance tracking for all taxonomy levels
+func (session *AdaptiveSession) InitializeBloomTracking() {
+	if session.BloomPerformance == nil {
+		session.BloomPerformance = make(map[string]*BloomLevelPerformance)
+
+		// Initialize all Bloom levels
+		bloomLevels := []string{"remember", "understand", "apply", "analyze", "evaluate", "create"}
+		for _, level := range bloomLevels {
+			session.BloomPerformance[level] = &BloomLevelPerformance{}
+		}
+	}
+}
+
+// CalculateMetrics calculates derived performance metrics for a Bloom level
+func (blp *BloomLevelPerformance) CalculateMetrics() {
+	if blp.QuestionsAttempted > 0 {
+		blp.AccuracyPercentage = (float64(blp.QuestionsCorrect) / float64(blp.QuestionsAttempted)) * 100
+		blp.AverageQuestionScore = blp.ActualScore / float64(blp.QuestionsAttempted)
+		blp.AverageTimePerQ = float64(blp.TotalTimeSpent) / float64(blp.QuestionsAttempted)
+	}
+
+	if blp.PossibleScore > 0 {
+		blp.ScorePercentage = (blp.ActualScore / blp.PossibleScore) * 100
+	}
+
+	// Assign efficiency rating based on score percentage
+	if blp.ScorePercentage >= 85 {
+		blp.EfficiencyRating = "excellent"
+	} else if blp.ScorePercentage >= 70 {
+		blp.EfficiencyRating = "good"
+	} else if blp.ScorePercentage >= 50 {
+		blp.EfficiencyRating = "satisfactory"
+	} else {
+		blp.EfficiencyRating = "needs_improvement"
 	}
 }

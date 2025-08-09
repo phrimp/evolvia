@@ -14,14 +14,16 @@ import (
 )
 
 type SessionHandler struct {
-	Service       *service.SessionService
-	AnswerService *service.AnswerService
+	Service         *service.SessionService
+	AnswerService   *service.AnswerService
+	QuestionService *service.QuestionService
 }
 
-func NewSessionHandler(s *service.SessionService, as *service.AnswerService) *SessionHandler {
+func NewSessionHandler(s *service.SessionService, as *service.AnswerService, qs *service.QuestionService) *SessionHandler {
 	return &SessionHandler{
-		Service:       s,
-		AnswerService: as,
+		Service:         s,
+		AnswerService:   as,
+		QuestionService: qs,
 	}
 }
 
@@ -248,11 +250,25 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		return
 	}
 
-	// Process answer through adaptive logic
+	// Fetch the question for Bloom scoring
+	question, err := h.QuestionService.GetQuestion(context.Background(), answerData.QuestionID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "Question not found",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Ensure question has Bloom scores calculated
+	question.EnsureBloomScores()
+
+	// Process answer through adaptive logic with question object
 	result, err := h.Service.ProcessAnswer(
 		context.Background(),
 		sessionID,
 		answerData.QuestionID,
+		question,
 		answerData.UserAnswer,
 		answerData.IsCorrect,
 	)

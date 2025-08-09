@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-
 	"quiz-service/internal/models"
 	"quiz-service/internal/repository"
 )
@@ -24,10 +23,12 @@ func (s *QuestionService) GetQuestion(ctx context.Context, id string) (*models.Q
 }
 
 func (s *QuestionService) CreateQuestion(ctx context.Context, question *models.Question) error {
+	// Ensure Bloom scores are calculated before saving
+	question.EnsureBloomScores()
 	return s.Repo.Create(ctx, question)
 }
 
-func (s *QuestionService) UpdateQuestion(ctx context.Context, id string, update map[string]interface{}) error {
+func (s *QuestionService) UpdateQuestion(ctx context.Context, id string, update map[string]any) error {
 	return s.Repo.Update(ctx, id, update)
 }
 

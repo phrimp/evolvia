@@ -2,6 +2,9 @@ package adaptive
 
 import (
 	"fmt"
+	"quiz-service/internal/models"
+	"strings"
+	"time"
 )
 
 // Manager handles adaptive quiz logic
@@ -17,8 +20,8 @@ func NewManager(config *AdaptiveConfig) *Manager {
 	return &Manager{config: config}
 }
 
-// ProcessAnswer processes an answer and updates the session state
-func (m *Manager) ProcessAnswer(session *AdaptiveSession, isCorrect bool) (*AnswerResult, error) {
+// ProcessAnswer processes an answer and updates the session state with Bloom-aware scoring
+func (m *Manager) ProcessAnswer(session *AdaptiveSession, question *models.Question, isCorrect bool) (*AnswerResult, error) {
 	if session.IsComplete {
 		return nil, fmt.Errorf("session already complete")
 	}
@@ -35,15 +38,33 @@ func (m *Manager) ProcessAnswer(session *AdaptiveSession, isCorrect bool) (*Answ
 		currentStatus.CorrectAnswers++
 	}
 
-	// Calculate points
-	points := m.calculatePoints(session.CurrentStage, currentStatus.InRecovery, isCorrect)
-	currentStatus.Score += points
-	session.TotalScore += points
+	// Initialize Bloom tracking if needed
+	session.InitializeBloomTracking()
+
+	// Calculate question timing
+	questionDuration := 0
+	if !session.QuestionStartTime.IsZero() {
+		questionDuration = int(time.Since(session.QuestionStartTime).Seconds())
+	}
+
+	// Calculate both actual and possible scores for Bloom tracking
+	actualScore := m.calculateBloomAwarePoints(question, session.CurrentStage, currentStatus.InRecovery, isCorrect)
+	possibleScore := m.calculateBloomAwarePoints(question, session.CurrentStage, currentStatus.InRecovery, true)
+
+	// Update traditional scoring
+	currentStatus.Score += actualScore
+	session.TotalScore += actualScore
+
+	// Update Bloom performance tracking
+	m.updateBloomPerformance(session, question, actualScore, possibleScore, questionDuration)
+
+	// Reset question timer for next question
+	session.QuestionStartTime = time.Now()
 
 	// Determine next action
 	result := &AnswerResult{
 		IsCorrect:    isCorrect,
-		PointsEarned: points,
+		PointsEarned: actualScore,
 	}
 
 	// Check if we've hit the max questions limit
@@ -116,7 +137,7 @@ func (m *Manager) moveToNextStage(session *AdaptiveSession, result *AnswerResult
 	}
 }
 
-// calculatePoints calculates points based on stage and recovery status
+// calculatePoints calculates points based on stage and recovery status (legacy method)
 func (m *Manager) calculatePoints(stage Stage, isRecovery bool, isCorrect bool) float64 {
 	if !isCorrect {
 		return 0
@@ -127,6 +148,52 @@ func (m *Manager) calculatePoints(stage Stage, isRecovery bool, isCorrect bool) 
 		return config.RecoveryPoints
 	}
 	return config.BasePoints
+}
+
+// calculateBloomAwarePoints calculates points using question's Bloom score
+func (m *Manager) calculateBloomAwarePoints(question *models.Question, stage Stage, isRecovery bool, isCorrect bool) float64 {
+	if !isCorrect {
+		return 0
+	}
+
+	// Get the question's score for the current stage
+	baseScore := float64(question.GetScoreForStage(string(stage)))
+
+	// Apply recovery penalty if in recovery mode
+	if isRecovery {
+		return baseScore * 0.8 // 20% penalty for recovery mode
+	}
+
+	return baseScore
+}
+
+// updateBloomPerformance tracks performance metrics per Bloom taxonomy level
+func (m *Manager) updateBloomPerformance(
+	session *AdaptiveSession,
+	question *models.Question,
+	actualScore, possibleScore float64,
+	duration int,
+) {
+	bloomLevel := strings.ToLower(question.BloomLevel)
+
+	if session.BloomPerformance[bloomLevel] == nil {
+		session.BloomPerformance[bloomLevel] = &BloomLevelPerformance{}
+	}
+
+	perf := session.BloomPerformance[bloomLevel]
+
+	// Update counts and scores
+	perf.QuestionsAttempted++
+	if actualScore > 0 {
+		perf.QuestionsCorrect++
+	}
+
+	perf.ActualScore += actualScore
+	perf.PossibleScore += possibleScore
+	perf.TotalTimeSpent += duration
+
+	// Calculate derived metrics
+	perf.CalculateMetrics()
 }
 
 // GetNextQuestionCriteria determines what type of question is needed next
@@ -171,8 +238,8 @@ func (m *Manager) CalculateFinalScore(session *AdaptiveSession) float64 {
 }
 
 // GetSessionSummary provides a summary of the current session state
-func (m *Manager) GetSessionSummary(session *AdaptiveSession) map[string]interface{} {
-	return map[string]interface{}{
+func (m *Manager) GetSessionSummary(session *AdaptiveSession) map[string]any {
+	return map[string]any{
 		"session_id":            session.SessionID,
 		"current_stage":         session.CurrentStage,
 		"total_questions_asked": session.TotalQuestionsAsked,

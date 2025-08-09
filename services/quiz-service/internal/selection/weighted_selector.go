@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand"
 	"quiz-service/internal/models"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -229,7 +230,7 @@ func (s *WeightedSelector) weightedRandomSelectFromGroup(
 			// If all weights are 0, select randomly
 			idx := s.rand.Intn(len(remaining))
 			selected = append(selected, remaining[idx])
-			remaining = append(remaining[:idx], remaining[idx+1:]...)
+			remaining = slices.Delete(remaining, idx, idx+1)
 			continue
 		}
 
@@ -241,7 +242,7 @@ func (s *WeightedSelector) weightedRandomSelectFromGroup(
 			cumulative += wq.Weight
 			if r <= cumulative {
 				selected = append(selected, wq)
-				remaining = append(remaining[:idx], remaining[idx+1:]...)
+				remaining = slices.Delete(remaining, idx, idx+1)
 				break
 			}
 		}
@@ -353,7 +354,7 @@ func (s *WeightedSelector) weightedRandomSelect(
 		if totalWeight == 0 {
 			idx := s.rand.Intn(len(remaining))
 			selected = append(selected, remaining[idx])
-			remaining = append(remaining[:idx], remaining[idx+1:]...)
+			remaining = slices.Delete(remaining, idx, idx+1)
 			continue
 		}
 
@@ -364,7 +365,7 @@ func (s *WeightedSelector) weightedRandomSelect(
 			cumulative += wq.Weight
 			if r <= cumulative {
 				selected = append(selected, wq)
-				remaining = append(remaining[:idx], remaining[idx+1:]...)
+				remaining = slices.Delete(remaining, idx, idx+1)
 				break
 			}
 		}
@@ -389,12 +390,7 @@ func (s *WeightedSelector) filterByMinMatch(
 
 // isExcluded checks if a question ID is in the exclude list
 func (s *WeightedSelector) isExcluded(id string, excludeList []string) bool {
-	for _, excludeID := range excludeList {
-		if id == excludeID {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(excludeList, id)
 }
 
 // calculateAverageMatch calculates average tag match score

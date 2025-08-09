@@ -22,12 +22,8 @@ const (
 type RelationType string
 
 const (
-	RelationPrerequisite   RelationType = "prerequisite"   // Required before learning this skill
-	RelationBuildsOn       RelationType = "builds_on"      // This skill builds upon another
-	RelationRelated        RelationType = "related"        // Related/similar skills
-	RelationComplement     RelationType = "complement"     // Skills that work well together
-	RelationAlternative    RelationType = "alternative"    // Alternative skills for same purpose
-	RelationSpecialization RelationType = "specialization" // More specific version of a skill
+	RelationPrerequisite RelationType = "prerequisite" // Required before learning this skill
+	RelationBuildsOn     RelationType = "builds_on"    // This skill builds upon another
 )
 
 // KeywordPattern represents different ways to identify a skill in text
@@ -45,6 +41,7 @@ type SkillRelation struct {
 	RelationType RelationType  `bson:"relation_type" json:"relation_type"`
 	Strength     float64       `bson:"strength" json:"strength"` // 0.0 to 1.0
 	Description  string        `bson:"description,omitempty" json:"description,omitempty"`
+	TaggedSkill  TaggedSkill   `bson:"tagged_skill" json:"tagged_skill"`
 }
 
 // SkillCategory represents hierarchical categorization
