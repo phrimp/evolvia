@@ -75,6 +75,50 @@ func (r *SkillVerificationHistoryRepository) GetByUserAndSkill(ctx context.Conte
 	return histories, nil
 }
 
+// GetByUserAndSkills retrieves verification history for multiple skills for a user
+func (r *SkillVerificationHistoryRepository) GetByUserAndSkills(ctx context.Context, userID bson.ObjectID, skillIDs []bson.ObjectID) (map[bson.ObjectID][]*models.SkillProgressHistory, error) {
+	filter := bson.M{
+		"user_id":  userID,
+		"skill_id": bson.M{"$in": skillIDs},
+	}
+	findOpts := options.Find().SetSort(bson.M{"skill_id": 1, "timestamp": -1})
+
+	cursor, err := r.collection.Find(ctx, filter, findOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query verification histories: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	result := make(map[bson.ObjectID][]*models.SkillProgressHistory)
+	for cursor.Next(ctx) {
+		var history models.SkillProgressHistory
+		if err := cursor.Decode(&history); err != nil {
+			return nil, fmt.Errorf("failed to decode verification history: %w", err)
+		}
+		result[history.SkillID] = append(result[history.SkillID], &history)
+	}
+	return result, nil
+}
+
+// GetLatestByUserAndSkill retrieves the most recent verification history for a user and skill
+func (r *SkillVerificationHistoryRepository) GetLatestByUserAndSkill(ctx context.Context, userID, skillID bson.ObjectID) (*models.SkillProgressHistory, error) {
+	filter := bson.M{
+		"user_id":  userID,
+		"skill_id": skillID,
+	}
+	findOpts := options.FindOne().SetSort(bson.M{"timestamp": -1})
+
+	var history models.SkillProgressHistory
+	err := r.collection.FindOne(ctx, filter, findOpts).Decode(&history)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get latest verification history: %w", err)
+	}
+	return &history, nil
+}
+
 // DeleteByID removes a verification history record by ID
 func (r *SkillVerificationHistoryRepository) DeleteByID(ctx context.Context, id bson.ObjectID) error {
 	res, err := r.collection.DeleteOne(ctx, bson.M{"_id": id})

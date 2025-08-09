@@ -55,6 +55,10 @@ func (h *UserSkillHandler) RegisterRoutes(app *fiber.App) {
 	protectedGroup.Get("/skill/:skillID/blooms-experts/:bloomsLevel", h.GetBloomsExperts, utils.PermissionRequired(middleware.ReadUserSkillPermission))
 	protectedGroup.Patch("/user/:userId/skill/:skillID/auto-level", h.UpdateSkillLevelFromBlooms, utils.OwnerPermissionRequired(""))
 
+	// New aggregated skill assessment endpoints
+	protectedGroup.Get("/user/:userId/skill/:skillID/aggregated", h.GetAggregatedSkillAssessment, utils.OwnerPermissionRequired(""))
+	protectedGroup.Post("/user/:userId/skill/:skillID/aggregated-history", h.CreateAggregatedSkillHistory, utils.OwnerPermissionRequired(""))
+
 	// Batch operations - require admin permissions
 	protectedGroup.Post("/batch", h.BatchAddUserSkills, utils.PermissionRequired(middleware.AdminUserSkillPermission))
 }
@@ -833,7 +837,16 @@ func (h *UserSkillHandler) GetBloomsAssessment(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	assessment, err := h.userSkillService.GetBloomsAssessment(ctx, userId, skillID)
+	// Check if aggregation should be used based on query parameter
+	useAggregation := c.Query("aggregated", "false") == "true"
+
+	var assessment *models.BloomsTaxonomyAssessment
+	if useAggregation {
+		assessment, err = h.userSkillService.GetSkillAssessmentWithAggregation(ctx, userId, skillID)
+	} else {
+		assessment, err = h.userSkillService.GetBloomsAssessment(ctx, userId, skillID)
+	}
+
 	if err != nil {
 		log.Printf("Failed to get Bloom's assessment for user %s skill %s: %v", userIdStr, skillIDStr, err)
 
@@ -848,13 +861,16 @@ func (h *UserSkillHandler) GetBloomsAssessment(c fiber.Ctx) error {
 		})
 	}
 
+	response := fiber.Map{
+		"assessment":       assessment,
+		"overall_score":    assessment.GetOverallScore(),
+		"primary_strength": assessment.GetPrimaryStrength(),
+		"weakest_area":     assessment.GetWeakestArea(),
+		"aggregated":       useAggregation,
+	}
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"data": fiber.Map{
-			"assessment":       assessment,
-			"overall_score":    assessment.GetOverallScore(),
-			"primary_strength": assessment.GetPrimaryStrength(),
-			"weakest_area":     assessment.GetWeakestArea(),
-		},
+		"data": response,
 	})
 }
 
@@ -1047,5 +1063,102 @@ func (h *UserSkillHandler) UpdateSkillLevelFromBlooms(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Skill level updated based on Bloom's assessment",
+	})
+}
+
+// GetAggregatedSkillAssessment retrieves aggregated skill assessment based on builds_on relationships
+func (h *UserSkillHandler) GetAggregatedSkillAssessment(c fiber.Ctx) error {
+	userIdStr := c.Params("userId")
+	skillIDStr := c.Params("skillID")
+
+	if userIdStr == "" || skillIDStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID and Skill ID are required",
+		})
+	}
+
+	userId, err := bson.ObjectIDFromHex(userIdStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	skillID, err := bson.ObjectIDFromHex(skillIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid skill ID format",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	assessment, err := h.userSkillService.GetAggregatedSkillAssessment(ctx, userId, skillID)
+	if err != nil {
+		log.Printf("Failed to get aggregated skill assessment for user %s skill %s: %v", userIdStr, skillIDStr, err)
+
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "no builds_on relationships") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to calculate aggregated skill assessment",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": assessment,
+	})
+}
+
+// CreateAggregatedSkillHistory creates verification history for aggregated skill calculation
+func (h *UserSkillHandler) CreateAggregatedSkillHistory(c fiber.Ctx) error {
+	userIdStr := c.Params("userId")
+	skillIDStr := c.Params("skillID")
+
+	if userIdStr == "" || skillIDStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID and Skill ID are required",
+		})
+	}
+
+	userId, err := bson.ObjectIDFromHex(userIdStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	skillID, err := bson.ObjectIDFromHex(skillIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid skill ID format",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	history, err := h.userSkillService.CreateAggregatedSkillHistory(ctx, userId, skillID)
+	if err != nil {
+		log.Printf("Failed to create aggregated skill history for user %s skill %s: %v", userIdStr, skillIDStr, err)
+
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "no builds_on relationships") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to create aggregated skill history",
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"data":    history,
+		"message": "Aggregated skill verification history created successfully",
 	})
 }

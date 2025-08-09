@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -258,6 +259,30 @@ func (b *BloomsTaxonomyAssessment) GetOverallScore() float64 {
 	return total
 }
 
+// ValidateRelationWeights checks if skill relation weights sum to 1.0 (100%)
+func ValidateRelationWeights(relations []SkillRelation, relationType RelationType) error {
+	totalWeight := 0.0
+	count := 0
+
+	for _, relation := range relations {
+		if relation.RelationType == relationType {
+			totalWeight += relation.Strength
+			count++
+		}
+	}
+
+	if count == 0 {
+		return nil // No relations of this type
+	}
+
+	// Allow small floating point tolerance
+	if totalWeight < 0.99 || totalWeight > 1.01 {
+		return fmt.Errorf("skill relation weights must sum to 1.0 (100%%), got: %.3f", totalWeight)
+	}
+
+	return nil
+}
+
 // GetPrimaryStrength returns the Bloom's level with highest score
 func (b *BloomsTaxonomyAssessment) GetPrimaryStrength() string {
 	scores := map[string]float64{
@@ -467,9 +492,31 @@ type SkillProgressHistory struct {
 	VerificationCount int                      `bson:"verification_count"`
 	Timestamp         time.Time                `bson:"timestamp"`
 	TriggerEvent      string                   `bson:"trigger_event"` // "verification", "learning_session", "manual"
+	OverallScore      float64                  `bson:"overall_score"` // Calculated overall skill score
+	IsAggregated      bool                     `bson:"is_aggregated"` // True if calculated from related skills
 }
 
-// Add this to your internal/models/knowledge.go file
+// WeightedSkillHistory represents a skill's verification history with its relationship weight
+type WeightedSkillHistory struct {
+	SkillID          bson.ObjectID             `json:"skill_id"`
+	SkillName        string                    `json:"skill_name"`
+	RelationWeight   float64                   `json:"relation_weight"`
+	History          []*SkillProgressHistory   `json:"history"`
+	LatestAssessment *BloomsTaxonomyAssessment `json:"latest_assessment,omitempty"`
+	Contribution     float64                   `json:"contribution"` // Weight * Latest Score
+}
+
+// AggregatedSkillAssessment represents the overall skill calculation from related skills
+type AggregatedSkillAssessment struct {
+	SkillID             bson.ObjectID           `json:"skill_id"`
+	SkillName           string                  `json:"skill_name"`
+	UserID              bson.ObjectID           `json:"user_id"`
+	OverallScore        float64                 `json:"overall_score"`
+	WeightedSkills      []*WeightedSkillHistory `json:"weighted_skills"`
+	TotalWeightVerified float64                 `json:"total_weight_verified"` // Sum of weights for skills with history
+	LastCalculated      time.Time               `json:"last_calculated"`
+	IsComplete          bool                    `json:"is_complete"` // True if all related skills have verification history
+}
 
 // SkillWithCategory represents a skill with its category information for search results
 type SkillWithCategory struct {

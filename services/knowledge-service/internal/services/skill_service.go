@@ -61,6 +61,11 @@ func (s *SkillService) CreateSkill(ctx context.Context, skill *models.Skill) (*m
 		return nil, fmt.Errorf("skill validation failed: %w", err)
 	}
 
+	// Validate relation weights for builds_on relationships
+	if err := models.ValidateRelationWeights(skill.Relations, models.RelationBuildsOn); err != nil {
+		return nil, fmt.Errorf("builds_on relation weights validation failed: %w", err)
+	}
+
 	// Check if skill already exists
 	exists, err := s.repo.GetByName(ctx, skill.Name)
 	if err != nil {
@@ -130,6 +135,11 @@ func (s *SkillService) UpdateSkill(ctx context.Context, id bson.ObjectID, skill 
 	// Validate updated skill
 	if err := s.validateSkill(skill); err != nil {
 		return nil, fmt.Errorf("skill validation failed: %w", err)
+	}
+
+	// Validate relation weights for builds_on relationships
+	if err := models.ValidateRelationWeights(skill.Relations, models.RelationBuildsOn); err != nil {
+		return nil, fmt.Errorf("builds_on relation weights validation failed: %w", err)
 	}
 
 	// Check if name is being changed and if new name already exists

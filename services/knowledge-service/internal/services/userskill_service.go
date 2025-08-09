@@ -679,3 +679,225 @@ func (s *UserSkillService) GetUserSkillWithDetails(ctx context.Context, userID, 
 
 	return userSkillWithDetails, nil
 }
+
+// GetAggregatedSkillAssessment calculates overall skill from related skills with "builds_on" relationships
+func (s *UserSkillService) GetAggregatedSkillAssessment(ctx context.Context, userID, skillID bson.ObjectID) (*models.AggregatedSkillAssessment, error) {
+	// Get the target skill to find its "builds_on" relationships
+	skill, err := s.skillRepo.GetByID(ctx, skillID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get skill: %w", err)
+	}
+	if skill == nil {
+		return nil, fmt.Errorf("skill not found")
+	}
+
+	// Find all "builds_on" relationships
+	var buildsOnRelations []models.SkillRelation
+	for _, relation := range skill.Relations {
+		if relation.RelationType == models.RelationBuildsOn {
+			buildsOnRelations = append(buildsOnRelations, relation)
+		}
+	}
+
+	if len(buildsOnRelations) == 0 {
+		return nil, fmt.Errorf("skill has no builds_on relationships")
+	}
+
+	// Extract skill IDs for batch retrieval
+	var relatedSkillIDs []bson.ObjectID
+	for _, relation := range buildsOnRelations {
+		relatedSkillIDs = append(relatedSkillIDs, relation.SkillID)
+	}
+
+	// Get verification histories for all related skills
+	historiesMap, err := s.skillVerificationHistoryRepo.GetByUserAndSkills(ctx, userID, relatedSkillIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get verification histories: %w", err)
+	}
+
+	// Build weighted skill histories
+	var weightedSkills []*models.WeightedSkillHistory
+	var totalWeightVerified float64
+	var overallScore float64
+
+	for _, relation := range buildsOnRelations {
+		// Get skill details for name
+		relatedSkill, err := s.skillRepo.GetByID(ctx, relation.SkillID)
+		if err != nil {
+			continue // Skip if can't get skill details
+		}
+		if relatedSkill == nil {
+			continue
+		}
+
+		weightedSkill := &models.WeightedSkillHistory{
+			SkillID:        relation.SkillID,
+			SkillName:      relatedSkill.Name,
+			RelationWeight: relation.Strength,
+			History:        historiesMap[relation.SkillID],
+		}
+
+		// Calculate contribution if there's verification history
+		if len(weightedSkill.History) > 0 {
+			// Use most recent assessment for calculation
+			latestHistory := weightedSkill.History[0] // Already sorted by timestamp desc
+			weightedSkill.LatestAssessment = &latestHistory.BloomsSnapshot
+			latestScore := latestHistory.BloomsSnapshot.GetOverallScore()
+			weightedSkill.Contribution = relation.Strength * latestScore
+
+			totalWeightVerified += relation.Strength
+			overallScore += weightedSkill.Contribution
+		}
+
+		weightedSkills = append(weightedSkills, weightedSkill)
+	}
+
+	// Create aggregated assessment
+	assessment := &models.AggregatedSkillAssessment{
+		SkillID:             skillID,
+		SkillName:           skill.Name,
+		UserID:              userID,
+		OverallScore:        overallScore,
+		WeightedSkills:      weightedSkills,
+		TotalWeightVerified: totalWeightVerified,
+		LastCalculated:      time.Now(),
+		IsComplete:          totalWeightVerified >= 0.99, // Allow small floating point tolerance
+	}
+
+	return assessment, nil
+}
+
+// CreateAggregatedSkillHistory creates a verification history record for aggregated skill calculation
+func (s *UserSkillService) CreateAggregatedSkillHistory(ctx context.Context, userID, skillID bson.ObjectID) (*models.SkillProgressHistory, error) {
+	// Get aggregated assessment
+	assessment, err := s.GetAggregatedSkillAssessment(ctx, userID, skillID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get aggregated assessment: %w", err)
+	}
+
+	// Calculate aggregated Bloom's scores
+	var aggregatedBlooms models.BloomsTaxonomyAssessment
+	totalWeight := 0.0
+
+	for _, weightedSkill := range assessment.WeightedSkills {
+		if weightedSkill.LatestAssessment != nil {
+			weight := weightedSkill.RelationWeight
+			blooms := weightedSkill.LatestAssessment
+
+			aggregatedBlooms.Remember += blooms.Remember * weight
+			aggregatedBlooms.Understand += blooms.Understand * weight
+			aggregatedBlooms.Apply += blooms.Apply * weight
+			aggregatedBlooms.Analyze += blooms.Analyze * weight
+			aggregatedBlooms.Evaluate += blooms.Evaluate * weight
+			aggregatedBlooms.Create += blooms.Create * weight
+
+			totalWeight += weight
+		}
+	}
+
+	// Normalize if partial verification history exists
+	if totalWeight > 0 && totalWeight < 1.0 {
+		factor := 1.0 / totalWeight
+		aggregatedBlooms.Remember *= factor
+		aggregatedBlooms.Understand *= factor
+		aggregatedBlooms.Apply *= factor
+		aggregatedBlooms.Analyze *= factor
+		aggregatedBlooms.Evaluate *= factor
+		aggregatedBlooms.Create *= factor
+	}
+
+	aggregatedBlooms.Verified = assessment.IsComplete
+	aggregatedBlooms.LastUpdated = time.Now()
+
+	// Create verification history record
+	history := &models.SkillProgressHistory{
+		UserID:            userID,
+		SkillID:           skillID,
+		BloomsSnapshot:    aggregatedBlooms,
+		TotalHours:        0, // Not applicable for aggregated skills
+		VerificationCount: 1,
+		Timestamp:         time.Now(),
+		TriggerEvent:      "aggregated_calculation",
+		OverallScore:      assessment.OverallScore,
+		IsAggregated:      true,
+	}
+
+	return s.skillVerificationHistoryRepo.Create(ctx, history)
+}
+
+// GetSkillAssessmentWithAggregation gets skill assessment, using aggregation if skill has builds_on relationships
+func (s *UserSkillService) GetSkillAssessmentWithAggregation(ctx context.Context, userID, skillID bson.ObjectID) (*models.BloomsTaxonomyAssessment, error) {
+	// First check if user has direct assessment
+	directAssessment, err := s.GetBloomsAssessment(ctx, userID, skillID)
+	if err == nil && directAssessment != nil && directAssessment.GetOverallScore() > 0 {
+		return directAssessment, nil
+	}
+
+	// Check if skill has builds_on relationships
+	skill, err := s.skillRepo.GetByID(ctx, skillID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get skill: %w", err)
+	}
+	if skill == nil {
+		return nil, fmt.Errorf("skill not found")
+	}
+
+	// Check for builds_on relationships
+	hasBuildsOn := false
+	for _, relation := range skill.Relations {
+		if relation.RelationType == models.RelationBuildsOn {
+			hasBuildsOn = true
+			break
+		}
+	}
+
+	if !hasBuildsOn {
+		// Return direct assessment or zero assessment if no builds_on relationships
+		if directAssessment != nil {
+			return directAssessment, nil
+		}
+		return &models.BloomsTaxonomyAssessment{}, nil
+	}
+
+	// Calculate aggregated assessment
+	aggregatedAssessment, err := s.GetAggregatedSkillAssessment(ctx, userID, skillID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get aggregated assessment: %w", err)
+	}
+
+	// Calculate aggregated Bloom's taxonomy scores
+	var blooms models.BloomsTaxonomyAssessment
+	totalWeight := 0.0
+
+	for _, weightedSkill := range aggregatedAssessment.WeightedSkills {
+		if weightedSkill.LatestAssessment != nil {
+			weight := weightedSkill.RelationWeight
+			assessment := weightedSkill.LatestAssessment
+
+			blooms.Remember += assessment.Remember * weight
+			blooms.Understand += assessment.Understand * weight
+			blooms.Apply += assessment.Apply * weight
+			blooms.Analyze += assessment.Analyze * weight
+			blooms.Evaluate += assessment.Evaluate * weight
+			blooms.Create += assessment.Create * weight
+
+			totalWeight += weight
+		}
+	}
+
+	// Normalize if only partial verification history exists
+	if totalWeight > 0 && totalWeight < 1.0 {
+		factor := 1.0 / totalWeight
+		blooms.Remember *= factor
+		blooms.Understand *= factor
+		blooms.Apply *= factor
+		blooms.Analyze *= factor
+		blooms.Evaluate *= factor
+		blooms.Create *= factor
+	}
+
+	blooms.Verified = aggregatedAssessment.IsComplete
+	blooms.LastUpdated = time.Now()
+
+	return &blooms, nil
+}
