@@ -133,6 +133,16 @@ func (r *SkillRepository) Create(ctx context.Context, skill *models.Skill) (*mod
 	skill.IsActive = true
 	skill.Version = 1
 
+	for i, skill_related := range skill.Relations {
+		related_skill, err := r.GetByID(ctx, skill_related.SkillID)
+		if err != nil {
+			log.Println("Find skill related by id failed: ", err)
+			continue
+		}
+		skill.Relations[i].Description = related_skill.Description
+		skill.Relations[i].TaggedSkill = related_skill.TaggedSkill
+	}
+
 	_, err := r.collection.InsertOne(ctx, skill)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create skill: %w", err)
