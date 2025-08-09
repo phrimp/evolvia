@@ -13,7 +13,7 @@ type StageProgress struct {
 
 type QuizSession struct {
 	ID                  string                   `bson:"_id,omitempty" json:"id"`
-	QuizID              string                   `bson:"quiz_id" json:"quiz_id"`
+	SkillID             string                   `bson:"skill_id" json:"skill_id"`
 	UserID              string                   `bson:"user_id" json:"user_id"`
 	SessionToken        string                   `bson:"session_token" json:"session_token"`
 	StartTime           time.Time                `bson:"start_time" json:"start_time"`
@@ -28,7 +28,7 @@ type QuizSession struct {
 	FinalScore          float64                  `bson:"final_score" json:"final_score"`
 	CompletionType      string                   `bson:"completion_type" json:"completion_type"`
 
-	// New field to store skill information and other metadata
+	// Store skill information and other metadata
 	Metadata map[string]interface{} `bson:"metadata,omitempty" json:"metadata,omitempty"`
 }
 

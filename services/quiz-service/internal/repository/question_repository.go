@@ -57,12 +57,35 @@ func (r *QuestionRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
-func (r *QuestionRepository) FindByQuizID(ctx context.Context, quizID string) ([]models.Question, error) {
-	cur, err := r.Col.Find(ctx, bson.M{"quiz_id": quizID})
+func (r *QuestionRepository) FindBySkillID(ctx context.Context, skillID string) ([]models.Question, error) {
+	cur, err := r.Col.Find(ctx, bson.M{"skill_id": skillID})
 	if err != nil {
 		return nil, err
 	}
 	defer cur.Close(ctx)
+	var questions []models.Question
+	for cur.Next(ctx) {
+		var q models.Question
+		if err := cur.Decode(&q); err != nil {
+			return nil, err
+		}
+		questions = append(questions, q)
+	}
+	return questions, nil
+}
+
+func (r *QuestionRepository) FindRandomBySkillID(ctx context.Context, skillID string, limit int) ([]models.Question, error) {
+	pipeline := []bson.M{
+		{"$match": bson.M{"skill_id": skillID}},
+		{"$sample": bson.M{"size": limit}},
+	}
+
+	cur, err := r.Col.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
 	var questions []models.Question
 	for cur.Next(ctx) {
 		var q models.Question

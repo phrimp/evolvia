@@ -36,32 +36,10 @@ func (h *SessionHandler) GetSession(c *gin.Context) {
 	c.JSON(http.StatusOK, session)
 }
 
-// CreateSession creates a new adaptive quiz session
+// CreateSession creates a new quiz session with skill
 func (h *SessionHandler) CreateSession(c *gin.Context) {
 	var req struct {
-		QuizID    string `json:"quiz_id" binding:"required"`
-		SkillID   string `json:"skill_id" binding:"required"`
-		SkillName string `json:"skill_name"`
-
-		// Categorized tags for weighted selection
-		PrimaryTags   []string `json:"primary_tags"`   // Core skill concepts
-		SecondaryTags []string `json:"secondary_tags"` // Supporting concepts
-		RelatedTags   []string `json:"related_tags"`   // Peripheral concepts
-
-		// Optional: Backward compatibility with single tag list
-		SkillTags []string `json:"skill_tags"` // Legacy field
-
-		// Tag weight configuration
-		TagWeights struct {
-			PrimaryWeight   float64 `json:"primary_weight"`
-			SecondaryWeight float64 `json:"secondary_weight"`
-			RelatedWeight   float64 `json:"related_weight"`
-			ExactMatchBonus float64 `json:"exact_match_bonus"`
-		} `json:"tag_weights"`
-
-		// Initial mastery fields
-		CurrentBloomLevel string `json:"current_bloom_level"`
-		MasteryScore      int    `json:"mastery_score"`
+		SkillID string `json:"skill_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -80,71 +58,11 @@ func (h *SessionHandler) CreateSession(c *gin.Context) {
 		return
 	}
 
-	// Handle backward compatibility - if old skill_tags field is used
-	if len(req.PrimaryTags) == 0 && len(req.SkillTags) > 0 {
-		// Put all tags as primary for backward compatibility
-		req.PrimaryTags = req.SkillTags
-		fmt.Printf("[Session] Using legacy skill_tags field, treating all as primary tags\n")
-	}
-
-	// Validate we have at least some tags
-	totalTags := len(req.PrimaryTags) + len(req.SecondaryTags) + len(req.RelatedTags)
-	if totalTags == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "At least one tag (primary, secondary, or related) is required",
-		})
-		return
-	}
-
-	// Set default weights if not provided
-	if req.TagWeights.PrimaryWeight == 0 {
-		req.TagWeights.PrimaryWeight = 3.0
-	}
-	if req.TagWeights.SecondaryWeight == 0 {
-		req.TagWeights.SecondaryWeight = 1.5
-	}
-	if req.TagWeights.RelatedWeight == 0 {
-		req.TagWeights.RelatedWeight = 0.5
-	}
-	if req.TagWeights.ExactMatchBonus == 0 {
-		req.TagWeights.ExactMatchBonus = 2.0
-	}
-
-	// Set default skill name
-	if req.SkillName == "" {
-		req.SkillName = req.SkillID
-	}
-
-	// Create enhanced skill info
-	enhancedSkillInfo := &selection.EnhancedSkillInfo{
-		ID:            req.SkillID,
-		Name:          req.SkillName,
-		PrimaryTags:   req.PrimaryTags,
-		SecondaryTags: req.SecondaryTags,
-		RelatedTags:   req.RelatedTags,
-		TagWeights: selection.TagWeightConfig{
-			PrimaryWeight:   req.TagWeights.PrimaryWeight,
-			SecondaryWeight: req.TagWeights.SecondaryWeight,
-			RelatedWeight:   req.TagWeights.RelatedWeight,
-			ExactMatchBonus: req.TagWeights.ExactMatchBonus,
-		},
-	}
-
-	// Log tag distribution for monitoring
-	fmt.Printf("[Session] Creating session with tag distribution - Primary: %d, Secondary: %d, Related: %d\n",
-		len(req.PrimaryTags), len(req.SecondaryTags), len(req.RelatedTags))
-	fmt.Printf("[Session] Tag weights - Primary: %.1f, Secondary: %.1f, Related: %.1f, SkillBonus: %.1f\n",
-		req.TagWeights.PrimaryWeight, req.TagWeights.SecondaryWeight,
-		req.TagWeights.RelatedWeight, req.TagWeights.ExactMatchBonus)
-
-	// Create session with enhanced skill info
-	session, err := h.Service.CreateSessionWithEnhancedSkillInfo(
+	// Create session with skill
+	session, err := h.Service.CreateSession(
 		context.Background(),
-		req.QuizID,
+		req.SkillID,
 		userID,
-		enhancedSkillInfo,
-		req.CurrentBloomLevel,
-		req.MasteryScore,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -154,26 +72,9 @@ func (h *SessionHandler) CreateSession(c *gin.Context) {
 		return
 	}
 
-	// Calculate expected selection quality metrics
-	selectionMetrics := h.calculateExpectedSelectionQuality(enhancedSkillInfo)
-
 	c.JSON(http.StatusCreated, gin.H{
 		"session": session,
-		"message": "Session created successfully with enhanced tag weighting",
-		"tag_configuration": gin.H{
-			"primary_tags":   req.PrimaryTags,
-			"secondary_tags": req.SecondaryTags,
-			"related_tags":   req.RelatedTags,
-			"weights": gin.H{
-				"primary":           req.TagWeights.PrimaryWeight,
-				"secondary":         req.TagWeights.SecondaryWeight,
-				"related":           req.TagWeights.RelatedWeight,
-				"exact_skill_bonus": req.TagWeights.ExactMatchBonus,
-			},
-			"total_tags": totalTags,
-		},
-		"selection_quality": selectionMetrics,
-		"next_step":         "Call /next endpoint to get first question",
+		"message": "Session created successfully",
 	})
 }
 
@@ -434,19 +335,18 @@ func (h *SessionHandler) GetSessionStatus(c *gin.Context) {
 	})
 }
 
-// GetQuizPoolInfo returns information about the quiz question pool
-func (h *SessionHandler) GetQuizPoolInfo(c *gin.Context) {
-	quizID := c.Query("quiz_id")
+// GetSkillPoolInfo returns information about the skill question pool
+func (h *SessionHandler) GetSkillPoolInfo(c *gin.Context) {
 	skillID := c.Query("skill_id")
 
-	if quizID == "" || skillID == "" {
+	if skillID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "quiz_id and skill_id are required",
+			"error": "skill_id is required",
 		})
 		return
 	}
 
-	poolInfo, err := h.Service.GetQuizPoolInfo(context.Background(), quizID, skillID)
+	poolInfo, err := h.Service.GetSkillPoolInfo(context.Background(), skillID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to get pool info",
@@ -457,7 +357,6 @@ func (h *SessionHandler) GetQuizPoolInfo(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"pool_info": poolInfo,
-		"quiz_id":   quizID,
 		"skill_id":  skillID,
 	})
 }
@@ -465,7 +364,6 @@ func (h *SessionHandler) GetQuizPoolInfo(c *gin.Context) {
 // PreloadQuestions allows pre-loading questions for a stage
 func (h *SessionHandler) PreloadQuestions(c *gin.Context) {
 	var request struct {
-		QuizID     string   `json:"quiz_id" binding:"required"`
 		SkillID    string   `json:"skill_id" binding:"required"`
 		Stage      string   `json:"stage" binding:"required"`
 		Count      int      `json:"count"`
@@ -484,7 +382,6 @@ func (h *SessionHandler) PreloadQuestions(c *gin.Context) {
 
 	questions, err := h.Service.SelectQuestionsForStage(
 		context.Background(),
-		request.QuizID,
 		request.SkillID,
 		request.Stage,
 		request.Count,
@@ -641,7 +538,7 @@ func (h *SessionHandler) calculateDetailedProgress(session *models.QuizSession) 
 func (h *SessionHandler) generateSessionStatistics(session *models.QuizSession) map[string]interface{} {
 	stats := map[string]interface{}{
 		"session_id":       session.ID,
-		"quiz_id":          session.QuizID,
+		"skill_id":         session.SkillID,
 		"user_id":          session.UserID,
 		"start_time":       session.StartTime,
 		"current_stage":    session.CurrentStage,

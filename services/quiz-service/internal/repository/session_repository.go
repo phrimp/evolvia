@@ -54,3 +54,7 @@ func (r *SessionRepository) Update(ctx context.Context, id string, update bson.M
 	_, err = r.Col.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": update})
 	return err
 }
+
+// SessionRepository không cần tham chiếu đến quiz nữa, chỉ thao tác với session và question bank.
+// Không cần sửa gì thêm ở repository này nếu chỉ lấy/lưu session và update các trường liên quan đến câu hỏi.
+// Nếu muốn thêm hàm lấy random question hoặc lấy danh sách question từ question bank, hãy thêm vào QuestionRepository thay vì SessionRepository.

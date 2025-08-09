@@ -1,163 +1,76 @@
 {
   "info": {
-    "name": "Quiz Service API",
-    "description": "Comprehensive API collection for Quiz Service with all endpoints including public and protected routes",
+    "name": "Quiz Service API - Skill Based",
+    "description": "API collection for Quiz Service with skill-based question bank system",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:8080",
+      "value": "http://localhost:6666",
+      "type": "string"
+    },
+    {
+      "key": "userToken",
+      "value": "your_jwt_token_here",
       "type": "string"
     }
   ],
   "item": [
     {
-      "name": "Public Quiz Routes",
+      "name": "Public Skill Routes",
       "item": [
         {
-          "name": "List All Quizzes",
+          "name": "List All Skills",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/quizz/quiz/",
+              "raw": "{{baseUrl}}/public/quizz/skill/",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "quizz", "quiz", ""]
+              "path": ["public", "quizz", "skill", ""]
             },
-            "description": "Get all available quizzes"
+            "description": "Get all available skills from knowledge service"
           }
         },
         {
-          "name": "Get Quiz by ID",
+          "name": "Get Skill by ID",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/quizz/quiz/:id",
+              "raw": "{{baseUrl}}/public/quizz/skill/:id",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "quizz", "quiz", ":id"],
+              "path": ["public", "quizz", "skill", ":id"],
               "variable": [
                 {
                   "key": "id",
-                  "value": "quiz_id_here",
-                  "description": "Quiz ID"
+                  "value": "67893abc123def456789",
+                  "description": "Skill ID from knowledge service"
                 }
               ]
             },
-            "description": "Get a specific quiz by its ID"
+            "description": "Get a specific skill by its ID"
           }
         },
         {
-          "name": "Get Results by Quiz",
+          "name": "Get Skills by Category",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/quizz/quiz/:id/results",
+              "raw": "{{baseUrl}}/public/quizz/skill/category/:categoryId",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "quizz", "quiz", ":id", "results"],
+              "path": ["public", "quizz", "skill", "category", ":categoryId"],
               "variable": [
                 {
-                  "key": "id",
-                  "value": "quiz_id_here",
-                  "description": "Quiz ID"
+                  "key": "categoryId",
+                  "value": "programming",
+                  "description": "Category ID"
                 }
               ]
             },
-            "description": "Get all results for a specific quiz"
-          }
-        }
-      ]
-    },
-    {
-      "name": "Protected Quiz Routes",
-      "item": [
-        {
-          "name": "Create Quiz",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"Sample Quiz\",\n  \"description\": \"A sample quiz for testing\",\n  \"skill_id\": \"skill_123\",\n  \"total_duration_seconds\": 3600,\n  \"max_questions\": 20,\n  \"stage_config\": {\n    \"beginner\": {\n      \"initial_questions\": 5,\n      \"passing_threshold\": 0.6,\n      \"recovery_questions\": 2,\n      \"recovery_threshold\": 0.7,\n      \"base_points\": 10,\n      \"recovery_points\": 5\n    },\n    \"intermediate\": {\n      \"initial_questions\": 7,\n      \"passing_threshold\": 0.7,\n      \"recovery_questions\": 3,\n      \"recovery_threshold\": 0.8,\n      \"base_points\": 15,\n      \"recovery_points\": 8\n    },\n    \"advanced\": {\n      \"initial_questions\": 8,\n      \"passing_threshold\": 0.8,\n      \"recovery_questions\": 4,\n      \"recovery_threshold\": 0.85,\n      \"base_points\": 20,\n      \"recovery_points\": 10\n    }\n  },\n  \"status\": \"active\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/protected/quizz/quiz/",
-              "host": ["{{baseUrl}}"],
-              "path": ["protected", "quizz", "quiz", ""]
-            },
-            "description": "Create a new quiz"
-          }
-        },
-        {
-          "name": "Update Quiz",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"Updated Quiz Title\",\n  \"description\": \"Updated description\",\n  \"status\": \"inactive\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/protected/quizz/quiz/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["protected", "quizz", "quiz", ":id"],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "quiz_id_here",
-                  "description": "Quiz ID to update"
-                }
-              ]
-            },
-            "description": "Update an existing quiz"
-          }
-        },
-        {
-          "name": "Delete Quiz",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/protected/quiz/:id",
-              "host": ["{{baseUrl}}"],
-              "path": ["protected", "quiz", ":id"],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": "quiz_id_here",
-                  "description": "Quiz ID to delete"
-                }
-              ]
-            },
-            "description": "Delete a quiz"
+            "description": "Get skills by category"
           }
         }
       ]
@@ -171,11 +84,18 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/quizz/question/",
+              "raw": "{{baseUrl}}/public/quizz/question/?skill_id={{skillId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "quizz", "question", ""]
+              "path": ["public", "quizz", "question", ""],
+              "query": [
+                {
+                  "key": "skill_id",
+                  "value": "{{skillId}}",
+                  "description": "Filter by skill ID"
+                }
+              ]
             },
-            "description": "Get all available questions"
+            "description": "Get questions, optionally filtered by skill"
           }
         },
         {
@@ -213,21 +133,21 @@
                 "value": "application/json"
               },
               {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
+                "key": "X-User-ID",
+                "value": "user_123",
+                "description": "User ID header for authentication"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"What is the capital of France?\",\n  \"type\": \"multiple_choice\",\n  \"options\": [\n    {\n      \"id\": \"a\",\n      \"text\": \"London\"\n    },\n    {\n      \"id\": \"b\",\n      \"text\": \"Berlin\"\n    },\n    {\n      \"id\": \"c\",\n      \"text\": \"Paris\"\n    },\n    {\n      \"id\": \"d\",\n      \"text\": \"Madrid\"\n    }\n  ],\n  \"correct_answer\": \"c\",\n  \"explanation\": \"Paris is the capital and largest city of France.\",\n  \"skill_id\": \"geography_001\",\n  \"difficulty_level\": \"beginner\",\n  \"bloom_level\": \"remember\",\n  \"points\": 10,\n  \"estimated_time_seconds\": 30,\n  \"topic_tags\": [\"geography\", \"capitals\", \"europe\"],\n  \"question_pool_id\": \"geography_pool_1\"\n}"
+              "raw": "{\n  \"content\": \"What is the difference between var, let, and const in JavaScript?\",\n  \"type\": \"multiple_choice\",\n  \"options\": [\n    {\n      \"id\": \"a\",\n      \"text\": \"var is function-scoped, let and const are block-scoped\"\n    },\n    {\n      \"id\": \"b\",\n      \"text\": \"They are all the same\"\n    },\n    {\n      \"id\": \"c\",\n      \"text\": \"var is newer than let and const\"\n    },\n    {\n      \"id\": \"d\",\n      \"text\": \"Only const can be reassigned\"\n    }\n  ],\n  \"correct_answer\": \"a\",\n  \"explanation\": \"var is function-scoped and can be hoisted, while let and const are block-scoped. const cannot be reassigned after declaration.\",\n  \"skill_id\": \"67893abc123def456789\",\n  \"difficulty_level\": \"easy\",\n  \"bloom_level\": \"understand\",\n  \"points\": 10,\n  \"estimated_time_seconds\": 45,\n  \"topic_tags\": [\"javascript\", \"variables\", \"scope\"],\n  \"question_pool_id\": \"js_fundamentals_pool\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/protected/quizz/question/",
               "host": ["{{baseUrl}}"],
               "path": ["protected", "quizz", "question", ""]
             },
-            "description": "Create a new question"
+            "description": "Create a new question for a skill"
           }
         },
         {
@@ -240,14 +160,13 @@
                 "value": "application/json"
               },
               {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
+                "key": "X-User-ID",
+                "value": "user_123"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"Updated question content\",\n  \"difficulty_level\": \"intermediate\",\n  \"points\": 15\n}"
+              "raw": "{\n  \"content\": \"Updated question content\",\n  \"difficulty_level\": \"medium\",\n  \"points\": 15\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/protected/quizz/question/:id",
@@ -256,8 +175,7 @@
               "variable": [
                 {
                   "key": "id",
-                  "value": "question_id_here",
-                  "description": "Question ID to update"
+                  "value": "question_id_here"
                 }
               ]
             },
@@ -270,20 +188,18 @@
             "method": "DELETE",
             "header": [
               {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
+                "key": "X-User-ID",
+                "value": "user_123"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/protected/question/:id",
+              "raw": "{{baseUrl}}/protected/quizz/question/:id",
               "host": ["{{baseUrl}}"],
-              "path": ["protected", "question", ":id"],
+              "path": ["protected", "quizz", "question", ":id"],
               "variable": [
                 {
                   "key": "id",
-                  "value": "question_id_here",
-                  "description": "Question ID to delete"
+                  "value": "question_id_here"
                 }
               ]
             },
@@ -300,14 +216,13 @@
                 "value": "application/json"
               },
               {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
+                "key": "X-User-ID",
+                "value": "user_123"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"operation\": \"bulk_create\",\n  \"questions\": [\n    {\n      \"content\": \"Question 1\",\n      \"type\": \"multiple_choice\",\n      \"correct_answer\": \"a\",\n      \"skill_id\": \"skill_1\"\n    },\n    {\n      \"content\": \"Question 2\",\n      \"type\": \"true_false\",\n      \"correct_answer\": \"true\",\n      \"skill_id\": \"skill_1\"\n    }\n  ]\n}"
+              "raw": "{\n  \"operation\": \"bulk_create\",\n  \"questions\": [\n    {\n      \"content\": \"What is a closure in JavaScript?\",\n      \"type\": \"multiple_choice\",\n      \"correct_answer\": \"a\",\n      \"skill_id\": \"67893abc123def456789\",\n      \"difficulty_level\": \"medium\",\n      \"bloom_level\": \"understand\"\n    },\n    {\n      \"content\": \"JavaScript is a compiled language\",\n      \"type\": \"true_false\",\n      \"correct_answer\": \"false\",\n      \"skill_id\": \"67893abc123def456789\",\n      \"difficulty_level\": \"easy\",\n      \"bloom_level\": \"remember\"\n    }\n  ]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/protected/quizz/question/bulk",
@@ -334,52 +249,50 @@
               "variable": [
                 {
                   "key": "id",
-                  "value": "session_id_here",
-                  "description": "Session ID"
+                  "value": "session_id_here"
                 }
               ]
             },
-            "description": "Get session information by ID"
+            "description": "Get basic session information"
           }
         },
         {
-          "name": "Get Answers by Session",
+          "name": "Get Session Status (Public)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/quizz/session/:id/answers",
+              "raw": "{{baseUrl}}/public/quizz/session/:id/status",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "quizz", "session", ":id", "answers"],
+              "path": ["public", "quizz", "session", ":id", "status"],
               "variable": [
                 {
                   "key": "id",
-                  "value": "session_id_here",
-                  "description": "Session ID"
+                  "value": "session_id_here"
                 }
               ]
             },
-            "description": "Get all answers for a specific session"
+            "description": "Get public session status"
           }
         },
         {
-          "name": "Get Session Result",
+          "name": "Get Skill Pool Info (Public)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/public/quizz/session/:id/result",
+              "raw": "{{baseUrl}}/public/quizz/session/pool/info?skill_id={{skillId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "quizz", "session", ":id", "result"],
-              "variable": [
+              "path": ["public", "quizz", "session", "pool", "info"],
+              "query": [
                 {
-                  "key": "id",
-                  "value": "session_id_here",
-                  "description": "Session ID"
+                  "key": "skill_id",
+                  "value": "{{skillId}}",
+                  "description": "Skill ID to get pool info for"
                 }
               ]
             },
-            "description": "Get result for a specific session"
+            "description": "Get question pool information for a skill"
           }
         }
       ]
@@ -388,7 +301,7 @@
       "name": "Protected Session Routes",
       "item": [
         {
-          "name": "Create Session",
+          "name": "Create Session (Skill-based)",
           "request": {
             "method": "POST",
             "header": [
@@ -397,21 +310,21 @@
                 "value": "application/json"
               },
               {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
+                "key": "X-User-ID",
+                "value": "user_123",
+                "description": "Required user authentication"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"quiz_id\": \"quiz_123\",\n  \"user_id\": \"user_456\",\n  \"session_token\": \"session_token_789\",\n  \"current_stage\": \"beginner\",\n  \"status\": \"active\",\n  \"stage_progress\": {\n    \"beginner\": {\n      \"attempted\": 0,\n      \"correct\": 0,\n      \"passed\": false,\n      \"recovery_round\": 0,\n      \"score\": 0\n    }\n  },\n  \"questions_used\": [],\n  \"total_questions_asked\": 0\n}"
+              "raw": "{\n  \"skill_id\": \"67893abc123def456789\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/protected/quizz/session/",
               "host": ["{{baseUrl}}"],
               "path": ["protected", "quizz", "session", ""]
             },
-            "description": "Create a new quiz session"
+            "description": "Create a new skill-based quiz session"
           }
         },
         {
@@ -424,14 +337,13 @@
                 "value": "application/json"
               },
               {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
+                "key": "X-User-ID",
+                "value": "user_123"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"session_id\": \"session_123\",\n  \"question_id\": \"question_456\",\n  \"user_answer\": \"c\",\n  \"is_correct\": true,\n  \"points_earned\": 10,\n  \"time_spent_seconds\": 25,\n  \"stage_type\": \"beginner\",\n  \"question_sequence\": 1\n}"
+              "raw": "{\n  \"question_id\": \"question_456\",\n  \"user_answer\": \"a\",\n  \"is_correct\": true,\n  \"time_spent_seconds\": 30\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/protected/quizz/session/:id/answer",
@@ -440,12 +352,11 @@
               "variable": [
                 {
                   "key": "id",
-                  "value": "session_id_here",
-                  "description": "Session ID"
+                  "value": "session_id_here"
                 }
               ]
             },
-            "description": "Submit an answer for a session"
+            "description": "Submit an answer with adaptive processing"
           }
         },
         {
@@ -454,9 +365,8 @@
             "method": "GET",
             "header": [
               {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
+                "key": "X-User-ID",
+                "value": "user_123"
               }
             ],
             "url": {
@@ -466,12 +376,11 @@
               "variable": [
                 {
                   "key": "id",
-                  "value": "session_id_here",
-                  "description": "Session ID"
+                  "value": "session_id_here"
                 }
               ]
             },
-            "description": "Get the next question for the session"
+            "description": "Get next question based on adaptive logic"
           }
         },
         {
@@ -484,14 +393,13 @@
                 "value": "application/json"
               },
               {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
+                "key": "X-User-ID",
+                "value": "user_123"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"completion_type\": \"completed\",\n  \"final_score\": 85.5\n}"
+              "raw": "{\n  \"completion_type\": \"completed\",\n  \"final_score\": 85.5,\n  \"force_complete\": false\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/protected/quizz/session/:id/submit",
@@ -500,8 +408,7 @@
               "variable": [
                 {
                   "key": "id",
-                  "value": "session_id_here",
-                  "description": "Session ID"
+                  "value": "session_id_here"
                 }
               ]
             },
@@ -518,9 +425,8 @@
                 "value": "application/json"
               },
               {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
+                "key": "X-User-ID",
+                "value": "user_123"
               }
             ],
             "body": {
@@ -534,12 +440,206 @@
               "variable": [
                 {
                   "key": "id",
-                  "value": "session_id_here",
-                  "description": "Session ID"
+                  "value": "session_id_here"
                 }
               ]
             },
             "description": "Pause an active session"
+          }
+        },
+        {
+          "name": "Resume Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "user_123"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/protected/quizz/session/:id/resume",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "quizz", "session", ":id", "resume"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "session_id_here"
+                }
+              ]
+            },
+            "description": "Resume a paused session"
+          }
+        },
+        {
+          "name": "Get Session Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "user_123"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/protected/quizz/session/:id/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "quizz", "session", ":id", "status"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "session_id_here"
+                }
+              ]
+            },
+            "description": "Get detailed adaptive session status"
+          }
+        },
+        {
+          "name": "Get Session Progress",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "user_123"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/protected/quizz/session/:id/progress",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "quizz", "session", ":id", "progress"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "session_id_here"
+                }
+              ]
+            },
+            "description": "Get detailed session progress"
+          }
+        },
+        {
+          "name": "Get Session Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "user_123"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/protected/quizz/session/:id/statistics",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "quizz", "session", ":id", "statistics"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "session_id_here"
+                }
+              ]
+            },
+            "description": "Get session statistics"
+          }
+        },
+        {
+          "name": "Get Session Answers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "user_123"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/protected/quizz/session/:id/answers",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "quizz", "session", ":id", "answers"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "session_id_here"
+                }
+              ]
+            },
+            "description": "Get all answers for a session"
+          }
+        },
+        {
+          "name": "Validate Session Access",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "user_123"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/protected/quizz/session/:id/validate",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "quizz", "session", ":id", "validate"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "session_id_here"
+                }
+              ]
+            },
+            "description": "Validate user access to session"
+          }
+        },
+        {
+          "name": "Get Skill Pool Info",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-ID",
+                "value": "user_123"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/protected/quizz/session/pool/info?skill_id={{skillId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "quizz", "session", "pool", "info"],
+              "query": [
+                {
+                  "key": "skill_id",
+                  "value": "{{skillId}}",
+                  "description": "Skill ID to get pool info for"
+                }
+              ]
+            },
+            "description": "Get detailed question pool information"
+          }
+        },
+        {
+          "name": "Preload Questions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-ID",
+                "value": "user_123"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skill_id\": \"67893abc123def456789\",\n  \"stage\": \"easy\",\n  \"count\": 5,\n  \"exclude_ids\": []\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/protected/quizz/session/pool/preload",
+              "host": ["{{baseUrl}}"],
+              "path": ["protected", "quizz", "session", "pool", "preload"]
+            },
+            "description": "Preload questions for a specific stage"
           }
         }
       ]
@@ -559,8 +659,7 @@
               "variable": [
                 {
                   "key": "id",
-                  "value": "user_id_here",
-                  "description": "User ID"
+                  "value": "user_id_here"
                 }
               ]
             },
@@ -582,21 +681,20 @@
                 "value": "application/json"
               },
               {
-                "key": "Authorization",
-                "value": "Bearer {{token}}",
-                "description": "Authentication token"
+                "key": "X-User-ID",
+                "value": "user_123"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"session_id\": \"session_123\",\n  \"user_id\": \"user_456\",\n  \"quiz_id\": \"quiz_789\",\n  \"final_score\": 85.5,\n  \"percentage\": 85.5,\n  \"badge_level\": \"intermediate\",\n  \"questions_attempted\": 10,\n  \"questions_correct\": 8,\n  \"stage_breakdown\": {\n    \"beginner\": {\n      \"attempted\": 5,\n      \"correct\": 4,\n      \"score\": 40,\n      \"percentage\": 80,\n      \"passed\": true,\n      \"recovery_used\": false\n    },\n    \"intermediate\": {\n      \"attempted\": 5,\n      \"correct\": 4,\n      \"score\": 45.5,\n      \"percentage\": 91,\n      \"passed\": true,\n      \"recovery_used\": false\n    }\n  },\n  \"time_breakdown\": {\n    \"total_time_seconds\": 600,\n    \"average_time_per_question\": 60,\n    \"time_by_stage\": {\n      \"beginner\": 300,\n      \"intermediate\": 300\n    }\n  },\n  \"bloom_breakdown\": {\n    \"remember\": {\n      \"attempted\": 3,\n      \"correct\": 3\n    },\n    \"understand\": {\n      \"attempted\": 3,\n      \"correct\": 2\n    },\n    \"apply\": {\n      \"attempted\": 2,\n      \"correct\": 2\n    },\n    \"analyze\": {\n      \"attempted\": 1,\n      \"correct\": 1\n    },\n    \"evaluate\": {\n      \"attempted\": 1,\n      \"correct\": 0\n    },\n    \"create\": {\n      \"attempted\": 0,\n      \"correct\": 0\n    }\n  },\n  \"completion_type\": \"completed\"\n}"
+              "raw": "{\n  \"session_id\": \"session_123\",\n  \"user_id\": \"user_456\",\n  \"skill_id\": \"67893abc123def456789\",\n  \"final_score\": 85.5,\n  \"percentage\": 85.5,\n  \"badge_level\": \"intermediate\",\n  \"questions_attempted\": 10,\n  \"questions_correct\": 8,\n  \"stage_breakdown\": {\n    \"easy\": {\n      \"attempted\": 5,\n      \"correct\": 4,\n      \"score\": 40,\n      \"percentage\": 80,\n      \"passed\": true,\n      \"recovery_used\": false\n    },\n    \"medium\": {\n      \"attempted\": 5,\n      \"correct\": 4,\n      \"score\": 45.5,\n      \"percentage\": 91,\n      \"passed\": true,\n      \"recovery_used\": false\n    }\n  },\n  \"time_breakdown\": {\n    \"total_time_seconds\": 600,\n    \"average_time_per_question\": 60,\n    \"time_by_stage\": {\n      \"easy\": 300,\n      \"medium\": 300\n    }\n  },\n  \"bloom_breakdown\": {\n    \"remember\": {\n      \"attempted\": 3,\n      \"correct\": 3\n    },\n    \"understand\": {\n      \"attempted\": 3,\n      \"correct\": 2\n    },\n    \"apply\": {\n      \"attempted\": 2,\n      \"correct\": 2\n    },\n    \"analyze\": {\n      \"attempted\": 1,\n      \"correct\": 1\n    },\n    \"evaluate\": {\n      \"attempted\": 1,\n      \"correct\": 0\n    },\n    \"create\": {\n      \"attempted\": 0,\n      \"correct\": 0\n    }\n  },\n  \"completion_type\": \"completed\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/protected/quizz/result/",
               "host": ["{{baseUrl}}"],
               "path": ["protected", "quizz", "result", ""]
             },
-            "description": "Create a new quiz result"
+            "description": "Create a new quiz result for skill-based session"
           }
         }
       ]
@@ -608,8 +706,9 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// Global pre-request script",
-          "// Add any common headers or authentication logic here"
+          "// Set common variables",
+          "pm.globals.set('skillId', '67893abc123def456789');",
+          "pm.globals.set('userId', 'user_123');"
         ]
       }
     },
@@ -619,9 +718,14 @@
         "type": "text/javascript",
         "exec": [
           "// Global test script",
-          "pm.test(\"Status code is successful\", function () {",
+          "pm.test('Status code is successful', function () {",
           "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
-          "});"
+          "});",
+          "",
+          "// Store session ID for subsequent requests",
+          "if (pm.response.json() && pm.response.json().session && pm.response.json().session.id) {",
+          "    pm.globals.set('sessionId', pm.response.json().session.id);",
+          "}"
         ]
       }
     }

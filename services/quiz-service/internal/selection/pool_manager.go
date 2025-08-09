@@ -25,15 +25,15 @@ func NewPoolManager(questionRepo *repository.QuestionRepository) *PoolManager {
 // SelectAdaptiveQuestionsWithBloom selects questions with Bloom's level consideration
 func (pm *PoolManager) SelectAdaptiveQuestionsWithBloom(
 	ctx context.Context,
-	quizID string,
+	skillID string,
 	skillInfo *SkillInfo,
 	difficulty string,
 	count int,
 	excludeIDs []string,
 	bloomDistribution map[string]float64,
 ) (*SelectionResult, error) {
-	// Get quiz pool
-	pool, err := pm.GetQuizPoolWithBloom(ctx, quizID, skillInfo)
+	// Get skill pool
+	pool, err := pm.GetSkillPoolWithBloom(ctx, skillID, skillInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (pm *PoolManager) SelectAdaptiveQuestionsWithBloom(
 // SelectRecoveryQuestionsWithBloom selects recovery questions with Bloom's consideration
 func (pm *PoolManager) SelectRecoveryQuestionsWithBloom(
 	ctx context.Context,
-	quizID string,
+	skillID string,
 	skillInfo *SkillInfo,
 	difficulty string,
 	count int,
@@ -87,7 +87,7 @@ func (pm *PoolManager) SelectRecoveryQuestionsWithBloom(
 	// For recovery, use a simplified Bloom's distribution
 	recoveryDist := pm.getRecoveryBloomDistribution(difficulty)
 
-	pool, err := pm.GetQuizPoolWithBloom(ctx, quizID, skillInfo)
+	pool, err := pm.GetSkillPoolWithBloom(ctx, skillID, skillInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -123,10 +123,10 @@ func (pm *PoolManager) SelectRecoveryQuestionsWithBloom(
 	return result, nil
 }
 
-// GetQuizPoolWithBloom retrieves quiz pool with Bloom's level analysis
-func (pm *PoolManager) GetQuizPoolWithBloom(ctx context.Context, quizID string, skillInfo *SkillInfo) (*QuizPool, error) {
-	// Get all questions for the quiz
-	questions, err := pm.questionRepo.FindByQuizID(ctx, quizID)
+// GetSkillPoolWithBloom retrieves skill pool with Bloom's level analysis
+func (pm *PoolManager) GetSkillPoolWithBloom(ctx context.Context, skillID string, skillInfo *SkillInfo) (*QuizPool, error) {
+	// Get all questions for the skill
+	questions, err := pm.questionRepo.FindBySkillID(ctx, skillID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get questions: %w", err)
 	}
@@ -151,7 +151,7 @@ func (pm *PoolManager) GetQuizPoolWithBloom(ctx context.Context, quizID string, 
 	}
 
 	return &QuizPool{
-		ID:                quizID,
+		ID:                skillID,
 		SkillID:           skillInfo.ID,
 		SkillTags:         skillInfo.Tags,
 		Questions:         questions,
@@ -161,13 +161,13 @@ func (pm *PoolManager) GetQuizPoolWithBloom(ctx context.Context, quizID string, 
 	}, nil
 }
 
-// ValidateQuizPoolWithBloom validates if pool has sufficient questions across Bloom's levels
-func (pm *PoolManager) ValidateQuizPoolWithBloom(
+// ValidateSkillPoolWithBloom validates if pool has sufficient questions across Bloom's levels
+func (pm *PoolManager) ValidateSkillPoolWithBloom(
 	ctx context.Context,
-	quizID string,
+	skillID string,
 	skillInfo *SkillInfo,
 ) (bool, *QuizPoolValidation, error) {
-	pool, err := pm.GetQuizPoolWithBloom(ctx, quizID, skillInfo)
+	pool, err := pm.GetSkillPoolWithBloom(ctx, skillID, skillInfo)
 	if err != nil {
 		return false, nil, err
 	}
@@ -329,10 +329,10 @@ func (pm *PoolManager) enhanceResultStats(result *SelectionResult, pool *QuizPoo
 // GetQuestionDistributionWithBloom analyzes question distribution including Bloom's levels
 func (pm *PoolManager) GetQuestionDistributionWithBloom(
 	ctx context.Context,
-	quizID string,
+	skillID string,
 	skillInfo *SkillInfo,
 ) (map[string]interface{}, error) {
-	pool, err := pm.GetQuizPoolWithBloom(ctx, quizID, skillInfo)
+	pool, err := pm.GetSkillPoolWithBloom(ctx, skillID, skillInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -391,13 +391,13 @@ func (pm *PoolManager) getTopMatchingByBloom(
 }
 
 // Legacy methods preserved for backward compatibility
-func (pm *PoolManager) GetQuizPool(ctx context.Context, quizID string, skillInfo *SkillInfo) (*QuizPool, error) {
-	return pm.GetQuizPoolWithBloom(ctx, quizID, skillInfo)
+func (pm *PoolManager) GetQuizPool(ctx context.Context, skillID string, skillInfo *SkillInfo) (*QuizPool, error) {
+	return pm.GetSkillPoolWithBloom(ctx, skillID, skillInfo)
 }
 
 func (pm *PoolManager) SelectAdaptiveQuestions(
 	ctx context.Context,
-	quizID string,
+	skillID string,
 	skillInfo *SkillInfo,
 	difficulty string,
 	count int,
@@ -411,27 +411,27 @@ func (pm *PoolManager) SelectAdaptiveQuestions(
 			"analyze": 0.2, "evaluate": 0.1, "create": 0.1,
 		}
 	}
-	return pm.SelectAdaptiveQuestionsWithBloom(ctx, quizID, skillInfo, difficulty, count, excludeIDs, bloomDist)
+	return pm.SelectAdaptiveQuestionsWithBloom(ctx, skillID, skillInfo, difficulty, count, excludeIDs, bloomDist)
 }
 
 func (pm *PoolManager) SelectRecoveryQuestions(
 	ctx context.Context,
-	quizID string,
+	skillID string,
 	skillInfo *SkillInfo,
 	difficulty string,
 	count int,
 	excludeIDs []string,
 ) (*SelectionResult, error) {
 	bloomDist := pm.getRecoveryBloomDistribution(difficulty)
-	return pm.SelectRecoveryQuestionsWithBloom(ctx, quizID, skillInfo, difficulty, count, excludeIDs, bloomDist)
+	return pm.SelectRecoveryQuestionsWithBloom(ctx, skillID, skillInfo, difficulty, count, excludeIDs, bloomDist)
 }
 
 func (pm *PoolManager) ValidateQuizPool(
 	ctx context.Context,
-	quizID string,
+	skillID string,
 	skillInfo *SkillInfo,
 ) (bool, map[string]int, error) {
-	isValid, validation, err := pm.ValidateQuizPoolWithBloom(ctx, quizID, skillInfo)
+	isValid, validation, err := pm.ValidateSkillPoolWithBloom(ctx, skillID, skillInfo)
 	if err != nil {
 		return false, nil, err
 	}
@@ -440,15 +440,15 @@ func (pm *PoolManager) ValidateQuizPool(
 
 func (pm *PoolManager) SelectAdaptiveQuestionsWithEnhancedWeights(
 	ctx context.Context,
-	quizID string,
+	skillID string,
 	skillInfo *EnhancedSkillInfo,
 	difficulty string,
 	count int,
 	excludeIDs []string,
 	bloomDistribution map[string]float64,
 ) (*SelectionResult, error) {
-	// Get quiz pool
-	pool, err := pm.GetQuizPoolForEnhancedSkill(ctx, quizID, skillInfo)
+	// Get skill pool
+	pool, err := pm.GetSkillPoolForEnhancedSkill(ctx, skillID, skillInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -503,7 +503,7 @@ func (pm *PoolManager) SelectAdaptiveQuestionsWithEnhancedWeights(
 // SelectRecoveryQuestionsWithEnhancedWeights selects recovery questions with tag weights
 func (pm *PoolManager) SelectRecoveryQuestionsWithEnhancedWeights(
 	ctx context.Context,
-	quizID string,
+	skillID string,
 	skillInfo *EnhancedSkillInfo,
 	difficulty string,
 	count int,
@@ -513,7 +513,7 @@ func (pm *PoolManager) SelectRecoveryQuestionsWithEnhancedWeights(
 	// For recovery, use simplified Bloom's distribution
 	recoveryDist := pm.getRecoveryBloomDistribution(difficulty)
 
-	pool, err := pm.GetQuizPoolForEnhancedSkill(ctx, quizID, skillInfo)
+	pool, err := pm.GetSkillPoolForEnhancedSkill(ctx, skillID, skillInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -555,14 +555,14 @@ func (pm *PoolManager) SelectRecoveryQuestionsWithEnhancedWeights(
 	return result, nil
 }
 
-// GetQuizPoolForEnhancedSkill retrieves quiz pool for enhanced skill info
-func (pm *PoolManager) GetQuizPoolForEnhancedSkill(
+// GetSkillPoolForEnhancedSkill retrieves skill pool for enhanced skill info
+func (pm *PoolManager) GetSkillPoolForEnhancedSkill(
 	ctx context.Context,
-	quizID string,
+	skillID string,
 	skillInfo *EnhancedSkillInfo,
 ) (*QuizPool, error) {
-	// Get all questions for the quiz
-	questions, err := pm.questionRepo.FindByQuizID(ctx, quizID)
+	// Get all questions for the skill
+	questions, err := pm.questionRepo.FindBySkillID(ctx, skillID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get questions: %w", err)
 	}
@@ -615,7 +615,7 @@ func (pm *PoolManager) GetQuizPoolForEnhancedSkill(
 	}
 
 	return &QuizPool{
-		ID:                quizID,
+		ID:                skillID,
 		SkillID:           skillInfo.ID,
 		SkillTags:         allTags,
 		Questions:         questions,

@@ -53,51 +53,61 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
-	// Khởi tạo repository, service, handler cho quiz và question
+	// Khởi tạo repository, service, handler
 	mongoClient := db.Client
 	database := mongoClient.Database("quiz_service")
-	quizRepo := repository.NewQuizRepository(database)
-	quizService := service.NewQuizService(quizRepo)
-	quizHandler := handlers.NewQuizHandler(quizService)
+
+	// Skills from knowledge service collection
+	skillRepo := repository.NewSkillRepository(database)
+	skillService := service.NewSkillService(skillRepo)
+	skillHandler := handlers.NewSkillHandler(skillService)
+
+	// Questions
 	questionRepo := repository.NewQuestionRepository(database)
 	questionService := service.NewQuestionService(questionRepo)
 	questionHandler := handlers.NewQuestionHandler(questionService)
+
+	// Sessions
 	sessionRepo := repository.NewSessionRepository(database)
 	sessionService := service.NewSessionService(
 		sessionRepo,
-		quizRepo,
 		questionRepo,
+		skillRepo,
 	)
+
+	// Answers
 	answerRepo := repository.NewAnswerRepository(database)
 	answerService := service.NewAnswerService(answerRepo)
-	_ = handlers.NewAnswerHandler(answerService)
-	sessionHandler := handlers.NewSessionHandler(sessionService, answerService)
 
-	// Public routes
+	// Results
 	resultRepo := repository.NewResultRepository(database)
 	resultService := service.NewResultService(resultRepo)
 	resultHandler := handlers.NewResultHandler(resultService)
-	publicQuiz := r.Group("/public/quizz/quiz")
+
+	sessionHandler := handlers.NewSessionHandler(sessionService, answerService)
+	// Public routes - Skills
+	publicSkill := r.Group("/public/quizz/skill")
 	{
-		publicQuiz.GET("/", func(c *gin.Context) {
-			quizHandler.ListQuizzes(c)
+		publicSkill.GET("/", func(c *gin.Context) {
+			skillHandler.GetAllSkills(c)
 			if publisher != nil {
-				publisher.Publish("quiz.list", nil)
+				publisher.Publish("skill.list", nil)
 			}
 		})
-		publicQuiz.GET(":id", func(c *gin.Context) {
-			quizHandler.GetQuiz(c)
+		publicSkill.GET("/:id", func(c *gin.Context) {
+			skillHandler.GetSkillByID(c)
 			if publisher != nil {
-				publisher.Publish("quiz.get", gin.H{"id": c.Param("id")})
+				publisher.Publish("skill.get", gin.H{"id": c.Param("id")})
 			}
 		})
-		publicQuiz.GET(":id/results", func(c *gin.Context) {
-			resultHandler.GetResultsByQuiz(c)
+		publicSkill.GET("/category/:categoryId", func(c *gin.Context) {
+			skillHandler.GetSkillsByCategory(c)
 			if publisher != nil {
-				publisher.Publish("quiz.results", gin.H{"id": c.Param("id")})
+				publisher.Publish("skill.category", gin.H{"categoryId": c.Param("categoryId")})
 			}
 		})
 	}
+
 	publicQuestion := r.Group("/public/quizz/question")
 	{
 		publicQuestion.GET("/", func(c *gin.Context) {
@@ -106,7 +116,7 @@ func main() {
 				publisher.Publish("question.list", nil)
 			}
 		})
-		publicQuestion.GET(":id", func(c *gin.Context) {
+		publicQuestion.GET("/:id", func(c *gin.Context) {
 			questionHandler.GetQuestion(c)
 			if publisher != nil {
 				publisher.Publish("question.get", gin.H{"id": c.Param("id")})
@@ -114,15 +124,7 @@ func main() {
 		})
 	}
 
-	// Protected routes
-	protectedQuiz := r.Group("/protected/quizz/quiz")
-	{
-		protectedQuiz.POST("/", quizHandler.CreateQuiz)
-		protectedQuiz.GET("/:id", quizHandler.GetQuiz)
-		protectedQuiz.PUT("/:id", quizHandler.UpdateQuiz)
-		protectedQuiz.DELETE("/:id", quizHandler.DeleteQuiz)
-	}
-
+	// Protected routes - removed quiz routes since we only use skills now
 	protectedQuestion := r.Group("/protected/quizz/question")
 	{
 		protectedQuestion.POST("/", questionHandler.CreateQuestion)
@@ -133,7 +135,7 @@ func main() {
 
 	publicUser := r.Group("/public/quizz/user")
 	{
-		publicUser.GET(":id/results", func(c *gin.Context) {
+		publicUser.GET("/:id/results", func(c *gin.Context) {
 			resultHandler.GetResultsByUser(c)
 			if publisher != nil {
 				publisher.Publish("user.results", gin.H{"id": c.Param("id")})
@@ -310,12 +312,11 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 
 		// === QUESTION POOL MANAGEMENT ===
 
-		// Get quiz pool information
+		// Get skill pool information
 		protectedSession.GET("/pool/info", func(c *gin.Context) {
-			sessionHandler.GetQuizPoolInfo(c)
+			sessionHandler.GetSkillPoolInfo(c)
 			if publisher != nil {
 				publisher.Publish("quiz.pool.info_requested", gin.H{
-					"quiz_id":   c.Query("quiz_id"),
 					"skill_id":  c.Query("skill_id"),
 					"user_id":   c.GetHeader("X-User-ID"),
 					"timestamp": time.Now(),
@@ -387,12 +388,11 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 			}
 		})
 
-		// Get quiz pool information (public)
+		// Get skill pool information (public)
 		publicSession.GET("/pool/info", func(c *gin.Context) {
-			sessionHandler.GetQuizPoolInfo(c)
+			sessionHandler.GetSkillPoolInfo(c)
 			if publisher != nil {
 				publisher.Publish("quiz.pool.public_info_requested", gin.H{
-					"quiz_id":   c.Query("quiz_id"),
 					"skill_id":  c.Query("skill_id"),
 					"timestamp": time.Now(),
 				})
