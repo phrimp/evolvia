@@ -62,12 +62,15 @@ func (s *SkillService) CreateSkill(ctx context.Context, skill *models.Skill) (*m
 	}
 
 	// Check if skill already exists
-	exists, err := s.repo.ExistsByName(ctx, skill.Name)
+	exists, err := s.repo.GetByName(ctx, skill.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check skill existence: %w", err)
 	}
-	if exists {
-		return nil, fmt.Errorf("skill with name '%s' already exists", skill.Name)
+	if exists != nil {
+		if exists.IsActive {
+			return nil, fmt.Errorf("skill with name '%s' already exists", skill.Name)
+		}
+		return s.repo.Update(ctx, skill.ID, skill)
 	}
 
 	return s.repo.Create(ctx, skill)
