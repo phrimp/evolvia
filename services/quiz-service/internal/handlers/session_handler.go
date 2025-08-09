@@ -62,8 +62,9 @@ func (h *SessionHandler) CreateSession(c *gin.Context) {
 		} `json:"tag_weights"`
 
 		// Initial mastery fields
-		CurrentBloomLevel string `json:"current_bloom_level"`
-		MasteryScore      int    `json:"mastery_score"`
+		CurrentBloomLevel    string   `json:"current_bloom_level"`
+		PreferredBloomLevels []string `json:"preferred_bloom_levels"`
+		MasteryScore         int      `json:"mastery_score"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -139,13 +140,21 @@ func (h *SessionHandler) CreateSession(c *gin.Context) {
 		req.TagWeights.PrimaryWeight, req.TagWeights.SecondaryWeight,
 		req.TagWeights.RelatedWeight, req.TagWeights.ExactMatchBonus)
 
+	// Determine bloom levels - prefer new format, fallback to legacy
+	var bloomLevels []string
+	if len(req.PreferredBloomLevels) > 0 {
+		bloomLevels = req.PreferredBloomLevels
+	} else if req.CurrentBloomLevel != "" {
+		bloomLevels = []string{req.CurrentBloomLevel}
+	}
+
 	// Create session with enhanced skill info
 	session, err := h.Service.CreateSessionWithEnhancedSkillInfo(
 		context.Background(),
 		req.QuizID,
 		userID,
 		enhancedSkillInfo,
-		req.CurrentBloomLevel,
+		bloomLevels,
 		req.MasteryScore,
 	)
 	if err != nil {

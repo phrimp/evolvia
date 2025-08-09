@@ -25,7 +25,7 @@ func NewEventPublisher(amqpURL, exchange string) (*EventPublisher, error) {
 	}
 	err = ch.ExchangeDeclare(
 		exchange,
-		"fanout",
+		"topic",
 		true,
 		false,
 		false,
@@ -58,9 +58,10 @@ func (p *EventPublisher) Publish(eventType string, payload interface{}) error {
 		f.WriteString(fmt.Sprintf("[EVENT] %s: %v\n", eventType, payload))
 	}
 
+	// Use the event type as the routing key for topic exchange
 	return p.channel.Publish(
 		p.exchange,
-		"",
+		eventType, // routing key
 		false,
 		false,
 		amqp.Publishing{

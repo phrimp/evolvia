@@ -30,15 +30,17 @@ func main() {
 
 	// RabbitMQ event publisher
 	rabbitURL := os.Getenv("RABBITMQ_URI")
-	eventExchange := os.Getenv("RABBITMQ_EXCHANGE")
+	// Use skills.events exchange to integrate with knowledge service
+	eventExchange := "skills.events"
 	var publisher *event.EventPublisher
-	if rabbitURL != "" && eventExchange != "" {
+	if rabbitURL != "" {
 		var err error
 		publisher, err = event.NewEventPublisher(rabbitURL, eventExchange)
 		if err != nil {
 			log.Fatalf("Failed to connect to RabbitMQ: %v", err)
 		}
 		defer publisher.Close()
+		log.Printf("Connected to RabbitMQ exchange: %s", eventExchange)
 	} else {
 		log.Println("RabbitMQ not configured, public events will not be published")
 	}
@@ -75,7 +77,7 @@ func main() {
 
 	// Public routes
 	resultRepo := repository.NewResultRepository(database)
-	resultService := service.NewResultService(resultRepo)
+	resultService := service.NewResultService(resultRepo, publisher)
 	resultHandler := handlers.NewResultHandler(resultService)
 	publicQuiz := r.Group("/public/quizz/quiz")
 	{

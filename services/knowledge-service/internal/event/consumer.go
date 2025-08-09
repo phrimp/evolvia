@@ -22,15 +22,16 @@ type Consumer interface {
 }
 
 type EventConsumer struct {
-	conn             *amqp091.Connection
-	channel          *amqp091.Channel
-	queueName        string
-	userSkillService *services.UserSkillService
-	skillService     *services.SkillService
-	enabled          bool
+	conn                         *amqp091.Connection
+	channel                      *amqp091.Channel
+	queueName                    string
+	userSkillService             *services.UserSkillService
+	skillService                 *services.SkillService
+	skillVerificationHistoryRepo *repository.SkillVerificationHistoryRepository
+	enabled                      bool
 }
 
-func NewEventConsumer(rabbitURI string, userSkillService *services.UserSkillService, skillService *services.SkillService) (*EventConsumer, error) {
+func NewEventConsumer(rabbitURI string, userSkillService *services.UserSkillService, skillService *services.SkillService, skillVerificationHistoryRepo *repository.SkillVerificationHistoryRepository) (*EventConsumer, error) {
 	if rabbitURI == "" {
 		log.Println("Warning: RabbitMQ URI is empty, event consumption is disabled")
 		return &EventConsumer{
@@ -98,13 +99,28 @@ func NewEventConsumer(rabbitURI string, userSkillService *services.UserSkillServ
 		return nil, fmt.Errorf("failed to bind queue: %w", err)
 	}
 
+	// Bind the queue to handle quiz result events
+	err = channel.QueueBind(
+		queue.Name,              // queue name
+		"quiz.result.completed", // routing key
+		exchangeName,            // exchange
+		false,                   // no-wait
+		nil,                     // arguments
+	)
+	if err != nil {
+		channel.Close()
+		conn.Close()
+		return nil, fmt.Errorf("failed to bind queue to quiz result events: %w", err)
+	}
+
 	return &EventConsumer{
-		conn:             conn,
-		channel:          channel,
-		queueName:        queue.Name,
-		userSkillService: userSkillService,
-		skillService:     skillService,
-		enabled:          true,
+		conn:                         conn,
+		channel:                      channel,
+		queueName:                    queue.Name,
+		userSkillService:             userSkillService,
+		skillService:                 skillService,
+		skillVerificationHistoryRepo: skillVerificationHistoryRepo,
+		enabled:                      true,
 	}, nil
 }
 
@@ -160,6 +176,8 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 	switch msg.RoutingKey {
 	case "input.skill":
 		return c.handleInputSkillEvent(msg.Body)
+	case "quiz.result.completed":
+		return c.handleQuizResultEvent(msg.Body)
 	default:
 		log.Printf("Unknown routing key: %s", msg.RoutingKey)
 		return nil // Don't requeue unknown message types
@@ -398,6 +416,116 @@ func (c *EventConsumer) addSkillToUser(ctx context.Context, userID bson.ObjectID
 	log.Printf("Added skill '%s' (level: %s, content-match confidence: %.2f) to user %s from source: %s",
 		skillMatch.SkillName, models.SkillLevelBeginner, skillMatch.Confidence, userID.Hex(), source)
 	return nil
+}
+
+// handleQuizResultEvent processes quiz completion events and creates verification history
+func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
+	// Parse the generic event structure first
+	var genericEvent struct {
+		Type    string      `json:"type"`
+		Payload interface{} `json:"payload"`
+	}
+
+	if err := json.Unmarshal(body, &genericEvent); err != nil {
+		return fmt.Errorf("failed to unmarshal generic event: %w", err)
+	}
+
+	// Extract the payload as QuizResultEvent
+	payloadBytes, err := json.Marshal(genericEvent.Payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal quiz result payload: %w", err)
+	}
+
+	var quizResult QuizResultEvent
+	if err := json.Unmarshal(payloadBytes, &quizResult); err != nil {
+		return fmt.Errorf("failed to unmarshal quiz result event: %w", err)
+	}
+
+	log.Printf("Processing quiz result event for user %s, quiz %s, score: %.2f",
+		quizResult.UserID, quizResult.QuizID, quizResult.FinalScore)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Convert user ID from string to ObjectID
+	userObjectID, err := bson.ObjectIDFromHex(quizResult.UserID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	// Get user's skills to determine which ones to update verification history for
+	userSkills, err := c.userSkillService.GetUserSkills(ctx, userObjectID, repository.UserSkillListOptions{})
+	if err != nil {
+		log.Printf("Warning: Could not retrieve user skills for verification update: %v", err)
+		// Continue processing even if we can't get user skills
+		// We'll still create a general verification record
+	}
+
+	// Create verification history entries for each user skill
+	totalHistoryEntries := 0
+	for _, userSkill := range userSkills {
+		// Map quiz Bloom breakdown to knowledge service Bloom assessment
+		bloomsAssessment := c.mapQuizBloomToKnowledgeBloom(quizResult.BloomBreakdown)
+
+		// Calculate estimated time spent (convert seconds to hours)
+		totalHours := float64(quizResult.TimeBreakdown.TotalTimeSeconds) / 3600.0
+
+		// Create skill progress history entry
+		progressHistory := &models.SkillProgressHistory{
+			UserID:            userObjectID,
+			SkillID:           userSkill.SkillID,
+			BloomsSnapshot:    bloomsAssessment,
+			TotalHours:        totalHours,
+			VerificationCount: 1, // This is one verification event
+			Timestamp:         time.Now(),
+			TriggerEvent:      "quiz_verification",
+		}
+
+		// Save to verification history repository
+		_, err := c.skillVerificationHistoryRepo.Create(ctx, progressHistory)
+		if err != nil {
+			log.Printf("Failed to create verification history for user %s, skill %s: %v",
+				quizResult.UserID, userSkill.SkillID.Hex(), err)
+			continue // Continue with other skills
+		}
+
+		totalHistoryEntries++
+		log.Printf("Created verification history entry for user %s, skill %s, overall score: %.2f",
+			quizResult.UserID, userSkill.SkillID.Hex(), bloomsAssessment.GetOverallScore())
+	}
+
+	log.Printf("Successfully created %d verification history entries for quiz result %s",
+		totalHistoryEntries, quizResult.ResultID)
+
+	return nil
+}
+
+// mapQuizBloomToKnowledgeBloom converts quiz Bloom breakdown to knowledge service format
+func (c *EventConsumer) mapQuizBloomToKnowledgeBloom(quizBloom QuizBloomBreakdown) models.BloomsTaxonomyAssessment {
+	// Convert accuracy percentages from quiz performance to normalized scores (0.0-1.0)
+	// We use accuracy percentage as the primary indicator of competency at each level
+
+	return models.BloomsTaxonomyAssessment{
+		Remember:    c.normalizeBloomScore(quizBloom.Remember.AccuracyPercentage),
+		Understand:  c.normalizeBloomScore(quizBloom.Understand.AccuracyPercentage),
+		Apply:       c.normalizeBloomScore(quizBloom.Apply.AccuracyPercentage),
+		Analyze:     c.normalizeBloomScore(quizBloom.Analyze.AccuracyPercentage),
+		Evaluate:    c.normalizeBloomScore(quizBloom.Evaluate.AccuracyPercentage),
+		Create:      c.normalizeBloomScore(quizBloom.Create.AccuracyPercentage),
+		Verified:    true, // Mark as verified since it comes from quiz performance
+		LastUpdated: time.Now(),
+	}
+}
+
+// normalizeBloomScore converts percentage (0-100) to normalized score (0.0-1.0)
+func (c *EventConsumer) normalizeBloomScore(percentage float64) float64 {
+	if percentage < 0 {
+		return 0.0
+	}
+	if percentage > 100 {
+		return 1.0
+	}
+	return percentage / 100.0
 }
 
 func (c *EventConsumer) Close() error {

@@ -62,7 +62,7 @@ func (s *SessionService) CreateSessionWithEnhancedSkillInfo(
 	quizID string,
 	userID string,
 	skillInfo *selection.EnhancedSkillInfo,
-	currentBloomLevel string,
+	preferredBloomLevels []string,
 	masteryScore int,
 ) (*models.QuizSession, error) {
 	// Step 1: Check for past results (existing logic)
@@ -87,24 +87,29 @@ func (s *SessionService) CreateSessionWithEnhancedSkillInfo(
 	}
 
 	// Step 2: Set defaults if no past results
+	var bloomLevels []string
 	if startingBloomLevel == "" {
-		if currentBloomLevel != "" {
-			startingBloomLevel = currentBloomLevel
+		if len(preferredBloomLevels) > 0 {
+			bloomLevels = preferredBloomLevels
+			startingBloomLevel = preferredBloomLevels[0] // For backward compatibility
 		} else {
+			bloomLevels = []string{"remember"}
 			startingBloomLevel = "remember"
 		}
+	} else {
+		bloomLevels = []string{startingBloomLevel}
+	}
 
-		if masteryScore > 0 {
-			if masteryScore <= 3 {
-				startingDifficulty = "easy"
-			} else if masteryScore <= 7 {
-				startingDifficulty = "medium"
-			} else {
-				startingDifficulty = "hard"
-			}
-		} else {
+	if masteryScore > 0 {
+		if masteryScore <= 3 {
 			startingDifficulty = "easy"
+		} else if masteryScore <= 7 {
+			startingDifficulty = "medium"
+		} else {
+			startingDifficulty = "hard"
 		}
+	} else {
+		startingDifficulty = "easy"
 	}
 
 	// Step 3: Validate quiz pool with enhanced skill info
@@ -147,16 +152,17 @@ func (s *SessionService) CreateSessionWithEnhancedSkillInfo(
 		QuestionsUsed:       []string{},
 		FinalScore:          0,
 		Metadata: map[string]any{
-			"skill_id":             skillInfo.ID,
-			"skill_name":           skillInfo.Name,
-			"primary_tags":         skillInfo.PrimaryTags,
-			"secondary_tags":       skillInfo.SecondaryTags,
-			"related_tags":         skillInfo.RelatedTags,
-			"tag_weights":          skillInfo.TagWeights,
-			"starting_bloom_level": startingBloomLevel,
-			"starting_difficulty":  startingDifficulty,
-			"quiz_config":          quiz.StageConfig,
-			"quiz_start_time":      time.Now().Unix(),
+			"skill_id":               skillInfo.ID,
+			"skill_name":             skillInfo.Name,
+			"primary_tags":           skillInfo.PrimaryTags,
+			"secondary_tags":         skillInfo.SecondaryTags,
+			"related_tags":           skillInfo.RelatedTags,
+			"tag_weights":            skillInfo.TagWeights,
+			"starting_bloom_level":   startingBloomLevel,
+			"preferred_bloom_levels": bloomLevels,
+			"starting_difficulty":    startingDifficulty,
+			"quiz_config":            quiz.StageConfig,
+			"quiz_start_time":        time.Now().Unix(),
 		},
 	}
 
@@ -598,11 +604,13 @@ func (s *SessionService) selectQuestionsWithBloomCriteria(
 
 	difficulty := s.mapStageToDifficulty(criteria.Stage)
 
-	// Use custom Bloom distribution if user has starting bloom level
+	// Use custom Bloom distribution if user has preferred bloom levels
 	var bloomDist map[string]float64
 	if session != nil && session.Metadata != nil {
-		if startingBloomLevel, ok := session.Metadata["starting_bloom_level"].(string); ok && startingBloomLevel != "" {
-			bloomDist = s.getCustomBloomDistribution(startingBloomLevel)
+		if preferredLevels, ok := s.extractStringSlice(session.Metadata["preferred_bloom_levels"]); ok && len(preferredLevels) > 0 {
+			bloomDist = s.getCustomBloomDistribution(preferredLevels)
+		} else if startingBloomLevel, ok := session.Metadata["starting_bloom_level"].(string); ok && startingBloomLevel != "" {
+			bloomDist = s.getCustomBloomDistribution([]string{startingBloomLevel})
 		} else {
 			bloomDist = s.getBloomDistribution(difficulty)
 		}
@@ -778,8 +786,8 @@ func (s *SessionService) logSelectionQuality(sessionID string, result *selection
 }
 
 // Add this helper method for custom Bloom distribution
-func (s *SessionService) getCustomBloomDistribution(targetBloom string) map[string]float64 {
-	// Create distribution heavily weighted toward the target Bloom level
+func (s *SessionService) getCustomBloomDistribution(targetBlooms []string) map[string]float64 {
+	// Create base distribution
 	dist := map[string]float64{
 		"remember":   0.1,
 		"understand": 0.1,
@@ -789,9 +797,14 @@ func (s *SessionService) getCustomBloomDistribution(targetBloom string) map[stri
 		"create":     0.1,
 	}
 
-	// Give 50% weight to target level
-	if _, ok := dist[strings.ToLower(targetBloom)]; ok {
-		dist[strings.ToLower(targetBloom)] = 0.5
+	// Distribute 30% among target levels
+	if len(targetBlooms) > 0 {
+		targetWeight := 0.3 / float64(len(targetBlooms))
+		for _, target := range targetBlooms {
+			if _, ok := dist[strings.ToLower(target)]; ok {
+				dist[strings.ToLower(target)] = targetWeight
+			}
+		}
 	}
 
 	// Normalize to sum to 1.0
