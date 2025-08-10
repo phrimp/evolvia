@@ -649,6 +649,40 @@ func (ts *TaggedSkill) GetTagWeight(tag string) float64 {
 	return 0.0
 }
 
+// ComprehensiveVerificationHistory represents complete verification history with time tracking
+type ComprehensiveVerificationHistory struct {
+	UserID          bson.ObjectID           `json:"user_id"`
+	SkillID         bson.ObjectID           `json:"skill_id"`
+	SkillName       string                  `json:"skill_name"`
+	OwnHistory      *SkillHistoryWithTime   `json:"own_history"`
+	BuildsOnHistory []*SkillHistoryWithTime `json:"builds_on_history"`
+	Timeline        []*TimelineEntry        `json:"timeline"`
+	TotalHoursSpent float64                 `json:"total_hours_spent"`
+	GeneratedAt     time.Time               `json:"generated_at"`
+}
+
+// SkillHistoryWithTime represents a skill's verification history with time calculations
+type SkillHistoryWithTime struct {
+	SkillID          bson.ObjectID             `json:"skill_id"`
+	SkillName        string                    `json:"skill_name"`
+	RelationWeight   float64                   `json:"relation_weight,omitempty"`
+	History          []*SkillProgressHistory   `json:"history"`
+	TotalHours       float64                   `json:"total_hours"`
+	LatestAssessment *BloomsTaxonomyAssessment `json:"latest_assessment,omitempty"`
+}
+
+// TimelineEntry represents a chronological entry in the comprehensive timeline
+type TimelineEntry struct {
+	Timestamp      time.Time                `json:"timestamp"`
+	SkillID        bson.ObjectID            `json:"skill_id"`
+	SkillName      string                   `json:"skill_name"`
+	Hours          float64                  `json:"hours"`
+	BloomsSnapshot BloomsTaxonomyAssessment `json:"blooms_snapshot"`
+	TriggerEvent   string                   `json:"trigger_event"`
+	RelationWeight float64                  `json:"relation_weight,omitempty"`
+	IsOwnSkill     bool                     `json:"is_own_skill"`
+}
+
 func (s *Skill) MigrateLegacyTags() {
 	if len(s.Tags) > 0 && len(s.TaggedSkill.PrimaryTags) == 0 {
 		// Simple migration strategy:

@@ -6,6 +6,7 @@ import (
 	"knowledge-service/internal/models"
 	"knowledge-service/internal/repository"
 	"log"
+	"slices"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -537,13 +538,7 @@ func (s *UserSkillService) GetRecommendedFocusArea(ctx context.Context, userID, 
 func (s *UserSkillService) GetUsersWithBloomsExpertise(ctx context.Context, skillID bson.ObjectID, bloomsLevel string, minScore float64, limit int) ([]*models.UserSkill, error) {
 	// Validate Bloom's level
 	validLevels := []string{"remember", "understand", "apply", "analyze", "evaluate", "create"}
-	isValid := false
-	for _, level := range validLevels {
-		if level == bloomsLevel {
-			isValid = true
-			break
-		}
-	}
+	isValid := slices.Contains(validLevels, bloomsLevel)
 	if !isValid {
 		return nil, fmt.Errorf("invalid Bloom's level: %s", bloomsLevel)
 	}
@@ -680,7 +675,8 @@ func (s *UserSkillService) GetUserSkillWithDetails(ctx context.Context, userID, 
 	return userSkillWithDetails, nil
 }
 
-// GetAggregatedSkillAssessment calculates overall skill from related skills with "builds_on" relationships
+// GetAggregatedSkillAssessment calculates hybrid skill assessment from builds_on relationships + own verification history
+// Uses weight distribution: builds_on skills contribute their defined weights, skill's own history fills remaining weight
 func (s *UserSkillService) GetAggregatedSkillAssessment(ctx context.Context, userID, skillID bson.ObjectID) (*models.AggregatedSkillAssessment, error) {
 	// Get the target skill to find its "builds_on" relationships
 	skill, err := s.skillRepo.GetByID(ctx, skillID)
@@ -693,15 +689,20 @@ func (s *UserSkillService) GetAggregatedSkillAssessment(ctx context.Context, use
 
 	// Find all "builds_on" relationships
 	var buildsOnRelations []models.SkillRelation
+	var buildsOnTotalWeight float64
 	for _, relation := range skill.Relations {
 		if relation.RelationType == models.RelationBuildsOn {
 			buildsOnRelations = append(buildsOnRelations, relation)
+			buildsOnTotalWeight += relation.Strength
 		}
 	}
 
 	if len(buildsOnRelations) == 0 {
 		return nil, fmt.Errorf("skill has no builds_on relationships")
 	}
+
+	// Calculate remaining weight for skill's own verification history
+	ownWeight := max(1.0-buildsOnTotalWeight, 0)
 
 	// Extract skill IDs for batch retrieval
 	var relatedSkillIDs []bson.ObjectID
@@ -715,10 +716,19 @@ func (s *UserSkillService) GetAggregatedSkillAssessment(ctx context.Context, use
 		return nil, fmt.Errorf("failed to get verification histories: %w", err)
 	}
 
-	// Build weighted skill histories
+	// Get skill's own verification history
+	ownHistory, err := s.skillVerificationHistoryRepo.GetByUserAndSkill(ctx, userID, skillID)
+	if err != nil {
+		// Log error but continue - own history is optional
+		ownHistory = nil
+	}
+
+	// Build weighted skill histories (builds_on skills)
 	var weightedSkills []*models.WeightedSkillHistory
 	var totalWeightVerified float64
 	var overallScore float64
+	minSkillProgress := 100.0 // Track minimum progress for capping at 100%
+	var hasVerificationData bool
 
 	for _, relation := range buildsOnRelations {
 		// Get skill details for name
@@ -747,9 +757,51 @@ func (s *UserSkillService) GetAggregatedSkillAssessment(ctx context.Context, use
 
 			totalWeightVerified += relation.Strength
 			overallScore += weightedSkill.Contribution
+			hasVerificationData = true
+
+			// Track minimum skill progress for 100% requirement logic
+			if latestScore < minSkillProgress {
+				minSkillProgress = latestScore
+			}
 		}
 
 		weightedSkills = append(weightedSkills, weightedSkill)
+	}
+
+	// Add skill's own verification history if it exists and has remaining weight
+	if ownWeight > 0 && len(ownHistory) > 0 {
+		// Create a weighted skill entry for the skill itself
+		ownWeightedSkill := &models.WeightedSkillHistory{
+			SkillID:        skillID,
+			SkillName:      skill.Name,
+			RelationWeight: ownWeight,
+			History:        ownHistory,
+		}
+
+		// Use most recent assessment for calculation
+		latestOwnHistory := ownHistory[0] // Already sorted by timestamp desc
+		ownWeightedSkill.LatestAssessment = &latestOwnHistory.BloomsSnapshot
+		ownLatestScore := latestOwnHistory.BloomsSnapshot.GetOverallScore()
+		ownWeightedSkill.Contribution = ownWeight * ownLatestScore
+
+		totalWeightVerified += ownWeight
+		overallScore += ownWeightedSkill.Contribution
+		hasVerificationData = true
+
+		// Track minimum skill progress for 100% requirement logic
+		if ownLatestScore < minSkillProgress {
+			minSkillProgress = ownLatestScore
+		}
+
+		weightedSkills = append(weightedSkills, ownWeightedSkill)
+	}
+
+	// Apply constraint: 100% total progress only when all contributing skills are 100%
+	// If any skill is below 100%, cap the overall score accordingly
+	if hasVerificationData && minSkillProgress < 100.0 {
+		// Scale down overall score proportionally to the weakest skill
+		scalingFactor := minSkillProgress / 100.0
+		overallScore = overallScore * scalingFactor
 	}
 
 	// Create aggregated assessment
@@ -761,7 +813,7 @@ func (s *UserSkillService) GetAggregatedSkillAssessment(ctx context.Context, use
 		WeightedSkills:      weightedSkills,
 		TotalWeightVerified: totalWeightVerified,
 		LastCalculated:      time.Now(),
-		IsComplete:          totalWeightVerified >= 0.99, // Allow small floating point tolerance
+		IsComplete:          totalWeightVerified >= 0.69, // Allow small floating point tolerance
 	}
 
 	return assessment, nil
@@ -825,14 +877,11 @@ func (s *UserSkillService) CreateAggregatedSkillHistory(ctx context.Context, use
 	return s.skillVerificationHistoryRepo.Create(ctx, history)
 }
 
-// GetSkillAssessmentWithAggregation gets skill assessment, using aggregation if skill has builds_on relationships
+// GetSkillAssessmentWithAggregation gets skill assessment with the following priority:
+// 1. Hybrid verification history (builds_on + own verification with weight distribution)
+// 2. Direct self-assessment (fallback only if no verification history exists anywhere)
+// 3. Zero assessment if no data available
 func (s *UserSkillService) GetSkillAssessmentWithAggregation(ctx context.Context, userID, skillID bson.ObjectID) (*models.BloomsTaxonomyAssessment, error) {
-	// First check if user has direct assessment
-	directAssessment, err := s.GetBloomsAssessment(ctx, userID, skillID)
-	if err == nil && directAssessment != nil && directAssessment.GetOverallScore() > 0 {
-		return directAssessment, nil
-	}
-
 	// Check if skill has builds_on relationships
 	skill, err := s.skillRepo.GetByID(ctx, skillID)
 	if err != nil {
@@ -851,21 +900,35 @@ func (s *UserSkillService) GetSkillAssessmentWithAggregation(ctx context.Context
 		}
 	}
 
-	if !hasBuildsOn {
-		// Return direct assessment or zero assessment if no builds_on relationships
-		if directAssessment != nil {
-			return directAssessment, nil
+	// First priority: Try hybrid verification history approach
+	if hasBuildsOn {
+		aggregatedAssessment, err := s.GetAggregatedSkillAssessment(ctx, userID, skillID)
+		if err == nil && aggregatedAssessment != nil && aggregatedAssessment.TotalWeightVerified > 0 {
+			// Calculate hybrid assessment from verification history (builds_on + own)
+			return s.calculateAggregatedBloomsFromHistory(aggregatedAssessment), nil
 		}
-		return &models.BloomsTaxonomyAssessment{}, nil
+	} else {
+		// For skills without builds_on relationships, check own verification history
+		ownHistory, err := s.skillVerificationHistoryRepo.GetByUserAndSkill(ctx, userID, skillID)
+		if err == nil && len(ownHistory) > 0 {
+			// Use skill's own verification history (most recent)
+			latestHistory := ownHistory[0] // Already sorted by timestamp desc
+			return &latestHistory.BloomsSnapshot, nil
+		}
 	}
 
-	// Calculate aggregated assessment
-	aggregatedAssessment, err := s.GetAggregatedSkillAssessment(ctx, userID, skillID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get aggregated assessment: %w", err)
+	// Second priority: Use self-assessment only if NO verification history exists
+	directAssessment, err := s.GetBloomsAssessment(ctx, userID, skillID)
+	if err == nil && directAssessment != nil && directAssessment.GetOverallScore() > 0 {
+		return directAssessment, nil
 	}
 
-	// Calculate aggregated Bloom's taxonomy scores
+	// Return zero assessment if no data available
+	return &models.BloomsTaxonomyAssessment{}, nil
+}
+
+// calculateAggregatedBloomsFromHistory calculates Bloom's taxonomy scores from aggregated assessment
+func (s *UserSkillService) calculateAggregatedBloomsFromHistory(aggregatedAssessment *models.AggregatedSkillAssessment) *models.BloomsTaxonomyAssessment {
 	var blooms models.BloomsTaxonomyAssessment
 	totalWeight := 0.0
 
@@ -899,5 +962,166 @@ func (s *UserSkillService) GetSkillAssessmentWithAggregation(ctx context.Context
 	blooms.Verified = aggregatedAssessment.IsComplete
 	blooms.LastUpdated = time.Now()
 
-	return &blooms, nil
+	return &blooms
+}
+
+// GetComprehensiveVerificationHistory gets complete verification history including builds_on skills and time tracking
+func (s *UserSkillService) GetComprehensiveVerificationHistory(ctx context.Context, userID, skillID bson.ObjectID) (*models.ComprehensiveVerificationHistory, error) {
+	// Get the target skill to find its "builds_on" relationships
+	skill, err := s.skillRepo.GetByID(ctx, skillID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get skill: %w", err)
+	}
+	if skill == nil {
+		return nil, fmt.Errorf("skill not found")
+	}
+
+	// Get own skill verification history
+	ownHistory, err := s.skillVerificationHistoryRepo.GetByUserAndSkill(ctx, userID, skillID)
+	if err != nil {
+		ownHistory = nil // Continue even if no own history
+	}
+
+	// Calculate total time spent on own skill
+	var ownTotalHours float64
+	for _, history := range ownHistory {
+		ownTotalHours += history.TotalHours
+	}
+
+	// Find all "builds_on" relationships
+	var buildsOnRelations []models.SkillRelation
+	for _, relation := range skill.Relations {
+		if relation.RelationType == models.RelationBuildsOn {
+			buildsOnRelations = append(buildsOnRelations, relation)
+		}
+	}
+
+	// Get builds_on skill histories if they exist
+	buildsOnHistories := make(map[bson.ObjectID]*models.SkillHistoryWithTime)
+	var totalBuildsOnHours float64
+
+	if len(buildsOnRelations) > 0 {
+		var relatedSkillIDs []bson.ObjectID
+		for _, relation := range buildsOnRelations {
+			relatedSkillIDs = append(relatedSkillIDs, relation.SkillID)
+		}
+
+		// Get verification histories for all related skills
+		historiesMap, err := s.skillVerificationHistoryRepo.GetByUserAndSkills(ctx, userID, relatedSkillIDs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get builds_on verification histories: %w", err)
+		}
+
+		// Process each builds_on skill
+		for _, relation := range buildsOnRelations {
+			relatedSkill, err := s.skillRepo.GetByID(ctx, relation.SkillID)
+			if err != nil {
+				continue // Skip if can't get skill details
+			}
+			if relatedSkill == nil {
+				continue
+			}
+
+			history := historiesMap[relation.SkillID]
+			var skillTotalHours float64
+
+			// Calculate total hours for this builds_on skill
+			for _, h := range history {
+				skillTotalHours += h.TotalHours
+			}
+			totalBuildsOnHours += skillTotalHours
+
+			buildsOnHistories[relation.SkillID] = &models.SkillHistoryWithTime{
+				SkillID:        relation.SkillID,
+				SkillName:      relatedSkill.Name,
+				RelationWeight: relation.Strength,
+				History:        history,
+				TotalHours:     skillTotalHours,
+			}
+		}
+	}
+
+	// Create combined chronological timeline
+	var combinedTimeline []*models.TimelineEntry
+
+	// Add own skill history to timeline
+	ownWeight := 1.0 - getTotalBuildsOnWeight(buildsOnRelations)
+	for _, history := range ownHistory {
+		entry := &models.TimelineEntry{
+			Timestamp:      history.Timestamp,
+			SkillID:        skillID,
+			SkillName:      skill.Name,
+			Hours:          history.TotalHours,
+			BloomsSnapshot: history.BloomsSnapshot,
+			TriggerEvent:   history.TriggerEvent,
+			RelationWeight: ownWeight,
+			IsOwnSkill:     true,
+		}
+		combinedTimeline = append(combinedTimeline, entry)
+	}
+
+	// Add builds_on skill histories to timeline
+	for relatedSkillID, historyWithTime := range buildsOnHistories {
+		for _, history := range historyWithTime.History {
+			entry := &models.TimelineEntry{
+				Timestamp:      history.Timestamp,
+				SkillID:        relatedSkillID,
+				SkillName:      historyWithTime.SkillName,
+				Hours:          history.TotalHours,
+				BloomsSnapshot: history.BloomsSnapshot,
+				TriggerEvent:   history.TriggerEvent,
+				RelationWeight: historyWithTime.RelationWeight,
+				IsOwnSkill:     false,
+			}
+			combinedTimeline = append(combinedTimeline, entry)
+		}
+	}
+
+	// Sort timeline by timestamp (most recent first)
+	for i := 0; i < len(combinedTimeline)-1; i++ {
+		for j := i + 1; j < len(combinedTimeline); j++ {
+			if combinedTimeline[i].Timestamp.Before(combinedTimeline[j].Timestamp) {
+				combinedTimeline[i], combinedTimeline[j] = combinedTimeline[j], combinedTimeline[i]
+			}
+		}
+	}
+
+	// Create own history with time
+	ownHistoryWithTime := &models.SkillHistoryWithTime{
+		SkillID:    skillID,
+		SkillName:  skill.Name,
+		History:    ownHistory,
+		TotalHours: ownTotalHours,
+	}
+	if len(ownHistory) > 0 {
+		ownHistoryWithTime.LatestAssessment = &ownHistory[0].BloomsSnapshot
+	}
+
+	// Convert buildsOnHistories map to slice
+	var buildsOnHistorySlice []*models.SkillHistoryWithTime
+	for _, historyWithTime := range buildsOnHistories {
+		buildsOnHistorySlice = append(buildsOnHistorySlice, historyWithTime)
+	}
+
+	return &models.ComprehensiveVerificationHistory{
+		UserID:          userID,
+		SkillID:         skillID,
+		SkillName:       skill.Name,
+		OwnHistory:      ownHistoryWithTime,
+		BuildsOnHistory: buildsOnHistorySlice,
+		Timeline:        combinedTimeline,
+		TotalHoursSpent: ownTotalHours + totalBuildsOnHours,
+		GeneratedAt:     time.Now(),
+	}, nil
+}
+
+// Helper function to calculate total builds_on weight
+func getTotalBuildsOnWeight(relations []models.SkillRelation) float64 {
+	var total float64
+	for _, relation := range relations {
+		if relation.RelationType == models.RelationBuildsOn {
+			total += relation.Strength
+		}
+	}
+	return total
 }

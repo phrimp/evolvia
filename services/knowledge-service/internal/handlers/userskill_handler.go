@@ -58,6 +58,8 @@ func (h *UserSkillHandler) RegisterRoutes(app *fiber.App) {
 	// New aggregated skill assessment endpoints
 	protectedGroup.Get("/user/:userId/skill/:skillID/aggregated", h.GetAggregatedSkillAssessment, utils.OwnerPermissionRequired(""))
 	protectedGroup.Post("/user/:userId/skill/:skillID/aggregated-history", h.CreateAggregatedSkillHistory, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userId/skill/:skillID/progress", h.GetSkillProgress, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userId/skill/:skillID/comprehensive-history", h.GetComprehensiveVerificationHistory, utils.OwnerPermissionRequired(""))
 
 	// Batch operations - require admin permissions
 	protectedGroup.Post("/batch", h.BatchAddUserSkills, utils.PermissionRequired(middleware.AdminUserSkillPermission))
@@ -1160,5 +1162,151 @@ func (h *UserSkillHandler) CreateAggregatedSkillHistory(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"data":    history,
 		"message": "Aggregated skill verification history created successfully",
+	})
+}
+
+// GetSkillProgress retrieves total skill progress using hybrid weight distribution
+func (h *UserSkillHandler) GetSkillProgress(c fiber.Ctx) error {
+	userIdStr := c.Params("userId")
+	skillIDStr := c.Params("skillID")
+
+	if userIdStr == "" || skillIDStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID and Skill ID are required",
+		})
+	}
+
+	userId, err := bson.ObjectIDFromHex(userIdStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	skillID, err := bson.ObjectIDFromHex(skillIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid skill ID format",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get skill assessment using hybrid model (verification history + builds_on relationships)
+	assessment, err := h.userSkillService.GetSkillAssessmentWithAggregation(ctx, userId, skillID)
+	if err != nil {
+		log.Printf("Failed to get skill progress for user %s skill %s: %v", userIdStr, skillIDStr, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get skill progress",
+		})
+	}
+
+	// Calculate overall progress score using Bloom's taxonomy weights
+	overallScore := assessment.GetOverallScore()
+
+	// Get aggregated assessment details if available (for builds_on relationships)
+	var assessmentDetails *models.AggregatedSkillAssessment
+	aggregated, err := h.userSkillService.GetAggregatedSkillAssessment(ctx, userId, skillID)
+	if err == nil && aggregated != nil {
+		assessmentDetails = aggregated
+	}
+
+	// Prepare response with detailed progress information
+	response := fiber.Map{
+		"user_id":        userId,
+		"skill_id":       skillID,
+		"total_progress": overallScore,
+		"assessment": fiber.Map{
+			"remember":     assessment.Remember,
+			"understand":   assessment.Understand,
+			"apply":        assessment.Apply,
+			"analyze":      assessment.Analyze,
+			"evaluate":     assessment.Evaluate,
+			"create":       assessment.Create,
+			"verified":     assessment.Verified,
+			"last_updated": assessment.LastUpdated,
+		},
+		"calculation_method": "hybrid", // verification_history_only, self_assessment, or hybrid
+	}
+
+	// Add aggregated details if available
+	if assessmentDetails != nil {
+		response["aggregated_details"] = fiber.Map{
+			"total_weight_verified": assessmentDetails.TotalWeightVerified,
+			"is_complete":           assessmentDetails.IsComplete,
+			"weighted_skills":       assessmentDetails.WeightedSkills,
+			"last_calculated":       assessmentDetails.LastCalculated,
+		}
+
+		// Determine calculation method based on data sources
+		if assessmentDetails.TotalWeightVerified > 0 {
+			if assessmentDetails.TotalWeightVerified >= 0.99 {
+				response["calculation_method"] = "verification_history_complete"
+			} else {
+				response["calculation_method"] = "hybrid"
+			}
+		}
+	} else {
+		// Check if using self-assessment
+		if overallScore > 0 && !assessment.Verified {
+			response["calculation_method"] = "self_assessment"
+		} else if overallScore > 0 {
+			response["calculation_method"] = "verification_history_only"
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"data":    response,
+		"message": "Skill progress retrieved successfully",
+	})
+}
+
+// GetComprehensiveVerificationHistory retrieves comprehensive verification history with time tracking
+func (h *UserSkillHandler) GetComprehensiveVerificationHistory(c fiber.Ctx) error {
+	userIdStr := c.Params("userId")
+	skillIDStr := c.Params("skillID")
+
+	if userIdStr == "" || skillIDStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID and Skill ID are required",
+		})
+	}
+
+	userId, err := bson.ObjectIDFromHex(userIdStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	skillID, err := bson.ObjectIDFromHex(skillIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid skill ID format",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	comprehensiveHistory, err := h.userSkillService.GetComprehensiveVerificationHistory(ctx, userId, skillID)
+	if err != nil {
+		log.Printf("Failed to get comprehensive verification history for user %s skill %s: %v", userIdStr, skillIDStr, err)
+
+		if strings.Contains(err.Error(), "not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve comprehensive verification history",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data":    comprehensiveHistory,
+		"message": "Comprehensive verification history retrieved successfully",
 	})
 }
