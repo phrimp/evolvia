@@ -284,6 +284,18 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 			}
 		})
 
+		// Integrity monitoring endpoint
+		protectedSession.GET("/:id/integrity", func(c *gin.Context) {
+			sessionHandler.GetSessionIntegrityReport(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.integrity_requested", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
 		// === ANSWERS AND RESULTS ===
 
 		// Get all answers for a session

@@ -1392,7 +1392,10 @@ func (r *SkillRepository) SearchByTagCategory(ctx context.Context, tagCategory s
 	}
 
 	findOpts := options.Find().
-		SetSort(bson.M{"usage_count": -1, "name": 1})
+		SetSort(bson.D{
+			{Key: "usage_count", Value: -1},
+			{Key: "name", Value: 1},
+		})
 
 	if limit > 0 {
 		findOpts.SetLimit(int64(limit))
@@ -1434,7 +1437,10 @@ func (r *SkillRepository) SearchByTags(ctx context.Context, tags []string, limit
 	}
 
 	findOpts := options.Find().
-		SetSort(bson.M{"usage_count": -1, "name": 1})
+		SetSort(bson.D{
+			{Key: "usage_count", Value: -1},
+			{Key: "name", Value: 1},
+		})
 
 	if limit > 0 {
 		findOpts.SetLimit(int64(limit))

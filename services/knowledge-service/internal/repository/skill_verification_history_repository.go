@@ -56,7 +56,7 @@ func (r *SkillVerificationHistoryRepository) GetByUserAndSkill(ctx context.Conte
 		"user_id":  userID,
 		"skill_id": skillID,
 	}
-	findOpts := options.Find().SetSort(bson.M{"timestamp": -1})
+	findOpts := options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}})
 
 	cursor, err := r.collection.Find(ctx, filter, findOpts)
 	if err != nil {
@@ -81,7 +81,10 @@ func (r *SkillVerificationHistoryRepository) GetByUserAndSkills(ctx context.Cont
 		"user_id":  userID,
 		"skill_id": bson.M{"$in": skillIDs},
 	}
-	findOpts := options.Find().SetSort(bson.M{"skill_id": 1, "timestamp": -1})
+	findOpts := options.Find().SetSort(bson.D{
+		{Key: "skill_id", Value: 1},
+		{Key: "timestamp", Value: -1},
+	})
 
 	cursor, err := r.collection.Find(ctx, filter, findOpts)
 	if err != nil {
@@ -106,7 +109,7 @@ func (r *SkillVerificationHistoryRepository) GetLatestByUserAndSkill(ctx context
 		"user_id":  userID,
 		"skill_id": skillID,
 	}
-	findOpts := options.FindOne().SetSort(bson.M{"timestamp": -1})
+	findOpts := options.FindOne().SetSort(bson.D{{Key: "timestamp", Value: -1}})
 
 	var history models.SkillProgressHistory
 	err := r.collection.FindOne(ctx, filter, findOpts).Decode(&history)
