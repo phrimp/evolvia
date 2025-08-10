@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"quiz-service/internal/integrity"
 	"quiz-service/internal/models"
 	"quiz-service/internal/selection"
 	"quiz-service/internal/service"
@@ -14,16 +15,18 @@ import (
 )
 
 type SessionHandler struct {
-	Service         *service.SessionService
-	AnswerService   *service.AnswerService
-	QuestionService *service.QuestionService
+	Service           *service.SessionService
+	AnswerService     *service.AnswerService
+	QuestionService   *service.QuestionService
+	IntegrityMonitor  *integrity.TimeIntegrityMonitor
 }
 
 func NewSessionHandler(s *service.SessionService, as *service.AnswerService, qs *service.QuestionService) *SessionHandler {
 	return &SessionHandler{
-		Service:         s,
-		AnswerService:   as,
-		QuestionService: qs,
+		Service:          s,
+		AnswerService:    as,
+		QuestionService:  qs,
+		IntegrityMonitor: integrity.NewTimeIntegrityMonitor(nil), // Use default config
 	}
 }
 
@@ -272,6 +275,34 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 	// Ensure question has Bloom scores calculated
 	question.EnsureBloomScores()
 
+	// Validate timing integrity before processing answer
+	violations := h.IntegrityMonitor.ValidateQuestionTiming(
+		sessionID,
+		question,
+		answerData.TimeSpent,
+		answerData.IsCorrect,
+	)
+
+	// Handle critical violations (terminate session)
+	for _, violation := range violations {
+		if violation.Severity == "critical" {
+			// Log critical violation
+			fmt.Printf("[INTEGRITY VIOLATION] Critical timing violation in session %s: %s\n", 
+				sessionID, violation.Description)
+			
+			// Terminate session for critical violations
+			_ = h.Service.PauseSession(context.Background(), sessionID, 
+				fmt.Sprintf("integrity_violation_%s", violation.Type))
+			
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":     "Session terminated due to integrity violation",
+				"violation": violation,
+				"action":    "session_terminated",
+			})
+			return
+		}
+	}
+
 	// Process answer through adaptive logic with question object
 	result, err := h.Service.ProcessAnswer(
 		context.Background(),
@@ -304,7 +335,7 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		_ = h.AnswerService.CreateAnswer(context.Background(), &answer)
 	}
 
-	// Return comprehensive adaptive result
+	// Return comprehensive adaptive result with integrity information
 	response := gin.H{
 		"answer_processed": true,
 		"is_correct":       result.IsCorrect,
@@ -320,6 +351,12 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 
 	if result.IsComplete {
 		response["completion_message"] = "Quiz completed! All stages finished"
+	}
+
+	// Add integrity monitoring information for non-critical violations
+	if len(violations) > 0 {
+		response["integrity_warnings"] = violations
+		response["integrity_message"] = "Timing patterns are being monitored for quiz integrity"
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -728,5 +765,40 @@ func (h *SessionHandler) GetBatchSessions(c *gin.Context) {
 		"message": "Batch session retrieval not yet implemented",
 		"limit":   limit,
 		"offset":  offset,
+	})
+}
+
+// GetSessionIntegrityReport provides detailed integrity analysis for a session
+func (h *SessionHandler) GetSessionIntegrityReport(c *gin.Context) {
+	sessionID := c.Param("id")
+
+	// Validate session exists
+	session, err := h.Service.GetSession(context.Background(), sessionID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+		return
+	}
+
+	// Check admin access (in production, implement proper admin check)
+	userID := c.GetHeader("X-User-ID")
+	adminMode := c.GetHeader("X-Admin-Mode") == "true"
+	
+	// Allow session owner or admin to view integrity report
+	if session.UserID != userID && !adminMode {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	// Generate integrity report
+	report := h.IntegrityMonitor.GetSessionIntegrityReport(sessionID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"integrity_report": report,
+		"session_info": gin.H{
+			"session_id": sessionID,
+			"user_id":    session.UserID,
+			"status":     session.Status,
+			"start_time": session.StartTime,
+		},
 	})
 }
