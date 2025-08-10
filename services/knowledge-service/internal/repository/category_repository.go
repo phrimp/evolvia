@@ -161,7 +161,10 @@ func (r *CategoryRepository) Delete(ctx context.Context, id bson.ObjectID) error
 
 // GetAll retrieves all categories
 func (r *CategoryRepository) GetAll(ctx context.Context) ([]*models.SkillCategory, error) {
-	findOpts := options.Find().SetSort(bson.M{"level": 1, "name": 1})
+	findOpts := options.Find().SetSort(bson.D{
+		{Key: "level", Value: 1},
+		{Key: "name", Value: 1},
+	})
 
 	cursor, err := r.collection.Find(ctx, bson.M{}, findOpts)
 	if err != nil {
@@ -190,7 +193,7 @@ func (r *CategoryRepository) GetByParentID(ctx context.Context, parentID *bson.O
 		filter["parent_id"] = bson.M{"$exists": false}
 	}
 
-	findOpts := options.Find().SetSort(bson.M{"name": 1})
+	findOpts := options.Find().SetSort(bson.D{{Key: "name", Value: 1}})
 
 	cursor, err := r.collection.Find(ctx, filter, findOpts)
 	if err != nil {
@@ -330,9 +333,12 @@ func (r *CategoryRepository) List(ctx context.Context, opts CategoryListOptions)
 		if opts.SortDesc {
 			sortOrder = -1
 		}
-		findOpts.SetSort(bson.M{opts.SortBy: sortOrder})
+		findOpts.SetSort(bson.D{{Key: opts.SortBy, Value: sortOrder}})
 	} else {
-		findOpts.SetSort(bson.M{"level": 1, "name": 1})
+		findOpts.SetSort(bson.D{
+			{Key: "level", Value: 1},
+			{Key: "name", Value: 1},
+		})
 	}
 
 	cursor, err := r.collection.Find(ctx, filter, findOpts)
