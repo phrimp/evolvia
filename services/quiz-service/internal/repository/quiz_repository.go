@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"fmt"
-
 	"quiz-service/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"

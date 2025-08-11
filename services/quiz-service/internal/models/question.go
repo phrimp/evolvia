@@ -41,11 +41,11 @@ type Option struct {
 }
 
 type Question struct {
-	ID                   string   `bson:"_id,omitempty" json:"id"`
-	Content              string   `bson:"content" json:"content"`
-	Type                 string   `bson:"type" json:"type"`
-	Options              []Option `bson:"options" json:"options"`
-	CorrectAnswer        string   `bson:"correct_answer" json:"correct_answer"`
+	ID            string   `bson:"_id,omitempty" json:"id"`
+	Content       string   `bson:"content" json:"content"`
+	Type          string   `bson:"type" json:"type"`
+	Options       []Option `bson:"options" json:"options"`
+	CorrectAnswer string   `bson:"correct_answer" json:"correct_answer"`
 	// For true/false questions, stores "true" or "false"
 	CorrectAnswerBoolean *bool    `bson:"correct_answer_boolean,omitempty" json:"correct_answer_boolean,omitempty"`
 	Explanation          string   `bson:"explanation" json:"explanation"`
@@ -141,12 +141,12 @@ func NewTrueFalseQuestion(content, skillID, bloomLevel string, correctAnswer boo
 		{ID: "true", Text: "True", IsCorrect: correctAnswer},
 		{ID: "false", Text: "False", IsCorrect: !correctAnswer},
 	}
-	
+
 	correctAnswerStr := "false"
 	if correctAnswer {
 		correctAnswerStr = "true"
 	}
-	
+
 	return &Question{
 		Content:              content,
 		Type:                 string(QuestionTypeTrueFalse),
@@ -164,7 +164,7 @@ func NewSingleChoiceQuestion(content, skillID, bloomLevel string, options []Opti
 	for i := range options {
 		options[i].IsCorrect = (options[i].ID == correctAnswerID)
 	}
-	
+
 	return &Question{
 		Content:       content,
 		Type:          string(QuestionTypeSingleChoice),
@@ -182,11 +182,11 @@ func (q *Question) Validate() error {
 	if q.Content == "" {
 		return fmt.Errorf("question content cannot be empty")
 	}
-	
+
 	if !IsValidQuestionType(q.Type) {
 		return fmt.Errorf("invalid question type: %s", q.Type)
 	}
-	
+
 	switch QuestionType(q.Type) {
 	case QuestionTypeMultipleChoice:
 		return q.validateMultipleChoice()
@@ -203,11 +203,11 @@ func (q *Question) validateMultipleChoice() error {
 	if len(q.Options) < 2 {
 		return fmt.Errorf("multiple choice questions must have at least 2 options")
 	}
-	
+
 	if q.CorrectAnswer == "" {
 		return fmt.Errorf("multiple choice questions must have a correct answer")
 	}
-	
+
 	// Check if correct answer exists in options
 	correctOptionFound := false
 	for _, option := range q.Options {
@@ -216,11 +216,11 @@ func (q *Question) validateMultipleChoice() error {
 			break
 		}
 	}
-	
+
 	if !correctOptionFound {
 		return fmt.Errorf("correct answer ID '%s' not found in options", q.CorrectAnswer)
 	}
-	
+
 	return nil
 }
 
@@ -228,7 +228,7 @@ func (q *Question) validateTrueFalse() error {
 	if len(q.Options) != 2 {
 		return fmt.Errorf("true/false questions must have exactly 2 options")
 	}
-	
+
 	hasTrue := false
 	hasFalse := false
 	for _, option := range q.Options {
@@ -239,15 +239,15 @@ func (q *Question) validateTrueFalse() error {
 			hasFalse = true
 		}
 	}
-	
+
 	if !hasTrue || !hasFalse {
 		return fmt.Errorf("true/false questions must have 'true' and 'false' options")
 	}
-	
+
 	if q.CorrectAnswer != "true" && q.CorrectAnswer != "false" {
 		return fmt.Errorf("true/false questions must have correct answer as 'true' or 'false'")
 	}
-	
+
 	return nil
 }
 
@@ -255,11 +255,11 @@ func (q *Question) validateSingleChoice() error {
 	if len(q.Options) < 2 {
 		return fmt.Errorf("single choice questions must have at least 2 options")
 	}
-	
+
 	if q.CorrectAnswer == "" {
 		return fmt.Errorf("single choice questions must have a correct answer")
 	}
-	
+
 	// Check if correct answer exists in options and count correct options
 	correctOptionFound := false
 	correctCount := 0
@@ -271,15 +271,15 @@ func (q *Question) validateSingleChoice() error {
 			correctCount++
 		}
 	}
-	
+
 	if !correctOptionFound {
 		return fmt.Errorf("correct answer ID '%s' not found in options", q.CorrectAnswer)
 	}
-	
+
 	if correctCount > 1 {
 		return fmt.Errorf("single choice questions can only have one correct option")
 	}
-	
+
 	return nil
 }
 
@@ -302,11 +302,11 @@ func (q *Question) IsCorrectBooleanAnswer(answer bool) bool {
 	if QuestionType(q.Type) != QuestionTypeTrueFalse {
 		return false
 	}
-	
+
 	if q.CorrectAnswerBoolean != nil {
 		return *q.CorrectAnswerBoolean == answer
 	}
-	
+
 	// Fallback to string comparison
 	return (answer && q.CorrectAnswer == "true") || (!answer && q.CorrectAnswer == "false")
 }
@@ -314,24 +314,24 @@ func (q *Question) IsCorrectBooleanAnswer(answer bool) bool {
 // GetCorrectOptions returns the correct options for the question
 func (q *Question) GetCorrectOptions() []Option {
 	var correctOptions []Option
-	
+
 	for _, option := range q.Options {
 		if option.ID == q.CorrectAnswer || option.IsCorrect {
 			correctOptions = append(correctOptions, option)
 		}
 	}
-	
+
 	return correctOptions
 }
 
 // GetQuestionTypeInfo returns information about the question type
 func (q *Question) GetQuestionTypeInfo() map[string]interface{} {
 	info := map[string]interface{}{
-		"type":            q.Type,
-		"options_count":   len(q.Options),
-		"correct_answer":  q.CorrectAnswer,
+		"type":           q.Type,
+		"options_count":  len(q.Options),
+		"correct_answer": q.CorrectAnswer,
 	}
-	
+
 	switch QuestionType(q.Type) {
 	case QuestionTypeTrueFalse:
 		if q.CorrectAnswerBoolean != nil {
@@ -345,6 +345,6 @@ func (q *Question) GetQuestionTypeInfo() map[string]interface{} {
 		correctOptions := q.GetCorrectOptions()
 		info["correct_options_count"] = len(correctOptions)
 	}
-	
+
 	return info
 }

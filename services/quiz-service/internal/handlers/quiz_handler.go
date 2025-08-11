@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-
 	"quiz-service/internal/models"
 	"quiz-service/internal/service"
 

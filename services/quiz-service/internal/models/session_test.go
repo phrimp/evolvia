@@ -19,7 +19,6 @@ func (suite *SessionTestSuite) SetupTest() {
 	suite.sampleSession = &QuizSession{
 		ID:                  "session_123",
 		UserID:              "user_456",
-		QuizID:              "quiz_789",
 		SessionToken:        "token_abc123",
 		StartTime:           time.Now(),
 		EndTime:             time.Time{},
@@ -54,7 +53,6 @@ func (suite *SessionTestSuite) TestSessionModel_Structure() {
 	// Test basic fields
 	assert.Equal(t, "session_123", session.ID)
 	assert.Equal(t, "user_456", session.UserID)
-	assert.Equal(t, "quiz_789", session.QuizID)
 	assert.Equal(t, "token_abc123", session.SessionToken)
 	assert.Equal(t, "active", session.Status)
 	assert.Equal(t, "remember", session.CurrentStage)
@@ -75,7 +73,7 @@ func (suite *SessionTestSuite) TestSessionModel_Structure() {
 
 func (suite *SessionTestSuite) TestStageProgress_Structure() {
 	t := suite.T()
-	
+
 	progress, exists := suite.sampleSession.StageProgress["remember"]
 	assert.True(t, exists)
 	assert.Equal(t, 2, progress.Attempted)
@@ -87,11 +85,11 @@ func (suite *SessionTestSuite) TestStageProgress_Structure() {
 
 func (suite *SessionTestSuite) TestSessionMetadata_Structure() {
 	t := suite.T()
-	
+
 	skillID, exists := suite.sampleSession.Metadata["skill_id"]
 	assert.True(t, exists)
 	assert.Equal(t, "skill_001", skillID)
-	
+
 	skillName, exists := suite.sampleSession.Metadata["skill_name"]
 	assert.True(t, exists)
 	assert.Equal(t, "Basic Math", skillName)
@@ -109,11 +107,10 @@ func (suite *SessionTestSuite) TestSession_JSONSerialization() {
 	var deserializedSession QuizSession
 	err = json.Unmarshal(jsonData, &deserializedSession)
 	assert.NoError(t, err)
-	
+
 	// Compare key fields
 	assert.Equal(t, suite.sampleSession.ID, deserializedSession.ID)
 	assert.Equal(t, suite.sampleSession.UserID, deserializedSession.UserID)
-	assert.Equal(t, suite.sampleSession.QuizID, deserializedSession.QuizID)
 	assert.Equal(t, suite.sampleSession.Status, deserializedSession.Status)
 	assert.Equal(t, suite.sampleSession.CurrentStage, deserializedSession.CurrentStage)
 	assert.Equal(t, suite.sampleSession.TotalQuestionsAsked, deserializedSession.TotalQuestionsAsked)
@@ -124,11 +121,11 @@ func (suite *SessionTestSuite) TestSession_StatusTransitions() {
 	t := suite.T()
 
 	testCases := []struct {
-		name           string
-		initialStatus  string
-		newStatus      string
-		shouldBeValid  bool
-		description    string
+		name          string
+		initialStatus string
+		newStatus     string
+		shouldBeValid bool
+		description   string
 	}{
 		{
 			name:          "ActiveToCompleted",
@@ -207,7 +204,7 @@ func (suite *SessionTestSuite) TestStageProgress_Validation() {
 		RecoveryRound: 0,
 		Score:         75.0,
 	}
-	
+
 	assert.True(t, suite.validateStageProgress(&validProgress))
 
 	// Test invalid progress
@@ -215,10 +212,10 @@ func (suite *SessionTestSuite) TestStageProgress_Validation() {
 		Attempted:     2,
 		Correct:       5, // More correct than attempted
 		Passed:        false,
-		RecoveryRound: -1, // Negative recovery round
+		RecoveryRound: -1,    // Negative recovery round
 		Score:         -10.0, // Negative score
 	}
-	
+
 	assert.False(t, suite.validateStageProgress(&invalidProgress))
 }
 
@@ -233,7 +230,7 @@ func (suite *SessionTestSuite) TestSession_BusinessLogicScenarios() {
 			StartTime:       time.Now().Add(-2 * time.Hour),
 			DurationSeconds: 7200, // 2 hours
 		}
-		
+
 		// Session should be considered timed out if it exceeds reasonable duration
 		isTimedOut := suite.isSessionTimedOut(timeoutSession, 3600) // 1 hour timeout
 		assert.True(t, isTimedOut)
@@ -245,12 +242,12 @@ func (suite *SessionTestSuite) TestSession_BusinessLogicScenarios() {
 			Status:              "active",
 			TotalQuestionsAsked: 10,
 			StageProgress: map[string]StageProgress{
-				"remember":    {Attempted: 3, Correct: 2, Passed: true, Score: 80.0},
-				"understand":  {Attempted: 3, Correct: 3, Passed: true, Score: 100.0},
-				"apply":       {Attempted: 4, Correct: 3, Passed: true, Score: 75.0},
+				"remember":   {Attempted: 3, Correct: 2, Passed: true, Score: 80.0},
+				"understand": {Attempted: 3, Correct: 3, Passed: true, Score: 100.0},
+				"apply":      {Attempted: 4, Correct: 3, Passed: true, Score: 75.0},
 			},
 		}
-		
+
 		isComplete := suite.isSessionComplete(completedSession)
 		assert.True(t, isComplete)
 	})
@@ -263,7 +260,7 @@ func (suite *SessionTestSuite) TestSession_BusinessLogicScenarios() {
 			RecoveryRound: 0,
 			Score:         80.0,
 		}
-		
+
 		// Assuming passing threshold is 70%
 		shouldBePassed := suite.shouldPassStage(progress, 0.7)
 		assert.True(t, shouldBePassed)
@@ -277,7 +274,7 @@ func (suite *SessionTestSuite) TestSession_BusinessLogicScenarios() {
 			RecoveryRound: 0,
 			Score:         33.3,
 		}
-		
+
 		needsRecovery := suite.needsRecovery(failedProgress, 0.7)
 		assert.True(t, needsRecovery)
 	})
@@ -292,12 +289,12 @@ func (suite *SessionTestSuite) isValidStatusTransition(from, to string) bool {
 		"completed": {}, // Terminal state
 		"abandoned": {}, // Terminal state
 	}
-	
+
 	allowedTransitions, exists := validTransitions[from]
 	if !exists {
 		return false
 	}
-	
+
 	for _, allowed := range allowedTransitions {
 		if allowed == to {
 			return true
@@ -309,12 +306,12 @@ func (suite *SessionTestSuite) isValidStatusTransition(from, to string) bool {
 func (suite *SessionTestSuite) calculateAccuracy(session *QuizSession) float64 {
 	totalCorrect := 0
 	totalAttempted := 0
-	
+
 	for _, progress := range session.StageProgress {
 		totalCorrect += progress.Correct
 		totalAttempted += progress.Attempted
 	}
-	
+
 	if totalAttempted == 0 {
 		return 0.0
 	}
@@ -325,16 +322,16 @@ func (suite *SessionTestSuite) calculateOverallProgress(session *QuizSession) fl
 	if len(session.StageProgress) == 0 {
 		return 0.0
 	}
-	
+
 	completedStages := 0
 	totalStages := len(session.StageProgress)
-	
+
 	for _, progress := range session.StageProgress {
 		if progress.Passed {
 			completedStages++
 		}
 	}
-	
+
 	return float64(completedStages) / float64(totalStages) * 100
 }
 
@@ -370,7 +367,7 @@ func (suite *SessionTestSuite) isSessionComplete(session *QuizSession) bool {
 	if session.Status == "completed" {
 		return true
 	}
-	
+
 	allStagesPassed := true
 	for _, progress := range session.StageProgress {
 		if !progress.Passed {
@@ -378,7 +375,7 @@ func (suite *SessionTestSuite) isSessionComplete(session *QuizSession) bool {
 			break
 		}
 	}
-	
+
 	return allStagesPassed && len(session.StageProgress) > 0
 }
 
@@ -405,7 +402,6 @@ func TestSessionModel_EdgeCases(t *testing.T) {
 		session := &QuizSession{}
 		assert.Empty(t, session.ID)
 		assert.Empty(t, session.UserID)
-		assert.Empty(t, session.QuizID)
 		assert.Equal(t, 0.0, session.FinalScore)
 		assert.Equal(t, 0, session.TotalQuestionsAsked)
 	})
@@ -415,7 +411,7 @@ func TestSessionModel_EdgeCases(t *testing.T) {
 			ID:            "no_progress",
 			StageProgress: make(map[string]StageProgress),
 		}
-		
+
 		assert.Empty(t, session.StageProgress)
 		assert.Equal(t, 0, session.TotalQuestionsAsked)
 	})
@@ -427,7 +423,7 @@ func TestSessionModel_EdgeCases(t *testing.T) {
 			DurationSeconds:     86400, // 24 hours
 			TotalQuestionsAsked: 1000,
 		}
-		
+
 		assert.Equal(t, 100.0, session.FinalScore)
 		assert.Equal(t, 86400, session.DurationSeconds)
 		assert.Equal(t, 1000, session.TotalQuestionsAsked)
@@ -440,7 +436,7 @@ func TestSessionModel_EdgeCases(t *testing.T) {
 			SkillTags:     []string{"programming", "algorithms", "data-structures"},
 			QuizStartTime: time.Now().Unix(),
 		}
-		
+
 		assert.Equal(t, "skill_123", metadata.SkillID)
 		assert.Equal(t, "Advanced Programming", metadata.SkillName)
 		assert.Len(t, metadata.SkillTags, 3)

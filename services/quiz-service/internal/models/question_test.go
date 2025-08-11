@@ -110,17 +110,17 @@ func TestQuestionTypeValidation(t *testing.T) {
 
 func TestGetPrimaryQuestionTypes(t *testing.T) {
 	types := GetPrimaryQuestionTypes()
-	
+
 	if len(types) != 3 {
 		t.Errorf("Expected 3 primary question types, got %d", len(types))
 	}
-	
+
 	expectedTypes := []QuestionType{
 		QuestionTypeMultipleChoice,
 		QuestionTypeTrueFalse,
 		QuestionTypeSingleChoice,
 	}
-	
+
 	for _, expectedType := range expectedTypes {
 		found := false
 		for _, actualType := range types {
@@ -151,7 +151,7 @@ func TestNewTrueFalseQuestion(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			question := NewTrueFalseQuestion(tc.content, tc.skillID, tc.bloomLevel, tc.correctAnswer)
-			
+
 			// Validate basic properties
 			if question.Content != tc.content {
 				t.Errorf("Expected content '%s', got '%s'", tc.content, question.Content)
@@ -165,27 +165,27 @@ func TestNewTrueFalseQuestion(t *testing.T) {
 			if question.BloomLevel != tc.bloomLevel {
 				t.Errorf("Expected bloomLevel '%s', got '%s'", tc.bloomLevel, question.BloomLevel)
 			}
-			
+
 			// Validate options
 			if len(question.Options) != 2 {
 				t.Errorf("Expected 2 options for true/false question, got %d", len(question.Options))
 			}
-			
+
 			trueOption := findOptionByID(question.Options, "true")
 			falseOption := findOptionByID(question.Options, "false")
-			
+
 			if trueOption == nil {
 				t.Error("Expected 'true' option not found")
 			} else if trueOption.IsCorrect != tc.correctAnswer {
 				t.Errorf("True option IsCorrect = %v, expected %v", trueOption.IsCorrect, tc.correctAnswer)
 			}
-			
+
 			if falseOption == nil {
 				t.Error("Expected 'false' option not found")
 			} else if falseOption.IsCorrect != !tc.correctAnswer {
 				t.Errorf("False option IsCorrect = %v, expected %v", falseOption.IsCorrect, !tc.correctAnswer)
 			}
-			
+
 			// Validate correct answer string
 			expectedAnswerStr := "false"
 			if tc.correctAnswer {
@@ -194,7 +194,7 @@ func TestNewTrueFalseQuestion(t *testing.T) {
 			if question.CorrectAnswer != expectedAnswerStr {
 				t.Errorf("Expected CorrectAnswer '%s', got '%s'", expectedAnswerStr, question.CorrectAnswer)
 			}
-			
+
 			// Validate correct answer boolean
 			if question.CorrectAnswerBoolean == nil {
 				t.Error("Expected CorrectAnswerBoolean to be set")
@@ -212,9 +212,9 @@ func TestNewSingleChoiceQuestion(t *testing.T) {
 		{ID: "c", Text: "Option C"},
 		{ID: "d", Text: "Option D"},
 	}
-	
+
 	question := NewSingleChoiceQuestion("Test content", "skill1", "apply", options, "c")
-	
+
 	// Validate basic properties
 	if question.Type != string(QuestionTypeSingleChoice) {
 		t.Errorf("Expected type '%s', got '%s'", QuestionTypeSingleChoice, question.Type)
@@ -225,7 +225,7 @@ func TestNewSingleChoiceQuestion(t *testing.T) {
 	if len(question.Options) != 4 {
 		t.Errorf("Expected 4 options, got %d", len(question.Options))
 	}
-	
+
 	// Validate that only the correct option is marked as correct
 	correctCount := 0
 	for i, option := range question.Options {
@@ -234,18 +234,18 @@ func TestNewSingleChoiceQuestion(t *testing.T) {
 		} else if option.ID != "c" && option.IsCorrect {
 			t.Errorf("Expected option '%s' to not be marked correct, but it was", option.ID)
 		}
-		
+
 		if option.IsCorrect {
 			correctCount++
 		}
-		
+
 		// Verify original option data is preserved
 		expectedText := fmt.Sprintf("Option %c", 'A'+i)
 		if option.Text != expectedText {
 			t.Errorf("Expected option text '%s', got '%s'", expectedText, option.Text)
 		}
 	}
-	
+
 	if correctCount != 1 {
 		t.Errorf("Expected exactly 1 correct option, got %d", correctCount)
 	}
@@ -257,9 +257,9 @@ func TestNewMultipleChoiceQuestion(t *testing.T) {
 		{ID: "opt2", Text: "Second option"},
 		{ID: "opt3", Text: "Third option"},
 	}
-	
+
 	question := NewMultipleChoiceQuestion("Test question", "skill2", "evaluate", options, "opt2")
-	
+
 	// Validate basic properties
 	if question.Type != string(QuestionTypeMultipleChoice) {
 		t.Errorf("Expected type '%s', got '%s'", QuestionTypeMultipleChoice, question.Type)
@@ -270,7 +270,7 @@ func TestNewMultipleChoiceQuestion(t *testing.T) {
 	if len(question.Options) != 3 {
 		t.Errorf("Expected 3 options, got %d", len(question.Options))
 	}
-	
+
 	// Validate options are preserved exactly as provided
 	for i, option := range question.Options {
 		expectedOption := options[i]
@@ -299,23 +299,23 @@ func TestQuestionValidation(t *testing.T) {
 			},
 			"b",
 		)
-		
+
 		if err := validQuestion.Validate(); err != nil {
 			t.Errorf("Valid multiple choice question should not return error: %v", err)
 		}
-		
+
 		// Invalid - too few options
 		invalidQuestion1 := &Question{
-			Content: "Test",
-			Type:    string(QuestionTypeMultipleChoice),
-			Options: []Option{{ID: "a", Text: "Only one"}},
+			Content:       "Test",
+			Type:          string(QuestionTypeMultipleChoice),
+			Options:       []Option{{ID: "a", Text: "Only one"}},
 			CorrectAnswer: "a",
 		}
-		
+
 		if err := invalidQuestion1.Validate(); err == nil {
 			t.Error("Multiple choice question with 1 option should return error")
 		}
-		
+
 		// Invalid - correct answer not in options
 		invalidQuestion2 := &Question{
 			Content: "Test",
@@ -326,32 +326,32 @@ func TestQuestionValidation(t *testing.T) {
 			},
 			CorrectAnswer: "c",
 		}
-		
+
 		if err := invalidQuestion2.Validate(); err == nil {
 			t.Error("Multiple choice question with invalid correct answer should return error")
 		}
 	})
-	
+
 	t.Run("ValidateTrueFalse", func(t *testing.T) {
 		// Valid true/false question
 		validQuestion := NewTrueFalseQuestion("The Earth is round", "geography", "remember", true)
-		
+
 		if err := validQuestion.Validate(); err != nil {
 			t.Errorf("Valid true/false question should not return error: %v", err)
 		}
-		
+
 		// Invalid - wrong number of options
 		invalidQuestion1 := &Question{
-			Content: "Test",
-			Type:    string(QuestionTypeTrueFalse),
-			Options: []Option{{ID: "true", Text: "True"}}, // Missing false option
+			Content:       "Test",
+			Type:          string(QuestionTypeTrueFalse),
+			Options:       []Option{{ID: "true", Text: "True"}}, // Missing false option
 			CorrectAnswer: "true",
 		}
-		
+
 		if err := invalidQuestion1.Validate(); err == nil {
 			t.Error("True/false question with 1 option should return error")
 		}
-		
+
 		// Invalid - missing required options
 		invalidQuestion2 := &Question{
 			Content: "Test",
@@ -362,12 +362,12 @@ func TestQuestionValidation(t *testing.T) {
 			},
 			CorrectAnswer: "yes",
 		}
-		
+
 		if err := invalidQuestion2.Validate(); err == nil {
 			t.Error("True/false question without 'true'/'false' options should return error")
 		}
 	})
-	
+
 	t.Run("ValidateSingleChoice", func(t *testing.T) {
 		// Valid single choice question
 		validQuestion := NewSingleChoiceQuestion(
@@ -381,11 +381,11 @@ func TestQuestionValidation(t *testing.T) {
 			},
 			"b",
 		)
-		
+
 		if err := validQuestion.Validate(); err != nil {
 			t.Errorf("Valid single choice question should not return error: %v", err)
 		}
-		
+
 		// Invalid - multiple correct options
 		invalidQuestion := &Question{
 			Content: "Test",
@@ -396,7 +396,7 @@ func TestQuestionValidation(t *testing.T) {
 			},
 			CorrectAnswer: "a",
 		}
-		
+
 		if err := invalidQuestion.Validate(); err == nil {
 			t.Error("Single choice question with multiple correct options should return error")
 		}
@@ -408,7 +408,7 @@ func TestAnswerValidation(t *testing.T) {
 	t.Run("TrueFalseAnswers", func(t *testing.T) {
 		trueQuestion := NewTrueFalseQuestion("Test", "skill1", "remember", true)
 		falseQuestion := NewTrueFalseQuestion("Test", "skill1", "remember", false)
-		
+
 		// Test string answers
 		if !trueQuestion.IsCorrectAnswer("true") {
 			t.Error("True question should accept 'true' as correct answer")
@@ -416,14 +416,14 @@ func TestAnswerValidation(t *testing.T) {
 		if trueQuestion.IsCorrectAnswer("false") {
 			t.Error("True question should not accept 'false' as correct answer")
 		}
-		
+
 		if !falseQuestion.IsCorrectAnswer("false") {
 			t.Error("False question should accept 'false' as correct answer")
 		}
 		if falseQuestion.IsCorrectAnswer("true") {
 			t.Error("False question should not accept 'true' as correct answer")
 		}
-		
+
 		// Test boolean answers
 		if !trueQuestion.IsCorrectBooleanAnswer(true) {
 			t.Error("True question should accept boolean true as correct answer")
@@ -431,32 +431,32 @@ func TestAnswerValidation(t *testing.T) {
 		if trueQuestion.IsCorrectBooleanAnswer(false) {
 			t.Error("True question should not accept boolean false as correct answer")
 		}
-		
+
 		if !falseQuestion.IsCorrectBooleanAnswer(false) {
 			t.Error("False question should accept boolean false as correct answer")
 		}
 		if falseQuestion.IsCorrectBooleanAnswer(true) {
 			t.Error("False question should not accept boolean true as correct answer")
 		}
-		
+
 		// Test boolean answers on non-true/false questions
-		multipleChoiceQ := NewMultipleChoiceQuestion("Test", "skill1", "remember", 
+		multipleChoiceQ := NewMultipleChoiceQuestion("Test", "skill1", "remember",
 			[]Option{{ID: "a", Text: "A"}}, "a")
 		if multipleChoiceQ.IsCorrectBooleanAnswer(true) {
 			t.Error("Multiple choice question should not accept boolean answers")
 		}
 	})
-	
+
 	t.Run("MultipleAndSingleChoiceAnswers", func(t *testing.T) {
 		options := []Option{
 			{ID: "a", Text: "Option A"},
 			{ID: "b", Text: "Option B"},
 			{ID: "c", Text: "Option C"},
 		}
-		
+
 		multipleChoice := NewMultipleChoiceQuestion("Test", "skill1", "remember", options, "b")
 		singleChoice := NewSingleChoiceQuestion("Test", "skill1", "remember", options, "c")
-		
+
 		// Test correct answers
 		if !multipleChoice.IsCorrectAnswer("b") {
 			t.Error("Multiple choice should accept correct answer 'b'")
@@ -464,7 +464,7 @@ func TestAnswerValidation(t *testing.T) {
 		if !singleChoice.IsCorrectAnswer("c") {
 			t.Error("Single choice should accept correct answer 'c'")
 		}
-		
+
 		// Test incorrect answers
 		if multipleChoice.IsCorrectAnswer("a") {
 			t.Error("Multiple choice should not accept incorrect answer 'a'")
@@ -480,7 +480,7 @@ func TestGetQuestionTypeInfo(t *testing.T) {
 	t.Run("TrueFalseInfo", func(t *testing.T) {
 		question := NewTrueFalseQuestion("Test", "skill1", "remember", true)
 		info := question.GetQuestionTypeInfo()
-		
+
 		if info["type"] != string(QuestionTypeTrueFalse) {
 			t.Errorf("Expected type '%s', got '%v'", QuestionTypeTrueFalse, info["type"])
 		}
@@ -497,7 +497,7 @@ func TestGetQuestionTypeInfo(t *testing.T) {
 			t.Errorf("Expected correct_boolean true, got %v", info["correct_boolean"])
 		}
 	})
-	
+
 	t.Run("SingleChoiceInfo", func(t *testing.T) {
 		options := []Option{
 			{ID: "a", Text: "Option A"},
@@ -505,7 +505,7 @@ func TestGetQuestionTypeInfo(t *testing.T) {
 		}
 		question := NewSingleChoiceQuestion("Test", "skill1", "remember", options, "b")
 		info := question.GetQuestionTypeInfo()
-		
+
 		if info["type"] != string(QuestionTypeSingleChoice) {
 			t.Errorf("Expected type '%s', got '%v'", QuestionTypeSingleChoice, info["type"])
 		}
@@ -523,16 +523,16 @@ func TestGetCorrectOptions(t *testing.T) {
 	t.Run("TrueFalseCorrectOptions", func(t *testing.T) {
 		question := NewTrueFalseQuestion("Test", "skill1", "remember", true)
 		correctOptions := question.GetCorrectOptions()
-		
+
 		if len(correctOptions) != 1 {
 			t.Errorf("Expected 1 correct option, got %d", len(correctOptions))
 		}
-		
+
 		if correctOptions[0].ID != "true" {
 			t.Errorf("Expected correct option ID 'true', got '%s'", correctOptions[0].ID)
 		}
 	})
-	
+
 	t.Run("SingleChoiceCorrectOptions", func(t *testing.T) {
 		options := []Option{
 			{ID: "a", Text: "Wrong"},
@@ -541,11 +541,11 @@ func TestGetCorrectOptions(t *testing.T) {
 		}
 		question := NewSingleChoiceQuestion("Test", "skill1", "remember", options, "b")
 		correctOptions := question.GetCorrectOptions()
-		
+
 		if len(correctOptions) != 1 {
 			t.Errorf("Expected 1 correct option, got %d", len(correctOptions))
 		}
-		
+
 		if correctOptions[0].ID != "b" {
 			t.Errorf("Expected correct option ID 'b', got '%s'", correctOptions[0].ID)
 		}

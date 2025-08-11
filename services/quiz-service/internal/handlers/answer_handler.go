@@ -3,10 +3,10 @@ package handlers
 import (
 	"context"
 	"net/http"
-
-	"github.com/gin-gonic/gin"
 	"quiz-service/internal/models"
 	"quiz-service/internal/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 type AnswerHandler struct {

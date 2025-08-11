@@ -52,7 +52,7 @@ type QuizResult struct {
 	ID                 string                    `bson:"_id,omitempty" json:"id"`
 	SessionID          string                    `bson:"session_id" json:"session_id"`
 	UserID             string                    `bson:"user_id" json:"user_id"`
-	QuizID             string                    `bson:"quiz_id" json:"quiz_id"`
+	ConfigID           string                    `bson:"config_id" json:"config_id"` // Changed from QuizID to ConfigID
 	FinalScore         float64                   `bson:"final_score" json:"final_score"`
 	Percentage         float64                   `bson:"percentage" json:"percentage"`
 	BadgeLevel         string                    `bson:"badge_level" json:"badge_level"`

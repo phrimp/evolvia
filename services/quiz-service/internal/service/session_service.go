@@ -19,30 +19,33 @@ import (
 // SessionService handles quiz session operations
 type SessionService struct {
 	Repo                      *repository.SessionRepository
-	QuizRepo                  *repository.QuizRepository
+	QuizRepo                  *repository.QuizRepository // DEPRECATED: Will be removed
+	ConfigService             *ConfigService             // NEW: For global configurations
 	QuestionRepo              *repository.QuestionRepository
 	ResultRepo                *repository.ResultRepository
 	EventPublisher            *event.EventPublisher
 	adaptiveManager           *adaptive.Manager
 	poolManager               *selection.PoolManager
 	sessionSkillCache         map[string]*selection.SkillInfo
-	sessionEnhancedSkillCache map[string]*selection.EnhancedSkillInfo // Add this
+	sessionEnhancedSkillCache map[string]*selection.EnhancedSkillInfo
 }
 
 // NewSessionService creates a new session service
 func NewSessionService(
 	repo *repository.SessionRepository,
-	quizRepo *repository.QuizRepository,
+	quizRepo *repository.QuizRepository, // DEPRECATED: Will be removed
 	questionRepo *repository.QuestionRepository,
+	configService *ConfigService,
 ) *SessionService {
 	return &SessionService{
 		Repo:                      repo,
-		QuizRepo:                  quizRepo,
+		QuizRepo:                  quizRepo, // DEPRECATED
+		ConfigService:             configService,
 		QuestionRepo:              questionRepo,
 		adaptiveManager:           adaptive.NewManager(nil),
 		poolManager:               selection.NewPoolManager(questionRepo),
 		sessionSkillCache:         make(map[string]*selection.SkillInfo),
-		sessionEnhancedSkillCache: make(map[string]*selection.EnhancedSkillInfo), // Initialize
+		sessionEnhancedSkillCache: make(map[string]*selection.EnhancedSkillInfo),
 	}
 }
 
@@ -135,9 +138,9 @@ func (s *SessionService) CreateSessionWithEnhancedSkillInfo(
 
 	initialStage := s.mapBloomToStage(startingBloomLevel)
 
-	// Create session with enhanced metadata
+	// Create session with enhanced metadata (backward compatibility - store quizID as configID)
 	session := &models.QuizSession{
-		QuizID:       quizID,
+		ConfigID:     quizID, // For backward compatibility, treat quizID as configID
 		UserID:       userID,
 		SessionToken: s.generateSessionToken(),
 		StartTime:    time.Now(),
@@ -184,6 +187,141 @@ func (s *SessionService) CreateSessionWithEnhancedSkillInfo(
 			"tag_distribution":     s.getTagDistribution(skillInfo),
 			"starting_bloom_level": startingBloomLevel,
 			"starting_difficulty":  startingDifficulty,
+		})
+	}
+
+	return session, nil
+}
+
+// CreateGlobalSession creates session with global configuration (no quiz dependency)
+func (s *SessionService) CreateGlobalSession(
+	ctx context.Context,
+	userID string,
+	skillInfo *selection.EnhancedSkillInfo,
+	preferredBloomLevels []string,
+	masteryScore int,
+	configID string, // Optional: if empty, uses default config
+) (*models.QuizSession, error) {
+	// Step 1: Get global configuration
+	config, err := s.ConfigService.GetConfigForSession(ctx, configID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get global configuration: %w", err)
+	}
+
+	// Step 2: Check for past results (existing logic)
+	var startingBloomLevel string
+	var startingDifficulty string
+
+	if s.ResultRepo != nil {
+		pastResults, err := s.ResultRepo.FindByUser(ctx, userID)
+		if err == nil && len(pastResults) > 0 {
+			for _, result := range pastResults {
+				if session, err := s.Repo.FindByID(ctx, result.SessionID); err == nil {
+					if metadata := session.Metadata; metadata != nil {
+						if sid, ok := metadata["skill_id"].(string); ok && sid == skillInfo.ID {
+							startingBloomLevel = s.deriveBloomFromResult(&result)
+							startingDifficulty = s.deriveDifficultyFromResult(&result)
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Step 3: Set defaults if no past results
+	var bloomLevels []string
+	if startingBloomLevel == "" {
+		if len(preferredBloomLevels) > 0 {
+			bloomLevels = preferredBloomLevels
+			startingBloomLevel = preferredBloomLevels[0]
+		} else {
+			bloomLevels = []string{"remember"}
+			startingBloomLevel = "remember"
+		}
+	} else {
+		bloomLevels = []string{startingBloomLevel}
+	}
+
+	if masteryScore > 0 {
+		if masteryScore <= 3 {
+			startingDifficulty = "easy"
+		} else if masteryScore <= 7 {
+			startingDifficulty = "medium"
+		} else {
+			startingDifficulty = "hard"
+		}
+	} else {
+		startingDifficulty = "easy"
+	}
+
+	// Step 4: Validate global question pool with enhanced skill info
+	standardSkillInfo := &selection.SkillInfo{
+		ID:   skillInfo.ID,
+		Name: skillInfo.Name,
+		Tags: s.mergeTags(skillInfo),
+	}
+
+	isValid, validation, err := s.poolManager.ValidateGlobalPoolWithBloom(ctx, standardSkillInfo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate global question pool: %w", err)
+	}
+	if !isValid {
+		return nil, fmt.Errorf("insufficient questions in global pool: %v", validation.Warnings)
+	}
+
+	initialStage := s.mapBloomToStage(startingBloomLevel)
+
+	// Create session with global configuration
+	session := &models.QuizSession{
+		ConfigID:     config.ID, // Use ConfigID instead of QuizID
+		UserID:       userID,
+		SessionToken: s.generateSessionToken(),
+		StartTime:    time.Now(),
+		Status:       "active",
+		CurrentStage: initialStage,
+		StageProgress: map[string]models.StageProgress{
+			"easy":   {Attempted: 0, Correct: 0, Passed: false, Score: 0},
+			"medium": {Attempted: 0, Correct: 0, Passed: false, Score: 0},
+			"hard":   {Attempted: 0, Correct: 0, Passed: false, Score: 0},
+		},
+		TotalQuestionsAsked: 0,
+		QuestionsUsed:       []string{},
+		FinalScore:          0,
+		Metadata: map[string]any{
+			"skill_id":               skillInfo.ID,
+			"skill_name":             skillInfo.Name,
+			"primary_tags":           skillInfo.PrimaryTags,
+			"secondary_tags":         skillInfo.SecondaryTags,
+			"related_tags":           skillInfo.RelatedTags,
+			"tag_weights":            skillInfo.TagWeights,
+			"starting_bloom_level":   startingBloomLevel,
+			"preferred_bloom_levels": bloomLevels,
+			"starting_difficulty":    startingDifficulty,
+			"global_config":          config.StageConfig, // Store config instead of quiz config
+			"quiz_start_time":        time.Now().Unix(),
+		},
+	}
+
+	err = s.Repo.Create(ctx, session)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// Cache skill info
+	s.sessionSkillCache[session.ID] = standardSkillInfo
+	s.sessionEnhancedSkillCache[session.ID] = skillInfo
+
+	if s.EventPublisher != nil {
+		s.EventPublisher.Publish("quiz.session.created", map[string]any{
+			"session_id":           session.ID,
+			"config_id":            config.ID,
+			"user_id":              userID,
+			"skill_id":             skillInfo.ID,
+			"tag_distribution":     s.getTagDistribution(skillInfo),
+			"starting_bloom_level": startingBloomLevel,
+			"starting_difficulty":  startingDifficulty,
+			"global_config":        true, // Flag to indicate this is a global config session
 		})
 	}
 
@@ -333,7 +471,20 @@ func (s *SessionService) GetNextQuestion(ctx context.Context, sessionID string) 
 	}
 
 	// Select with Bloom's distribution
-	questions, err := s.selectQuestionsWithBloomCriteria(ctx, session.QuizID, skillInfo, criteria)
+	var questions []models.Question
+	// Check if this is a true global session (created with CreateGlobalSession) or legacy
+	if metadata := session.Metadata; metadata != nil {
+		if isGlobal, ok := metadata["global_config"].(map[string]models.StageConfig); ok && isGlobal != nil {
+			// True global session - use global question selection
+			questions, err = s.selectGlobalQuestionsWithBloomCriteria(ctx, skillInfo, criteria)
+		} else {
+			// Legacy session - use quiz-based method (ConfigID contains quizID)
+			questions, err = s.selectQuestionsWithBloomCriteria(ctx, session.ConfigID, skillInfo, criteria)
+		}
+	} else {
+		// Very old session without metadata - use quiz-based method
+		questions, err = s.selectQuestionsWithBloomCriteria(ctx, session.ConfigID, skillInfo, criteria)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +545,7 @@ func (s *SessionService) SubmitSession(
 		s.EventPublisher.Publish("quiz.session.completed", map[string]interface{}{
 			"session_id":      sessionID,
 			"user_id":         session.UserID,
-			"quiz_id":         session.QuizID,
+			"config_id":       session.ConfigID, // Can be either configID or quizID for backward compatibility
 			"skill_id":        s.extractSkillID(session),
 			"final_score":     finalScore,
 			"completion_type": completionType,
@@ -664,6 +815,80 @@ func (s *SessionService) selectQuestionsWithBloomCriteria(
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to select questions: %w", err)
+	}
+
+	return result.Questions, nil
+}
+
+func (s *SessionService) selectGlobalQuestionsWithBloomCriteria(
+	ctx context.Context,
+	skillInfo *selection.SkillInfo,
+	criteria *adaptive.QuestionRequest,
+) ([]models.Question, error) {
+	session, _ := s.Repo.FindByID(ctx, criteria.SessionID)
+
+	difficulty := s.mapStageToDifficulty(criteria.Stage)
+
+	// Use custom Bloom distribution if user has preferred bloom levels
+	var bloomDist map[string]float64
+	if session != nil && session.Metadata != nil {
+		if preferredLevels, ok := s.extractStringSlice(session.Metadata["preferred_bloom_levels"]); ok && len(preferredLevels) > 0 {
+			bloomDist = s.getCustomBloomDistribution(preferredLevels)
+		} else if startingBloomLevel, ok := session.Metadata["starting_bloom_level"].(string); ok && startingBloomLevel != "" {
+			bloomDist = s.getCustomBloomDistribution([]string{startingBloomLevel})
+		} else {
+			bloomDist = s.getBloomDistribution(difficulty)
+		}
+	} else {
+		bloomDist = s.getBloomDistribution(difficulty)
+	}
+
+	// Check if we have enhanced skill info
+	enhancedSkillInfo := s.getEnhancedSkillInfoFromSession(session)
+
+	if enhancedSkillInfo != nil {
+		// Use enhanced selection with tag weights - global version
+		var result *selection.SelectionResult
+		var err error
+
+		if criteria.IsRecovery {
+			result, err = s.poolManager.SelectRecoveryQuestionsWithEnhancedWeightsGlobal(
+				ctx, enhancedSkillInfo, difficulty, 1, criteria.ExcludeIDs, bloomDist,
+			)
+		} else {
+			result, err = s.poolManager.SelectAdaptiveQuestionsWithEnhancedWeightsGlobal(
+				ctx, enhancedSkillInfo, difficulty, 1, criteria.ExcludeIDs, bloomDist,
+			)
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to select global questions with enhanced weights: %w", err)
+		}
+
+		// Log selection quality for monitoring
+		if result != nil && len(result.Questions) > 0 {
+			s.logSelectionQuality(session.ID, result)
+		}
+
+		return result.Questions, nil
+	}
+
+	// Fallback to standard global logic if no enhanced info
+	var result *selection.SelectionResult
+	var err error
+
+	if criteria.IsRecovery {
+		result, err = s.poolManager.SelectRecoveryQuestionsWithBloomGlobal(
+			ctx, skillInfo, difficulty, 1, criteria.ExcludeIDs, bloomDist,
+		)
+	} else {
+		result, err = s.poolManager.SelectAdaptiveQuestionsWithBloomGlobal(
+			ctx, skillInfo, difficulty, 1, criteria.ExcludeIDs, bloomDist,
+		)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to select global questions: %w", err)
 	}
 
 	return result.Questions, nil
@@ -1158,7 +1383,7 @@ func (s *SessionService) createQuizResult(session *models.QuizSession, completio
 	return &models.QuizResult{
 		SessionID:          session.ID,
 		UserID:             session.UserID,
-		QuizID:             session.QuizID,
+		ConfigID:           session.ConfigID,
 		FinalScore:         finalScore,
 		Percentage:         finalScore,
 		BadgeLevel:         badgeLevel,

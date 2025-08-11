@@ -41,7 +41,141 @@ func (h *SessionHandler) GetSession(c *gin.Context) {
 	c.JSON(http.StatusOK, session)
 }
 
-// CreateSession creates a new adaptive quiz session
+// CreateGlobalSession creates a new adaptive session using global configuration (no quiz dependency)
+func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
+	var req struct {
+		ConfigID  string `json:"config_id"` // Optional: uses default if empty
+		SkillID   string `json:"skill_id" binding:"required"`
+		SkillName string `json:"skill_name"`
+
+		// Categorized tags for weighted selection
+		PrimaryTags   []string `json:"primary_tags"`   // Core skill concepts
+		SecondaryTags []string `json:"secondary_tags"` // Supporting concepts
+		RelatedTags   []string `json:"related_tags"`   // Peripheral concepts
+
+		// Optional: Backward compatibility with single tag list
+		SkillTags []string `json:"skill_tags"` // Legacy field
+
+		// Tag weight configuration
+		TagWeights struct {
+			PrimaryWeight   float64 `json:"primary_weight"`
+			SecondaryWeight float64 `json:"secondary_weight"`
+			RelatedWeight   float64 `json:"related_weight"`
+			ExactMatchBonus float64 `json:"exact_match_bonus"`
+		} `json:"tag_weights"`
+
+		// Initial mastery fields
+		CurrentBloomLevel    string   `json:"current_bloom_level"`
+		PreferredBloomLevels []string `json:"preferred_bloom_levels"`
+		MasteryScore         int      `json:"mastery_score"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request format",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "User ID is required",
+		})
+		return
+	}
+
+	// Handle backward compatibility - if old skill_tags field is used
+	if len(req.PrimaryTags) == 0 && len(req.SkillTags) > 0 {
+		// Put all tags as primary for backward compatibility
+		req.PrimaryTags = req.SkillTags
+		fmt.Printf("[Session] Using legacy skill_tags field, treating all as primary tags\n")
+	}
+
+	// Validate we have at least some tags
+	totalTags := len(req.PrimaryTags) + len(req.SecondaryTags) + len(req.RelatedTags)
+	if totalTags == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "At least one tag (primary, secondary, or related) is required",
+		})
+		return
+	}
+
+	// Set default weights if not provided
+	if req.TagWeights.PrimaryWeight == 0 {
+		req.TagWeights.PrimaryWeight = 3.0
+	}
+	if req.TagWeights.SecondaryWeight == 0 {
+		req.TagWeights.SecondaryWeight = 1.5
+	}
+	if req.TagWeights.RelatedWeight == 0 {
+		req.TagWeights.RelatedWeight = 0.5
+	}
+	if req.TagWeights.ExactMatchBonus == 0 {
+		req.TagWeights.ExactMatchBonus = 2.0
+	}
+
+	// Set default skill name
+	if req.SkillName == "" {
+		req.SkillName = req.SkillID
+	}
+
+	// Create enhanced skill info
+	enhancedSkillInfo := &selection.EnhancedSkillInfo{
+		ID:            req.SkillID,
+		Name:          req.SkillName,
+		PrimaryTags:   req.PrimaryTags,
+		SecondaryTags: req.SecondaryTags,
+		RelatedTags:   req.RelatedTags,
+		TagWeights: selection.TagWeightConfig{
+			PrimaryWeight:   req.TagWeights.PrimaryWeight,
+			SecondaryWeight: req.TagWeights.SecondaryWeight,
+			RelatedWeight:   req.TagWeights.RelatedWeight,
+			ExactMatchBonus: req.TagWeights.ExactMatchBonus,
+		},
+	}
+
+	// Log tag distribution for monitoring
+	fmt.Printf("[GlobalSession] Creating session with tag distribution - Primary: %d, Secondary: %d, Related: %d\n",
+		len(req.PrimaryTags), len(req.SecondaryTags), len(req.RelatedTags))
+	fmt.Printf("[GlobalSession] Tag weights - Primary: %.1f, Secondary: %.1f, Related: %.1f, ExactBonus: %.1f\n",
+		req.TagWeights.PrimaryWeight, req.TagWeights.SecondaryWeight,
+		req.TagWeights.RelatedWeight, req.TagWeights.ExactMatchBonus)
+
+	// Determine bloom levels - prefer new format, fallback to legacy
+	var bloomLevels []string
+	if len(req.PreferredBloomLevels) > 0 {
+		bloomLevels = req.PreferredBloomLevels
+	} else if req.CurrentBloomLevel != "" {
+		bloomLevels = []string{req.CurrentBloomLevel}
+	}
+
+	// Create global session
+	session, err := h.Service.CreateGlobalSession(
+		context.Background(),
+		userID,
+		enhancedSkillInfo,
+		bloomLevels,
+		req.MasteryScore,
+		req.ConfigID, // Uses default if empty
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to create global session",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Global session created successfully",
+		"session": session,
+		"mode":    "global", // Indicate this is using global configuration
+	})
+}
+
+// CreateSession creates a new adaptive quiz session (DEPRECATED - Use CreateGlobalSession)
 func (h *SessionHandler) CreateSession(c *gin.Context) {
 	var req struct {
 		QuizID    string `json:"quiz_id" binding:"required"`
@@ -742,7 +876,7 @@ func (h *SessionHandler) calculateDetailedProgress(session *models.QuizSession) 
 func (h *SessionHandler) generateSessionStatistics(session *models.QuizSession) map[string]interface{} {
 	stats := map[string]interface{}{
 		"session_id":       session.ID,
-		"quiz_id":          session.QuizID,
+		"config_id":        session.ConfigID,
 		"user_id":          session.UserID,
 		"start_time":       session.StartTime,
 		"current_stage":    session.CurrentStage,

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-
 	"quiz-service/internal/event"
 	"quiz-service/internal/models"
 	"quiz-service/internal/repository"
@@ -45,7 +44,7 @@ func (s *ResultService) CreateResult(ctx context.Context, result *models.QuizRes
 			"result_id":           result.ID,
 			"session_id":          result.SessionID,
 			"user_id":             result.UserID,
-			"quiz_id":             result.QuizID,
+			"config_id":           result.ConfigID,
 			"final_score":         result.FinalScore,
 			"percentage":          result.Percentage,
 			"badge_level":         result.BadgeLevel,

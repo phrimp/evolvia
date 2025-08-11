@@ -13,7 +13,7 @@ type StageProgress struct {
 
 type QuizSession struct {
 	ID                  string                   `bson:"_id,omitempty" json:"id"`
-	QuizID              string                   `bson:"quiz_id" json:"quiz_id"`
+	ConfigID            string                   `bson:"config_id" json:"config_id"` // Changed from QuizID to ConfigID
 	UserID              string                   `bson:"user_id" json:"user_id"`
 	SessionToken        string                   `bson:"session_token" json:"session_token"`
 	StartTime           time.Time                `bson:"start_time" json:"start_time"`
@@ -29,15 +29,15 @@ type QuizSession struct {
 	CompletionType      string                   `bson:"completion_type" json:"completion_type"`
 
 	// New field to store skill information and other metadata
-	Metadata map[string]interface{} `bson:"metadata,omitempty" json:"metadata,omitempty"`
+	Metadata map[string]any `bson:"metadata,omitempty" json:"metadata,omitempty"`
 }
 
 // SessionMetadata structure for type-safe access to metadata
 type SessionMetadata struct {
-	SkillID        string                 `json:"skill_id"`
-	SkillName      string                 `json:"skill_name"`
-	SkillTags      []string               `json:"skill_tags"`
-	QuestionPools  map[string][]string    `json:"question_pools,omitempty"`
-	QuizStartTime  int64                  `json:"quiz_start_time"`
-	AdaptiveConfig map[string]interface{} `json:"adaptive_config,omitempty"`
+	SkillID        string              `json:"skill_id"`
+	SkillName      string              `json:"skill_name"`
+	SkillTags      []string            `json:"skill_tags"`
+	QuestionPools  map[string][]string `json:"question_pools,omitempty"`
+	QuizStartTime  int64               `json:"quiz_start_time"`
+	AdaptiveConfig map[string]any      `json:"adaptive_config,omitempty"`
 }

@@ -641,3 +641,356 @@ func (pm *PoolManager) countTagMatches(questionTags []string, targetTags []strin
 
 	return matches
 }
+
+// GetGlobalPoolWithBloom retrieves global question pool with Bloom's level analysis
+// This replaces GetQuizPoolWithBloom for the new global architecture
+func (pm *PoolManager) GetGlobalPoolWithBloom(ctx context.Context, skillInfo *SkillInfo) (*QuizPool, error) {
+	// Get all active questions from the global pool
+	questions, err := pm.questionRepo.FindActiveQuestions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get global questions: %w", err)
+	}
+
+	// Filter questions by skill tags
+	var filteredQuestions []models.Question
+	for _, q := range questions {
+		if pm.matchesSkillTags(q.TopicTags, skillInfo.Tags) {
+			filteredQuestions = append(filteredQuestions, q)
+		}
+	}
+
+	// Calculate Bloom's distribution
+	bloomDist := make(map[string]int)
+	diffMatrix := make(map[string]map[string]int)
+
+	for _, q := range filteredQuestions {
+		// Count Bloom's levels
+		bloomLevel := q.BloomLevel
+		if bloomLevel == "" {
+			bloomLevel = "unknown"
+		}
+		bloomDist[bloomLevel]++
+
+		// Build difficulty-Bloom matrix
+		if diffMatrix[q.DifficultyLevel] == nil {
+			diffMatrix[q.DifficultyLevel] = make(map[string]int)
+		}
+		diffMatrix[q.DifficultyLevel][bloomLevel]++
+	}
+
+	return &QuizPool{
+		ID:                "global", // No longer tied to a specific quiz
+		SkillID:           skillInfo.ID,
+		SkillTags:         skillInfo.Tags,
+		Questions:         filteredQuestions,
+		TotalCount:        len(filteredQuestions),
+		BloomDistribution: bloomDist,
+		DifficultyMatrix:  diffMatrix,
+	}, nil
+}
+
+// GetGlobalPoolForEnhancedSkill retrieves global question pool for enhanced skill info
+func (pm *PoolManager) GetGlobalPoolForEnhancedSkill(ctx context.Context, skillInfo *EnhancedSkillInfo) (*QuizPool, error) {
+	// Get all active questions
+	questions, err := pm.questionRepo.FindActiveQuestions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get global questions: %w", err)
+	}
+
+	// Filter and score questions by enhanced skill matching
+	var filteredQuestions []models.Question
+	for _, q := range questions {
+		if pm.matchesEnhancedSkillTags(q.TopicTags, skillInfo) {
+			filteredQuestions = append(filteredQuestions, q)
+		}
+	}
+
+	// Calculate distributions
+	bloomDist := make(map[string]int)
+	diffMatrix := make(map[string]map[string]int)
+
+	for _, q := range filteredQuestions {
+		bloomLevel := q.BloomLevel
+		if bloomLevel == "" {
+			bloomLevel = "unknown"
+		}
+		bloomDist[bloomLevel]++
+
+		if diffMatrix[q.DifficultyLevel] == nil {
+			diffMatrix[q.DifficultyLevel] = make(map[string]int)
+		}
+		diffMatrix[q.DifficultyLevel][bloomLevel]++
+	}
+
+	return &QuizPool{
+		ID:                "global",
+		SkillID:           skillInfo.ID,
+		SkillTags:         pm.mergeEnhancedTags(skillInfo),
+		Questions:         filteredQuestions,
+		TotalCount:        len(filteredQuestions),
+		BloomDistribution: bloomDist,
+		DifficultyMatrix:  diffMatrix,
+	}, nil
+}
+
+// ValidateGlobalPoolWithBloom validates if global pool has sufficient questions
+func (pm *PoolManager) ValidateGlobalPoolWithBloom(ctx context.Context, skillInfo *SkillInfo) (bool, *QuizPoolValidation, error) {
+	pool, err := pm.GetGlobalPoolWithBloom(ctx, skillInfo)
+	if err != nil {
+		return false, nil, err
+	}
+
+	validation := &QuizPoolValidation{
+		TotalQuestions:        pool.TotalCount,
+		DifficultyCount:       make(map[string]int),
+		BloomCount:            pool.BloomDistribution,
+		DifficultyBloomMatrix: pool.DifficultyMatrix,
+		MissingLevels:         []string{},
+		Warnings:              []string{},
+	}
+
+	// Count by difficulty
+	for _, q := range pool.Questions {
+		validation.DifficultyCount[q.DifficultyLevel]++
+	}
+
+	// Check minimum requirements for adaptive quiz
+	requiredPerDifficulty := map[string]int{
+		"easy":   8, // 5 initial + 3 recovery
+		"medium": 8,
+		"hard":   8,
+	}
+
+	isValid := true
+	for difficulty, required := range requiredPerDifficulty {
+		actual := validation.DifficultyCount[difficulty]
+		if actual < required {
+			isValid = false
+			validation.Warnings = append(validation.Warnings,
+				fmt.Sprintf("Insufficient %s questions for skill tags %v: need %d, have %d",
+					difficulty, skillInfo.Tags, required, actual))
+		}
+	}
+
+	// Check Bloom's level coverage
+	requiredBloomLevels := []string{"remember", "understand", "apply", "analyze"}
+	for _, level := range requiredBloomLevels {
+		if validation.BloomCount[level] == 0 {
+			validation.MissingLevels = append(validation.MissingLevels, level)
+			validation.Warnings = append(validation.Warnings,
+				fmt.Sprintf("No questions for Bloom's level: %s with skill tags %v", level, skillInfo.Tags))
+		}
+	}
+
+	// Check distribution balance
+	pm.validateBloomBalance(validation)
+
+	validation.IsValid = isValid && len(validation.MissingLevels) == 0
+
+	return validation.IsValid, validation, nil
+}
+
+// Helper method to check if question tags match skill tags
+func (pm *PoolManager) matchesSkillTags(questionTags []string, skillTags []string) bool {
+	if len(skillTags) == 0 {
+		return true // If no skill tags specified, include all questions
+	}
+
+	for _, skillTag := range skillTags {
+		for _, questionTag := range questionTags {
+			if strings.EqualFold(skillTag, questionTag) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Helper method to check enhanced skill tag matching with weights
+func (pm *PoolManager) matchesEnhancedSkillTags(questionTags []string, skillInfo *EnhancedSkillInfo) bool {
+	// Check if question matches any primary, secondary, or related tags
+	allSkillTags := append(skillInfo.PrimaryTags, skillInfo.SecondaryTags...)
+	allSkillTags = append(allSkillTags, skillInfo.RelatedTags...)
+
+	return pm.matchesSkillTags(questionTags, allSkillTags)
+}
+
+// Helper method to merge enhanced skill tags
+func (pm *PoolManager) mergeEnhancedTags(skillInfo *EnhancedSkillInfo) []string {
+	allTags := make([]string, 0)
+	allTags = append(allTags, skillInfo.PrimaryTags...)
+	allTags = append(allTags, skillInfo.SecondaryTags...)
+	allTags = append(allTags, skillInfo.RelatedTags...)
+	return allTags
+}
+
+// Global versions of selection methods (without quiz dependency)
+
+// SelectAdaptiveQuestionsWithBloomGlobal selects questions from global pool
+func (pm *PoolManager) SelectAdaptiveQuestionsWithBloomGlobal(
+	ctx context.Context,
+	skillInfo *SkillInfo,
+	difficulty string,
+	count int,
+	excludeIDs []string,
+	bloomDistribution map[string]float64,
+) (*SelectionResult, error) {
+	// Get global pool
+	pool, err := pm.GetGlobalPoolWithBloom(ctx, skillInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare selection criteria with Bloom's distribution
+	criteria := &SelectionCriteria{
+		SkillID:           skillInfo.ID,
+		SkillTags:         skillInfo.Tags,
+		Difficulty:        difficulty,
+		ExcludeIDs:        excludeIDs,
+		Count:             count,
+		MinTagMatch:       0,
+		WeightExponent:    2.0,
+		BloomDistribution: bloomDistribution,
+	}
+
+	// Select questions using enhanced weighted selection
+	result, err := pm.selector.SelectQuestionsWithBloom(pool.Questions, criteria, bloomDistribution)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select questions: %w", err)
+	}
+
+	// Enhance result with coverage statistics
+	pm.enhanceResultStats(result, pool)
+
+	// If we don't have enough questions, try relaxing constraints
+	if len(result.Questions) < count {
+		// Try with relaxed Bloom's distribution
+		relaxedDist := pm.getRelaxedBloomDistribution(difficulty)
+		criteria.BloomDistribution = relaxedDist
+		result, err = pm.selector.SelectQuestionsWithBloom(pool.Questions, criteria, relaxedDist)
+		if err != nil {
+			return nil, err
+		}
+		pm.enhanceResultStats(result, pool)
+	}
+
+	return result, nil
+}
+
+// SelectRecoveryQuestionsWithBloomGlobal selects recovery questions from global pool
+func (pm *PoolManager) SelectRecoveryQuestionsWithBloomGlobal(
+	ctx context.Context,
+	skillInfo *SkillInfo,
+	difficulty string,
+	count int,
+	excludeIDs []string,
+	bloomDistribution map[string]float64,
+) (*SelectionResult, error) {
+	// Get global pool
+	pool, err := pm.GetGlobalPoolWithBloom(ctx, skillInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use simplified Bloom's distribution for recovery
+	recoveryDist := pm.getRecoveryBloomDistribution(difficulty)
+	if bloomDistribution != nil {
+		recoveryDist = bloomDistribution
+	}
+
+	// Prepare selection criteria
+	criteria := &SelectionCriteria{
+		SkillID:           skillInfo.ID,
+		SkillTags:         skillInfo.Tags,
+		Difficulty:        difficulty,
+		ExcludeIDs:        excludeIDs,
+		Count:             count,
+		MinTagMatch:       1, // Require at least one tag match for recovery
+		WeightExponent:    1.5,
+		BloomDistribution: recoveryDist,
+	}
+
+	result, err := pm.selector.SelectQuestionsWithBloom(pool.Questions, criteria, recoveryDist)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select recovery questions: %w", err)
+	}
+
+	pm.enhanceResultStats(result, pool)
+
+	return result, nil
+}
+
+// SelectAdaptiveQuestionsWithEnhancedWeightsGlobal selects questions with enhanced tag weights from global pool
+func (pm *PoolManager) SelectAdaptiveQuestionsWithEnhancedWeightsGlobal(
+	ctx context.Context,
+	skillInfo *EnhancedSkillInfo,
+	difficulty string,
+	count int,
+	excludeIDs []string,
+	bloomDistribution map[string]float64,
+) (*SelectionResult, error) {
+	// Get global pool for enhanced skill
+	pool, err := pm.GetGlobalPoolForEnhancedSkill(ctx, skillInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare enhanced selection criteria
+	criteria := &EnhancedSelectionCriteria{
+		SkillInfo:         skillInfo,
+		Difficulty:        difficulty,
+		ExcludeIDs:        excludeIDs,
+		Count:             count,
+		BloomDistribution: bloomDistribution,
+	}
+
+	result, err := pm.selector.SelectQuestionsWithEnhancedWeights(pool.Questions, criteria, skillInfo.TagWeights)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select enhanced questions: %w", err)
+	}
+
+	pm.enhanceResultStats(result, pool)
+
+	return result, nil
+}
+
+// SelectRecoveryQuestionsWithEnhancedWeightsGlobal selects recovery questions with enhanced weights from global pool
+func (pm *PoolManager) SelectRecoveryQuestionsWithEnhancedWeightsGlobal(
+	ctx context.Context,
+	skillInfo *EnhancedSkillInfo,
+	difficulty string,
+	count int,
+	excludeIDs []string,
+	bloomDistribution map[string]float64,
+) (*SelectionResult, error) {
+	// Get global pool for enhanced skill
+	pool, err := pm.GetGlobalPoolForEnhancedSkill(ctx, skillInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use recovery distribution
+	recoveryDist := pm.getRecoveryBloomDistribution(difficulty)
+	if bloomDistribution != nil {
+		recoveryDist = bloomDistribution
+	}
+
+	// Prepare enhanced selection criteria for recovery
+	criteria := &EnhancedSelectionCriteria{
+		SkillInfo:         skillInfo,
+		Difficulty:        difficulty,
+		ExcludeIDs:        excludeIDs,
+		Count:             count,
+		BloomDistribution: recoveryDist,
+		MinPrimaryMatch:   1, // Require at least one primary tag match for recovery
+	}
+
+	result, err := pm.selector.SelectQuestionsWithEnhancedWeights(pool.Questions, criteria, skillInfo.TagWeights)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select enhanced recovery questions: %w", err)
+	}
+
+	pm.enhanceResultStats(result, pool)
+
+	return result, nil
+}

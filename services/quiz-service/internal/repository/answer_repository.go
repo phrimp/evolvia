@@ -2,8 +2,8 @@ package repository
 
 import (
 	"context"
-
 	"quiz-service/internal/models"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )

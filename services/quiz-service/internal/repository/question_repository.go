@@ -57,12 +57,62 @@ func (r *QuestionRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+// FindByQuizID - DEPRECATED: Will be removed after migration to global config
 func (r *QuestionRepository) FindByQuizID(ctx context.Context, quizID string) ([]models.Question, error) {
 	cur, err := r.Col.Find(ctx, bson.M{"quiz_id": quizID})
 	if err != nil {
 		return nil, err
 	}
 	defer cur.Close(ctx)
+	var questions []models.Question
+	for cur.Next(ctx) {
+		var q models.Question
+		if err := cur.Decode(&q); err != nil {
+			return nil, err
+		}
+		questions = append(questions, q)
+	}
+	return questions, nil
+}
+
+// FindBySkillTags finds questions that match any of the provided skill tags
+func (r *QuestionRepository) FindBySkillTags(ctx context.Context, skillTags []string) ([]models.Question, error) {
+	filter := bson.M{
+		"topic_tags": bson.M{"$in": skillTags},
+	}
+
+	cur, err := r.Col.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	var questions []models.Question
+	for cur.Next(ctx) {
+		var q models.Question
+		if err := cur.Decode(&q); err != nil {
+			return nil, err
+		}
+		questions = append(questions, q)
+	}
+	return questions, nil
+}
+
+// FindActiveQuestions finds all non-deleted questions
+func (r *QuestionRepository) FindActiveQuestions(ctx context.Context) ([]models.Question, error) {
+	filter := bson.M{
+		"$or": []bson.M{
+			{"status": bson.M{"$ne": "deleted"}},
+			{"status": bson.M{"$exists": false}},
+		},
+	}
+
+	cur, err := r.Col.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
 	var questions []models.Question
 	for cur.Next(ctx) {
 		var q models.Question

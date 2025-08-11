@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-
 	"quiz-service/internal/models"
 	"quiz-service/internal/repository"
 )

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -58,6 +59,17 @@ func main() {
 	// Khởi tạo repository, service, handler cho quiz và question
 	mongoClient := db.Client
 	database := mongoClient.Database("quiz_service")
+
+	// Global configuration setup
+	configRepo := repository.NewConfigRepository(database)
+	configService := service.NewConfigService(configRepo)
+	configHandler := handlers.NewConfigHandler(configService)
+
+	// Ensure default configuration exists
+	if err := configService.EnsureDefaultExists(context.Background()); err != nil {
+		log.Fatalf("Failed to ensure default config exists: %v", err)
+	}
+
 	quizRepo := repository.NewQuizRepository(database)
 	quizService := service.NewQuizService(quizRepo)
 	quizHandler := handlers.NewQuizHandler(quizService)
@@ -67,8 +79,9 @@ func main() {
 	sessionRepo := repository.NewSessionRepository(database)
 	sessionService := service.NewSessionService(
 		sessionRepo,
-		quizRepo,
+		quizRepo, // DEPRECATED: Will be removed
 		questionRepo,
+		configService, // NEW: For global configurations
 	)
 	answerRepo := repository.NewAnswerRepository(database)
 	answerService := service.NewAnswerService(answerRepo)
@@ -133,7 +146,7 @@ func main() {
 		protectedQuestion.PUT("/:id", questionHandler.UpdateQuestion)
 		protectedQuestion.DELETE("/:id", questionHandler.DeleteQuestion)
 		protectedQuestion.POST("/bulk", questionHandler.BulkQuestionOps)
-		
+
 		// Type-specific creation endpoints
 		protectedQuestion.POST("/true-false", questionHandler.CreateTrueFalseQuestion)
 		protectedQuestion.POST("/single-choice", questionHandler.CreateSingleChoiceQuestion)
@@ -155,7 +168,20 @@ func main() {
 		protectedResult.POST("/", resultHandler.CreateResult)
 	}
 
+	// Global Configuration routes
+	protectedConfig := r.Group("/protected/quizz/config")
+	{
+		protectedConfig.POST("/", configHandler.CreateConfig)
+		protectedConfig.GET("/:id", configHandler.GetConfig)
+		protectedConfig.GET("/", configHandler.GetAllConfigs)
+		protectedConfig.GET("/default", configHandler.GetDefaultConfig)
+		protectedConfig.PUT("/:id", configHandler.UpdateConfig)
+		protectedConfig.DELETE("/:id", configHandler.DeleteConfig)
+		protectedConfig.POST("/:id/set-default", configHandler.SetDefaultConfig)
+	}
+
 	setupSessionRoutes(r, sessionHandler, publisher)
+	setupGlobalSessionRoutes(r, sessionHandler, publisher) // NEW: Global session routes
 
 	r.Run(":6666")
 }
@@ -477,4 +503,132 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 			}
 		}
 	})
+}
+
+// setupGlobalSessionRoutes sets up routes for global session management (no quiz dependency)
+func setupGlobalSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, publisher *event.EventPublisher) {
+	// Protected global session routes
+	protectedGlobalSession := r.Group("/protected/quizz/global-session")
+	{
+		// === GLOBAL SESSION MANAGEMENT ===
+
+		// Create new global session with skill-based filtering
+		protectedGlobalSession.POST("/", func(c *gin.Context) {
+			sessionHandler.CreateGlobalSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.creation_requested", gin.H{
+					"user_id":   c.GetHeader("X-User-ID"),
+					"timestamp": time.Now(),
+				})
+			}
+		})
+
+		// Global session status and management
+		protectedGlobalSession.GET("/:id", func(c *gin.Context) {
+			sessionHandler.GetSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.retrieved", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		protectedGlobalSession.PUT("/:id", func(c *gin.Context) {
+			sessionHandler.UpdateSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.updated", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Global session questions and answers
+		protectedGlobalSession.GET("/:id/next-question", func(c *gin.Context) {
+			sessionHandler.NextQuestion(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.question_requested", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		protectedGlobalSession.POST("/:id/answer", func(c *gin.Context) {
+			sessionHandler.SubmitAnswer(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.answer_submitted", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		protectedGlobalSession.POST("/:id/submit", func(c *gin.Context) {
+			sessionHandler.SubmitSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.submitted", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Global session status endpoints
+		protectedGlobalSession.GET("/:id/status", func(c *gin.Context) {
+			sessionHandler.GetSessionStatus(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.status_checked", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+	}
+
+	// Public global session routes
+	publicGlobalSession := r.Group("/public/quizz/global-session")
+	{
+		// Public progress check (limited information)
+		publicGlobalSession.GET("/:id/progress", func(c *gin.Context) {
+			sessionHandler.GetSessionProgress(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.public_progress_check", gin.H{
+					"session_id": c.Param("id"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Global pool information for skill tags
+		publicGlobalSession.GET("/pool-info", func(c *gin.Context) {
+			skillTags := c.QueryArray("skill_tags")
+			if len(skillTags) == 0 {
+				c.JSON(400, gin.H{
+					"error": "skill_tags parameter is required",
+				})
+				return
+			}
+
+			// Create a temporary skill info for pool validation
+			skillInfo := struct {
+				Tags []string `json:"tags"`
+			}{
+				Tags: skillTags,
+			}
+
+			c.JSON(200, gin.H{
+				"message": "Global pool uses all questions filtered by skill tags",
+				"skills":  skillInfo,
+				"mode":    "global",
+			})
+		})
+	}
 }

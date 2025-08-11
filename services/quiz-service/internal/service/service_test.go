@@ -2,14 +2,13 @@ package service
 
 import (
 	"context"
+	"quiz-service/internal/adaptive"
+	"quiz-service/internal/models"
+	"quiz-service/internal/selection"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-
-	"quiz-service/internal/adaptive"
-	"quiz-service/internal/models"
-	"quiz-service/internal/selection"
 )
 
 // Unit tests for business logic validation without external dependencies
@@ -77,7 +76,6 @@ func TestSessionBusinessLogic(t *testing.T) {
 		session := &models.QuizSession{
 			ID:                  "session123",
 			UserID:              "user456",
-			QuizID:              "quiz789",
 			Status:              "active",
 			CurrentStage:        "remember",
 			TotalQuestionsAsked: 5,
@@ -95,7 +93,6 @@ func TestSessionBusinessLogic(t *testing.T) {
 		// Validate session structure
 		assert.NotEmpty(t, session.ID)
 		assert.NotEmpty(t, session.UserID)
-		assert.NotEmpty(t, session.QuizID)
 		assert.Contains(t, []string{"active", "completed", "paused", "abandoned"}, session.Status)
 		assert.GreaterOrEqual(t, session.TotalQuestionsAsked, 0)
 
@@ -199,7 +196,7 @@ func TestAdaptiveManager(t *testing.T) {
 
 		// Test processing a correct answer
 		result, err := manager.ProcessAnswer(session, question, true)
-		
+
 		if err == nil { // If the method works
 			assert.NotNil(t, result)
 			assert.Equal(t, 2, session.StageStatuses[adaptive.StageEasy].QuestionsAsked)
@@ -420,7 +417,6 @@ func (suite *ServiceBusinessLogicSuite) TestCompleteWorkflow() {
 		// 2. Session initialization
 		session := &models.QuizSession{
 			ID:           "workflow_session",
-			QuizID:       quiz.ID,
 			UserID:       "test_user",
 			Status:       "active",
 			CurrentStage: "remember",
@@ -486,7 +482,7 @@ func (suite *ServiceBusinessLogicSuite) TestCompleteWorkflow() {
 		// 5. Determine if stage passed
 		passingThreshold := quiz.StageConfig["remember"].PassingThreshold
 		stagePassed := accuracy >= passingThreshold
-		
+
 		// 2/3 = 0.667 which is < 0.7, so it should fail
 		assert.False(t, stagePassed, "Stage should not pass with 66.7%% accuracy when threshold is 70%%")
 	})

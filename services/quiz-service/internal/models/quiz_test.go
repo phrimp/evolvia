@@ -12,7 +12,7 @@ import (
 // QuizTestSuite defines the test suite for Quiz model
 type QuizTestSuite struct {
 	suite.Suite
-	sampleQuiz      *Quiz
+	sampleQuiz        *Quiz
 	sampleStageConfig StageConfig
 }
 
@@ -34,12 +34,12 @@ func (suite *QuizTestSuite) SetupTest() {
 		TotalDurationSeconds: 3600, // 1 hour
 		MaxQuestions:         20,
 		StageConfig: map[string]StageConfig{
-			"remember":    suite.sampleStageConfig,
-			"understand":  suite.sampleStageConfig,
-			"apply":       suite.sampleStageConfig,
-			"analyze":     suite.sampleStageConfig,
-			"evaluate":    suite.sampleStageConfig,
-			"create":      suite.sampleStageConfig,
+			"remember":   suite.sampleStageConfig,
+			"understand": suite.sampleStageConfig,
+			"apply":      suite.sampleStageConfig,
+			"analyze":    suite.sampleStageConfig,
+			"evaluate":   suite.sampleStageConfig,
+			"create":     suite.sampleStageConfig,
 		},
 		Status:    "active",
 		CreatedAt: time.Now(),
@@ -79,7 +79,7 @@ func (suite *QuizTestSuite) TestQuiz_StageConfigMapping() {
 
 	// Test that all Bloom's taxonomy stages are configured
 	bloomStages := []string{"remember", "understand", "apply", "analyze", "evaluate", "create"}
-	
+
 	for _, stage := range bloomStages {
 		config, exists := suite.sampleQuiz.StageConfig[stage]
 		assert.True(t, exists, "Stage %s should exist in configuration", stage)
@@ -99,7 +99,7 @@ func (suite *QuizTestSuite) TestQuiz_JSONSerialization() {
 	var deserializedQuiz Quiz
 	err = json.Unmarshal(jsonData, &deserializedQuiz)
 	assert.NoError(t, err)
-	
+
 	// Compare key fields (excluding time fields due to precision differences)
 	assert.Equal(t, suite.sampleQuiz.ID, deserializedQuiz.ID)
 	assert.Equal(t, suite.sampleQuiz.Title, deserializedQuiz.Title)
@@ -135,8 +135,8 @@ func (suite *QuizTestSuite) TestQuiz_ValidationScenarios() {
 		description string
 	}{
 		{
-			name: "ValidQuiz",
-			quiz: *suite.sampleQuiz,
+			name:        "ValidQuiz",
+			quiz:        *suite.sampleQuiz,
 			expectValid: true,
 			description: "A properly configured quiz should be valid",
 		},
@@ -262,10 +262,10 @@ func (suite *QuizTestSuite) TestQuiz_BusinessLogicScenarios() {
 		// Test that quiz duration makes sense relative to max questions
 		quiz := suite.sampleQuiz
 		avgTimePerQuestion := float64(quiz.TotalDurationSeconds) / float64(quiz.MaxQuestions)
-		
+
 		// Should allow reasonable time per question (at least 30 seconds)
 		assert.GreaterOrEqual(t, avgTimePerQuestion, 30.0)
-		
+
 		// Should not be excessive (more than 30 minutes per question)
 		assert.LessOrEqual(t, avgTimePerQuestion, 1800.0)
 	})
@@ -275,11 +275,11 @@ func (suite *QuizTestSuite) TestQuiz_BusinessLogicScenarios() {
 			// Recovery threshold should be <= passing threshold
 			assert.LessOrEqual(t, config.RecoveryThreshold, config.PassingThreshold,
 				"Stage %s: recovery threshold should be <= passing threshold", stageName)
-			
+
 			// Recovery questions should be <= initial questions
 			assert.LessOrEqual(t, config.RecoveryQuestions, config.InitialQuestions,
 				"Stage %s: recovery questions should be <= initial questions", stageName)
-			
+
 			// Recovery points should be <= base points
 			assert.LessOrEqual(t, config.RecoveryPoints, config.BasePoints,
 				"Stage %s: recovery points should be <= base points", stageName)
@@ -293,11 +293,11 @@ func (suite *QuizTestSuite) TestQuiz_BusinessLogicScenarios() {
 			// Worst case: initial + recovery questions per stage
 			totalEstimatedQuestions += config.InitialQuestions + config.RecoveryQuestions
 		}
-		
+
 		// Max questions should be reasonable compared to estimated total
 		assert.GreaterOrEqual(t, suite.sampleQuiz.MaxQuestions, len(suite.sampleQuiz.StageConfig),
 			"Max questions should be at least the number of stages")
-		
+
 		// Should not be excessive compared to total possible questions
 		assert.LessOrEqual(t, suite.sampleQuiz.MaxQuestions, totalEstimatedQuestions,
 			"Max questions should not exceed total possible questions from all stages")
@@ -343,11 +343,11 @@ func TestQuizSuite(t *testing.T) {
 func TestQuizModel_EdgeCases(t *testing.T) {
 	t.Run("EmptyStageConfig", func(t *testing.T) {
 		quiz := &Quiz{
-			ID:           "quiz_empty_config",
-			Title:        "Quiz with Empty Config",
-			StageConfig:  make(map[string]StageConfig),
+			ID:          "quiz_empty_config",
+			Title:       "Quiz with Empty Config",
+			StageConfig: make(map[string]StageConfig),
 		}
-		
+
 		assert.NotNil(t, quiz.StageConfig)
 		assert.Len(t, quiz.StageConfig, 0)
 	})
@@ -367,7 +367,7 @@ func TestQuizModel_EdgeCases(t *testing.T) {
 				},
 			},
 		}
-		
+
 		assert.Len(t, quiz.StageConfig, 1)
 		assert.Contains(t, quiz.StageConfig, "remember")
 	})
@@ -379,7 +379,7 @@ func TestQuizModel_EdgeCases(t *testing.T) {
 			TotalDurationSeconds: 86400, // 24 hours
 			MaxQuestions:         1000,
 		}
-		
+
 		avgTimePerQuestion := float64(quiz.TotalDurationSeconds) / float64(quiz.MaxQuestions)
 		assert.Equal(t, 86.4, avgTimePerQuestion) // 86.4 seconds per question
 	})
