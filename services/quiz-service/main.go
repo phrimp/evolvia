@@ -114,6 +114,8 @@ func main() {
 				publisher.Publish("question.get", gin.H{"id": c.Param("id")})
 			}
 		})
+		// Get supported question types information
+		publicQuestion.GET("/types", questionHandler.GetSupportedQuestionTypes)
 	}
 
 	// Protected routes
@@ -131,6 +133,11 @@ func main() {
 		protectedQuestion.PUT("/:id", questionHandler.UpdateQuestion)
 		protectedQuestion.DELETE("/:id", questionHandler.DeleteQuestion)
 		protectedQuestion.POST("/bulk", questionHandler.BulkQuestionOps)
+		
+		// Type-specific creation endpoints
+		protectedQuestion.POST("/true-false", questionHandler.CreateTrueFalseQuestion)
+		protectedQuestion.POST("/single-choice", questionHandler.CreateSingleChoiceQuestion)
+		protectedQuestion.POST("/multiple-choice", questionHandler.CreateMultipleChoiceQuestion)
 	}
 
 	publicUser := r.Group("/public/quizz/user")

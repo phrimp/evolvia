@@ -15,10 +15,10 @@ import (
 )
 
 type SessionHandler struct {
-	Service           *service.SessionService
-	AnswerService     *service.AnswerService
-	QuestionService   *service.QuestionService
-	IntegrityMonitor  *integrity.TimeIntegrityMonitor
+	Service          *service.SessionService
+	AnswerService    *service.AnswerService
+	QuestionService  *service.QuestionService
+	IntegrityMonitor *integrity.TimeIntegrityMonitor
 }
 
 func NewSessionHandler(s *service.SessionService, as *service.AnswerService, qs *service.QuestionService) *SessionHandler {
@@ -252,6 +252,8 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		UserAnswer string `json:"user_answer" binding:"required"`
 		IsCorrect  bool   `json:"is_correct"`
 		TimeSpent  int    `json:"time_spent_seconds"`
+		// For true/false questions, support boolean answers
+		BooleanAnswer *bool `json:"boolean_answer,omitempty"`
 	}
 
 	if err := c.ShouldBindJSON(&answerData); err != nil {
@@ -262,7 +264,7 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		return
 	}
 
-	// Fetch the question for Bloom scoring
+	// Fetch the question for validation and Bloom scoring
 	question, err := h.QuestionService.GetQuestion(context.Background(), answerData.QuestionID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -272,8 +274,43 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		return
 	}
 
+	// Validate question structure
+	if err := question.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid question structure",
+			"details": err.Error(),
+		})
+		return
+	}
+
 	// Ensure question has Bloom scores calculated
 	question.EnsureBloomScores()
+
+	// Validate and determine correctness based on question type
+	var isAnswerCorrect bool
+	switch models.QuestionType(question.Type) {
+	case models.QuestionTypeTrueFalse:
+		// For true/false questions, support both string and boolean answers
+		if answerData.BooleanAnswer != nil {
+			isAnswerCorrect = question.IsCorrectBooleanAnswer(*answerData.BooleanAnswer)
+			// Convert boolean to string for consistent storage
+			if *answerData.BooleanAnswer {
+				answerData.UserAnswer = "true"
+			} else {
+				answerData.UserAnswer = "false"
+			}
+		} else {
+			isAnswerCorrect = question.IsCorrectAnswer(answerData.UserAnswer)
+		}
+	case models.QuestionTypeMultipleChoice, models.QuestionTypeSingleChoice:
+		isAnswerCorrect = question.IsCorrectAnswer(answerData.UserAnswer)
+	default:
+		// Fallback for legacy questions
+		isAnswerCorrect = question.IsCorrectAnswer(answerData.UserAnswer)
+	}
+
+	// Override the provided isCorrect with our validation
+	answerData.IsCorrect = isAnswerCorrect
 
 	// Validate timing integrity before processing answer
 	violations := h.IntegrityMonitor.ValidateQuestionTiming(
@@ -287,13 +324,13 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 	for _, violation := range violations {
 		if violation.Severity == "critical" {
 			// Log critical violation
-			fmt.Printf("[INTEGRITY VIOLATION] Critical timing violation in session %s: %s\n", 
+			fmt.Printf("[INTEGRITY VIOLATION] Critical timing violation in session %s: %s\n",
 				sessionID, violation.Description)
-			
+
 			// Terminate session for critical violations
-			_ = h.Service.PauseSession(context.Background(), sessionID, 
+			_ = h.Service.PauseSession(context.Background(), sessionID,
 				fmt.Sprintf("integrity_violation_%s", violation.Type))
-			
+
 			c.JSON(http.StatusForbidden, gin.H{
 				"error":     "Session terminated due to integrity violation",
 				"violation": violation,
@@ -335,13 +372,15 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		_ = h.AnswerService.CreateAnswer(context.Background(), &answer)
 	}
 
-	// Return comprehensive adaptive result with integrity information
+	// Return comprehensive adaptive result with integrity and question type information
 	response := gin.H{
 		"answer_processed": true,
 		"is_correct":       result.IsCorrect,
 		"points_earned":    result.PointsEarned,
 		"stage_update":     result.StageUpdate,
 		"is_complete":      result.IsComplete,
+		"question_type":    question.Type,
+		"user_answer":      answerData.UserAnswer,
 	}
 
 	if result.StageUpdate {
@@ -782,7 +821,7 @@ func (h *SessionHandler) GetSessionIntegrityReport(c *gin.Context) {
 	// Check admin access (in production, implement proper admin check)
 	userID := c.GetHeader("X-User-ID")
 	adminMode := c.GetHeader("X-Admin-Mode") == "true"
-	
+
 	// Allow session owner or admin to view integrity report
 	if session.UserID != userID && !adminMode {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
