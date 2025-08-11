@@ -1246,16 +1246,16 @@ func (h *UserSkillHandler) GetSkillProgress(c fiber.Ctx) error {
 			} else {
 				response["calculation_method"] = "hybrid"
 			}
+		} else {
+			// Check if using self-assessment
+			if overallScore > 0 && !assessment.Verified {
+				response["calculation_method"] = "self_assessment"
+			} else if overallScore > 0 {
+				response["calculation_method"] = "verification_history_only"
+			}
 		}
-	} else {
-		// Check if using self-assessment
-		if overallScore > 0 && !assessment.Verified {
-			response["calculation_method"] = "self_assessment"
-		} else if overallScore > 0 {
-			response["calculation_method"] = "verification_history_only"
-		}
-	}
 
+	}
 	return c.JSON(fiber.Map{
 		"data":    response,
 		"message": "Skill progress retrieved successfully",

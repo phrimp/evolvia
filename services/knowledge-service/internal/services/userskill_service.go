@@ -813,7 +813,7 @@ func (s *UserSkillService) GetAggregatedSkillAssessment(ctx context.Context, use
 		WeightedSkills:      weightedSkills,
 		TotalWeightVerified: totalWeightVerified,
 		LastCalculated:      time.Now(),
-		IsComplete:          totalWeightVerified >= 0.69, // Allow small floating point tolerance
+		IsComplete:          totalWeightVerified >= 0.699, // Allow small floating point tolerance (lam tron)
 	}
 
 	return assessment, nil
