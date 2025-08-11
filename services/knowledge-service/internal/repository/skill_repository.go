@@ -136,8 +136,7 @@ func (r *SkillRepository) Create(ctx context.Context, skill *models.Skill) (*mod
 	for i, skill_related := range skill.Relations {
 		related_skill, err := r.GetByID(ctx, skill_related.SkillID)
 		if err != nil {
-			log.Println("Find skill related by id failed: ", err)
-			continue
+			return nil, fmt.Errorf("find skill related by id %s failed %v", skill_related.SkillID, err)
 		}
 		skill.Relations[i].Description = related_skill.Description
 		skill.Relations[i].TaggedSkill = related_skill.TaggedSkill
