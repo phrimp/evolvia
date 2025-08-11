@@ -3,6 +3,17 @@ package models
 
 import "time"
 
+// Session Architecture Evolution:
+// DEPRECATED: Quiz-dependent sessions (using QuizID) - legacy implementation
+// CURRENT: Global sessions (using ConfigID) - recommended for all new implementations
+// 
+// Benefits of Global Sessions:
+// - No quiz dependency constraints
+// - Better performance with global configurations  
+// - Enhanced caching capabilities
+// - Simplified session management
+// - Forward compatibility with configuration-based architecture
+
 type StageProgress struct {
 	Attempted     int     `bson:"attempted" json:"attempted"`
 	Correct       int     `bson:"correct" json:"correct"`

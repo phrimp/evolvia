@@ -28,6 +28,7 @@ type SessionService struct {
 	poolManager               *selection.PoolManager
 	sessionSkillCache         map[string]*selection.SkillInfo
 	sessionEnhancedSkillCache map[string]*selection.EnhancedSkillInfo
+	answerCache               *models.SessionAnswerCache // NEW: Cache for individual answers
 }
 
 // NewSessionService creates a new session service
@@ -46,6 +47,7 @@ func NewSessionService(
 		poolManager:               selection.NewPoolManager(questionRepo),
 		sessionSkillCache:         make(map[string]*selection.SkillInfo),
 		sessionEnhancedSkillCache: make(map[string]*selection.EnhancedSkillInfo),
+		answerCache:               models.NewSessionAnswerCache(30 * time.Minute), // 30-minute retention
 	}
 }
 
@@ -59,7 +61,11 @@ func (s *SessionService) GetSession(ctx context.Context, id string) (*models.Qui
 	return s.Repo.FindByID(ctx, id)
 }
 
-// CreateSessionWithSkillValidation creates session with skill validation
+// CreateSessionWithEnhancedSkillInfo creates session with skill validation
+// DEPRECATED: This method is deprecated in favor of CreateGlobalSession
+// Quiz-dependent sessions have performance limitations and complexity overhead
+// Use CreateGlobalSession for new implementations - it provides the same functionality
+// without requiring quiz dependencies and uses global configurations for better performance
 func (s *SessionService) CreateSessionWithEnhancedSkillInfo(
 	ctx context.Context,
 	quizID string,
@@ -539,6 +545,9 @@ func (s *SessionService) SubmitSession(
 			fmt.Printf("Failed to store result: %v\n", err)
 		}
 	}
+
+	// Mark session cache as completed for proper retention timing
+	s.MarkSessionCacheCompleted(sessionID)
 
 	// Publish completion event
 	if s.EventPublisher != nil {
@@ -1398,4 +1407,35 @@ func (s *SessionService) createQuizResult(session *models.QuizSession, completio
 		CompletionType: completionType,
 		CreatedAt:      time.Now(),
 	}
+}
+
+// CacheAnswer stores an answer in the session cache instead of database
+func (s *SessionService) CacheAnswer(sessionID string, answer *models.QuizAnswer, questionType, bloomLevel string) {
+	cachedAnswer := models.ConvertQuizAnswerToCached(answer, questionType, bloomLevel)
+	s.answerCache.AddAnswer(sessionID, cachedAnswer)
+}
+
+// GetCachedAnswers retrieves cached answers for a session
+func (s *SessionService) GetCachedAnswers(sessionID string) ([]models.CachedAnswer, bool) {
+	return s.answerCache.GetAnswers(sessionID)
+}
+
+// GetCachedAnswerCount returns the number of cached answers for a session
+func (s *SessionService) GetCachedAnswerCount(sessionID string) int {
+	return s.answerCache.GetAnswerCount(sessionID)
+}
+
+// MarkSessionCacheCompleted marks a session as completed in cache for retention timing
+func (s *SessionService) MarkSessionCacheCompleted(sessionID string) {
+	s.answerCache.MarkSessionCompleted(sessionID)
+}
+
+// RemoveSessionCache removes all cached data for a session
+func (s *SessionService) RemoveSessionCache(sessionID string) {
+	s.answerCache.RemoveSession(sessionID)
+}
+
+// GetAnswerCacheStats returns cache statistics for monitoring
+func (s *SessionService) GetAnswerCacheStats() map[string]interface{} {
+	return s.answerCache.GetCacheStats()
 }

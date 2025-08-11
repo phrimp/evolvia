@@ -83,9 +83,12 @@ func main() {
 		questionRepo,
 		configService, // NEW: For global configurations
 	)
+	// DEPRECATED: Answer persistence is now handled via SessionService caching
+	// These components are maintained for backward compatibility and potential rollback
+	// TODO: Consider removing after cache-based implementation is proven stable in production
 	answerRepo := repository.NewAnswerRepository(database)
 	answerService := service.NewAnswerService(answerRepo)
-	_ = handlers.NewAnswerHandler(answerService)
+	_ = handlers.NewAnswerHandler(answerService) // Handler returns deprecation notices
 	sessionHandler := handlers.NewSessionHandler(sessionService, answerService, questionService)
 
 	// Public routes
@@ -180,19 +183,22 @@ func main() {
 		protectedConfig.POST("/:id/set-default", configHandler.SetDefaultConfig)
 	}
 
-	setupSessionRoutes(r, sessionHandler, publisher)
-	setupGlobalSessionRoutes(r, sessionHandler, publisher) // NEW: Global session routes
+	setupSessionRoutes(r, sessionHandler, publisher) // DEPRECATED: Quiz-dependent sessions
+	setupGlobalSessionRoutes(r, sessionHandler, publisher) // RECOMMENDED: Global session routes (no quiz dependency)
 
 	r.Run(":6666")
 }
 
 func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, publisher *event.EventPublisher) {
-	// Protected session routes with adaptive logic
+	// DEPRECATED: Protected session routes with adaptive logic (quiz-dependent)
+	// These routes are maintained for backward compatibility
+	// New implementations should use setupGlobalSessionRoutes instead
 	protectedSession := r.Group("/protected/quizz/session")
 	{
 		// === CORE SESSION MANAGEMENT ===
 
-		// Create new adaptive session with skill validation
+		// DEPRECATED: Create new adaptive session with skill validation (requires quiz_id)
+		// Use POST /protected/quizz/global-session/ instead
 		protectedSession.POST("/", func(c *gin.Context) {
 			sessionHandler.CreateSession(c)
 			if publisher != nil {
@@ -396,6 +402,17 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 			}
 		})
 
+		// Get answer cache statistics (admin endpoint)
+		protectedSession.GET("/cache-stats", func(c *gin.Context) {
+			sessionHandler.GetAnswerCacheStats(c)
+			if publisher != nil {
+				publisher.Publish("quiz.session.cache_stats_requested", gin.H{
+					"user_id":   c.GetHeader("X-User-ID"),
+					"timestamp": time.Now(),
+				})
+			}
+		})
+
 	}
 
 	// === PUBLIC SESSION ROUTES ===
@@ -506,8 +523,10 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 }
 
 // setupGlobalSessionRoutes sets up routes for global session management (no quiz dependency)
+// RECOMMENDED: Use these routes for all new implementations
+// Benefits: Better performance, no quiz constraints, enhanced caching, simplified management
 func setupGlobalSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, publisher *event.EventPublisher) {
-	// Protected global session routes
+	// Protected global session routes - RECOMMENDED for new implementations
 	protectedGlobalSession := r.Group("/protected/quizz/global-session")
 	{
 		// === GLOBAL SESSION MANAGEMENT ===

@@ -175,7 +175,10 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 	})
 }
 
-// CreateSession creates a new adaptive quiz session (DEPRECATED - Use CreateGlobalSession)
+// CreateSession creates a new adaptive quiz session 
+// DEPRECATED: This method is deprecated in favor of CreateGlobalSession which doesn't require quiz dependencies
+// Global sessions provide better performance and flexibility without quiz constraints
+// Use CreateGlobalSession for all new implementations
 func (h *SessionHandler) CreateSession(c *gin.Context) {
 	var req struct {
 		QuizID    string `json:"quiz_id" binding:"required"`
@@ -308,6 +311,18 @@ func (h *SessionHandler) CreateSession(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"session": session,
 		"message": "Session created successfully with enhanced tag weighting",
+		"deprecation_warning": gin.H{
+			"status":  "DEPRECATED",
+			"reason":  "Quiz-dependent sessions are deprecated in favor of global sessions",
+			"migrate_to": "POST /protected/quizz/global-session/",
+			"benefits": []string{
+				"No quiz dependency required",
+				"Better performance with global config",
+				"Simplified session management",
+				"Enhanced caching capabilities",
+			},
+			"timeline": "This endpoint will be removed in future versions",
+		},
 		"tag_configuration": gin.H{
 			"primary_tags":   req.PrimaryTags,
 			"secondary_tags": req.SecondaryTags,
@@ -491,7 +506,7 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		return
 	}
 
-	// Store the answer record
+	// Store the answer record in cache instead of database
 	answer := models.QuizAnswer{
 		SessionID:        sessionID,
 		QuestionID:       answerData.QuestionID,
@@ -502,9 +517,8 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		AnsweredAt:       time.Now(),
 	}
 
-	if h.AnswerService != nil {
-		_ = h.AnswerService.CreateAnswer(context.Background(), &answer)
-	}
+	// Cache answer with question metadata for timing analysis and review
+	h.Service.CacheAnswer(sessionID, &answer, question.Type, question.BloomLevel)
 
 	// Return comprehensive adaptive result with integrity and question type information
 	response := gin.H{
@@ -741,30 +755,38 @@ func (h *SessionHandler) PreloadQuestions(c *gin.Context) {
 	})
 }
 
-// GetSessionAnswers retrieves all answers for a session
+// GetSessionAnswers retrieves all cached answers for a session
 func (h *SessionHandler) GetSessionAnswers(c *gin.Context) {
 	sessionID := c.Param("id")
 
-	if h.AnswerService == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Answer service not available",
+	// Get cached answers from session service
+	cachedAnswers, exists := h.Service.GetCachedAnswers(sessionID)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "No cached answers found for session",
+			"message": "Session may not exist or answers have expired from cache",
 		})
 		return
 	}
 
-	answers, err := h.AnswerService.GetAnswersBySession(context.Background(), sessionID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to get answers",
-			"details": err.Error(),
-		})
-		return
+	// Convert cached answers to API-compatible format
+	answers := make([]models.QuizAnswer, len(cachedAnswers))
+	for i, cachedAnswer := range cachedAnswers {
+		answers[i] = cachedAnswer.ToCachedAnswerResponse()
+		answers[i].SessionID = sessionID // Set session ID for response
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"answers":    answers,
-		"count":      len(answers),
-		"session_id": sessionID,
+		"answers":          answers,
+		"count":            len(answers),
+		"session_id":       sessionID,
+		"source":           "cache",
+		"includes_timing":  true,
+		"includes_metadata": true,
+		"cache_info": gin.H{
+			"total_cached": h.Service.GetCachedAnswerCount(sessionID),
+			"retention":    "30 minutes after session completion",
+		},
 	})
 }
 
@@ -914,6 +936,26 @@ func (h *SessionHandler) generateSessionStatistics(session *models.QuizSession) 
 	}
 
 	return stats
+}
+
+// GetAnswerCacheStats provides cache monitoring information
+func (h *SessionHandler) GetAnswerCacheStats(c *gin.Context) {
+	// Check admin access (simplified check)
+	adminMode := c.GetHeader("X-Admin-Mode") == "true"
+	if !adminMode {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Admin access required for cache statistics",
+		})
+		return
+	}
+
+	stats := h.Service.GetAnswerCacheStats()
+	
+	c.JSON(http.StatusOK, gin.H{
+		"cache_statistics": stats,
+		"timestamp":        time.Now(),
+		"description":      "In-memory answer cache statistics for performance monitoring",
+	})
 }
 
 // GetBatchSessions retrieves multiple sessions (for admin purposes)
