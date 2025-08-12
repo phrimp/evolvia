@@ -329,6 +329,13 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		"user_answer":      answerData.UserAnswer,
 	}
 
+	// Add sensitive fields that were hidden in GET /next-question for security
+	// These are now safe to reveal after the user has submitted their answer
+	sensitiveFields := question.GetSensitiveFields()
+	for key, value := range sensitiveFields {
+		response[key] = value
+	}
+
 	if result.StageUpdate {
 		response["next_stage"] = result.NextStage
 		response["stage_message"] = "Congratulations! Moving to next difficulty level"
@@ -371,7 +378,7 @@ func (h *SessionHandler) NextQuestion(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"question": question,
+		"question": question.ToSafeResponse(), // Use sanitized response to hide sensitive fields
 		"message":  "Next question retrieved successfully",
 	})
 }

@@ -348,3 +348,50 @@ func (q *Question) GetQuestionTypeInfo() map[string]interface{} {
 
 	return info
 }
+
+// === Question Sanitization for API Security ===
+
+// SafeOption represents an option without revealing correctness for GET /next-question
+type SafeOption struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
+}
+
+// ToSafeResponse returns a sanitized question for GET /next-question endpoint
+// Hides: correct_answer, correct_answer_boolean, explanation, bloom_score, bloom_scores_by_stage, question_pool_id, options.is_correct
+func (q *Question) ToSafeResponse() map[string]interface{} {
+	// Sanitize options to remove is_correct field
+	safeOptions := make([]SafeOption, len(q.Options))
+	for i, option := range q.Options {
+		safeOptions[i] = SafeOption{
+			ID:   option.ID,
+			Text: option.Text,
+		}
+	}
+
+	return map[string]interface{}{
+		"id":                     q.ID,
+		"content":                q.Content,
+		"type":                   q.Type,
+		"options":                safeOptions,
+		// Visible fields that don't reveal answers
+		"skill_id":               q.SkillID,
+		"difficulty_level":       q.DifficultyLevel,
+		"bloom_level":            q.BloomLevel,
+		"points":                 q.Points,
+		"estimated_time_seconds": q.EstimatedTimeSeconds,
+		"topic_tags":             q.TopicTags,
+	}
+}
+
+// GetSensitiveFields returns the sensitive fields that should be shown after answer submission
+func (q *Question) GetSensitiveFields() map[string]interface{} {
+	return map[string]interface{}{
+		"correct_answer":         q.CorrectAnswer,
+		"correct_answer_boolean": q.CorrectAnswerBoolean,
+		"explanation":            q.Explanation,
+		"bloom_score":            q.BloomScore,
+		"bloom_scores_by_stage":  q.BloomScoresByStage,
+		"question_pool_id":       q.QuestionPoolID,
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"quiz-service/internal/models"
 	"quiz-service/internal/repository"
 	"quiz-service/internal/selection"
+	"quiz-service/internal/timeout"
 	"slices"
 	"sort"
 	"strings"
@@ -29,7 +30,9 @@ type SessionService struct {
 	poolManager               *selection.PoolManager
 	sessionSkillCache         map[string]*selection.SkillInfo
 	sessionEnhancedSkillCache map[string]*selection.EnhancedSkillInfo
-	answerCache               *models.SessionAnswerCache // NEW: Cache for individual answers
+	answerCache               *models.SessionAnswerCache             // NEW: Cache for individual answers
+	questionStateCache        *models.SessionQuestionStateCache     // NEW: Current question state tracking
+	timeoutManager            *timeout.SessionTimeoutManager        // NEW: Session timeout management
 }
 
 // NewSessionService creates a new session service
@@ -51,6 +54,15 @@ func NewSessionService(
 
 	// Initialize answer cache using config-based retention
 	service.answerCache = service.createAnswerCacheFromConfig()
+
+	// Initialize question state cache for current question validation
+	service.questionStateCache = models.NewSessionQuestionStateCache(2 * time.Hour)
+
+	// Initialize timeout manager with session timeout callback
+	service.timeoutManager = timeout.NewSessionTimeoutManager(
+		service.handleSessionTimeout,
+		service.getTimeoutConfigFromGlobalConfig(),
+	)
 
 	return service
 }
@@ -184,6 +196,10 @@ func (s *SessionService) CreateGlobalSession(
 		// Don't fail session creation if pool generation fails - pools can be generated lazily
 	}
 
+	// Start first question timeout countdown - user must request first question within configured time
+	// NOTE: Main session timeout will start ONLY when first question is requested
+	s.timeoutManager.StartFirstQuestionTimeout(session.ID)
+
 	if s.EventPublisher != nil {
 		s.EventPublisher.Publish("quiz.session.created", map[string]any{
 			"session_id":           session.ID,
@@ -298,6 +314,16 @@ func (s *SessionService) ProcessAnswer(
 	userAnswer string,
 	isCorrect bool,
 ) (*adaptive.AnswerResult, error) {
+	// Validate that answer corresponds to current question
+	if err := s.questionStateCache.ValidateAnswerForCurrentQuestion(sessionID, questionID); err != nil {
+		return nil, fmt.Errorf("current question validation failed: %w", err)
+	}
+
+	// Mark question as answered to prevent duplicate submissions
+	if err := s.questionStateCache.MarkQuestionAnswered(sessionID); err != nil {
+		return nil, fmt.Errorf("failed to mark question as answered: %w", err)
+	}
+
 	// Get session
 	session, err := s.Repo.FindByID(ctx, sessionID)
 	if err != nil {
@@ -348,6 +374,10 @@ func (s *SessionService) ProcessAnswer(
 		})
 	}
 
+	// Clear current question state after successful processing
+	// This allows the session to move to the next question
+	s.questionStateCache.ClearCurrentQuestion(sessionID)
+
 	return result, nil
 }
 
@@ -370,9 +400,19 @@ func (s *SessionService) GetNextQuestion(ctx context.Context, sessionID string) 
 		return nil, fmt.Errorf("skill information not found for session")
 	}
 
+	// Cancel first question timeout and start main session countdown when first question is requested
+	s.timeoutManager.CancelTimeout(sessionID)
+
+	// Start main session timeout now that user has requested first question
+	s.startMainSessionTimeout(sessionID)
+
 	// Use cache-based pool selection
 	question, err := s.getQuestionFromCachedPool(ctx, sessionID, session)
 	if err == nil {
+		// Set current question state for validation - prevent question hoarding
+		if err := s.questionStateCache.SetCurrentQuestion(sessionID, question.ID, question.Type, session.CurrentStage); err != nil {
+			return nil, fmt.Errorf("cannot set current question: %w", err)
+		}
 		return question, nil
 	}
 	// Log cache miss and continue with dynamic selection
@@ -428,6 +468,11 @@ func (s *SessionService) GetNextQuestion(ctx context.Context, sessionID string) 
 		fmt.Printf("Warning: Failed to update used questions for session %s: %v\n", sessionID, err)
 	}
 
+	// Set current question state for validation - prevent question hoarding
+	if err := s.questionStateCache.SetCurrentQuestion(sessionID, selectedQuestion.ID, selectedQuestion.Type, session.CurrentStage); err != nil {
+		return nil, fmt.Errorf("cannot set current question: %w", err)
+	}
+
 	return selectedQuestion, nil
 }
 
@@ -477,6 +522,9 @@ func (s *SessionService) SubmitSession(
 
 	// Mark session cache as completed for proper retention timing
 	s.MarkSessionCacheCompleted(sessionID)
+
+	// Clear current question state as session is completed
+	s.questionStateCache.ClearCurrentQuestion(sessionID)
 
 	// Publish enhanced events
 	if s.EventPublisher != nil {
@@ -1679,6 +1727,125 @@ func (s *SessionService) getPoolSizeFromConfig(isRecovery bool) int {
 	return config.PoolConfig.InitialPoolSize
 }
 
+// getTimeoutConfigFromGlobalConfig creates timeout config from global configuration
+func (s *SessionService) getTimeoutConfigFromGlobalConfig() *timeout.TimeoutConfig {
+	config, err := s.ConfigService.GetDefaultConfig(context.Background())
+	if err != nil {
+		// Fallback to default timeout configuration
+		return timeout.DefaultTimeoutConfig()
+	}
+
+	return &timeout.TimeoutConfig{
+		SessionTimeoutMinutes:    int(config.TotalDurationSeconds / 60), // Convert to minutes
+		QuestionTimeoutMinutes:   30,                                    // 30 minutes max per question
+		FirstQuestionTimeout:     300,                                   // 5 minutes to get first question
+		InactivityTimeoutMinutes: 15,                                    // 15 minutes inactivity
+	}
+}
+
+// handleSessionTimeout handles session timeout events
+func (s *SessionService) handleSessionTimeout(sessionID string) {
+	ctx := context.Background()
+
+	// Get session to check current state
+	session, err := s.Repo.FindByID(ctx, sessionID)
+	if err != nil {
+		fmt.Printf("Error getting session %s for timeout handling: %v\n", sessionID, err)
+		return
+	}
+
+	if session == nil {
+		fmt.Printf("Session %s not found during timeout handling\n", sessionID)
+		return
+	}
+
+	// Only timeout active sessions
+	if session.Status != "active" {
+		fmt.Printf("Session %s is not active (status: %s), skipping timeout\n", sessionID, session.Status)
+		return
+	}
+
+	fmt.Printf("Handling timeout for session %s (user: %s)\n", sessionID, session.UserID)
+
+	// Update session status to timed out
+	update := bson.M{
+		"status":          "timeout",
+		"completion_type": "timeout",
+		"end_time":        time.Now(),
+	}
+
+	err = s.Repo.Update(ctx, sessionID, update)
+	if err != nil {
+		fmt.Printf("Error updating session %s status to timeout: %v\n", sessionID, err)
+	}
+
+	// Mark session cache as completed for proper cleanup
+	s.MarkSessionCacheCompleted(sessionID)
+
+	// Publish timeout event
+	if s.EventPublisher != nil {
+		s.EventPublisher.Publish("quiz.session.timeout", map[string]any{
+			"session_id":     sessionID,
+			"user_id":        session.UserID,
+			"timeout_reason": "session_timeout",
+			"timestamp":      time.Now(),
+		})
+	}
+
+	// Clean up session caches
+	delete(s.sessionSkillCache, sessionID)
+	delete(s.sessionEnhancedSkillCache, sessionID)
+	
+	// Clear current question state for timed out session
+	s.questionStateCache.ClearCurrentQuestion(sessionID)
+
+	fmt.Printf("Session %s successfully timed out and cleaned up\n", sessionID)
+}
+
+// GetSessionTimeoutInfo returns timeout information for a session
+func (s *SessionService) GetSessionTimeoutInfo(sessionID string) *timeout.TimeoutInfo {
+	return s.timeoutManager.GetTimeoutInfo(sessionID)
+}
+
+// ExtendSessionTimeout extends session timeout (e.g., when user is active)
+func (s *SessionService) ExtendSessionTimeout(sessionID string, additionalMinutes int) {
+	additionalTime := time.Duration(additionalMinutes) * time.Minute
+	s.timeoutManager.ExtendTimeout(sessionID, additionalTime)
+}
+
+// startMainSessionTimeout starts the main session countdown timer
+func (s *SessionService) startMainSessionTimeout(sessionID string) {
+	ctx := context.Background()
+
+	// Get session to determine timeout duration
+	session, err := s.Repo.FindByID(ctx, sessionID)
+	if err != nil {
+		fmt.Printf("Error getting session %s for starting main timeout: %v\n", sessionID, err)
+		return
+	}
+
+	if session == nil {
+		fmt.Printf("Session %s not found when starting main timeout\n", sessionID)
+		return
+	}
+
+	// Get global config to determine session timeout duration
+	config, err := s.ConfigService.GetConfigForSession(ctx, session.ConfigID)
+	if err != nil {
+		fmt.Printf("Error getting config for session %s timeout: %v\n", sessionID, err)
+		// Use default timeout
+		config = &models.GlobalQuizConfig{
+			TotalDurationSeconds: 3600, // 1 hour default
+		}
+	}
+
+	// Start main session timeout based on configuration
+	sessionTimeout := time.Duration(config.TotalDurationSeconds) * time.Second
+	s.timeoutManager.StartSessionTimeout(sessionID, sessionTimeout)
+
+	fmt.Printf("Main session timeout started for %s (duration: %v) - countdown begins now\n", sessionID, sessionTimeout)
+}
+
 func (s *SessionService) calculateImprovement(session *models.QuizSession, result *models.QuizResult) float64 {
 	// Calculate improvement based on stage progression
 	// This could be enhanced with historical data comparison
@@ -2000,4 +2167,26 @@ func (s *SessionService) validateQuestionPool(questions []models.Question, requi
 	}
 
 	return nil
+}
+
+// === Question State Cache Methods ===
+
+// GetCurrentQuestionInfo returns information about the current question for a session
+func (s *SessionService) GetCurrentQuestionInfo(sessionID string) *models.SessionQuestionState {
+	return s.questionStateCache.GetCurrentQuestion(sessionID)
+}
+
+// GetQuestionStateStats returns statistics about the question state cache
+func (s *SessionService) GetQuestionStateStats() map[string]interface{} {
+	return s.questionStateCache.GetCacheStats()
+}
+
+// ClearSessionQuestionState manually clears the question state for a session (admin function)
+func (s *SessionService) ClearSessionQuestionState(sessionID string) {
+	s.questionStateCache.ClearCurrentQuestion(sessionID)
+}
+
+// GetQuestionStartTime returns when the current question was started for timing validation
+func (s *SessionService) GetQuestionStartTime(sessionID string) *time.Time {
+	return s.questionStateCache.GetQuestionStartTime(sessionID)
 }

@@ -90,6 +90,9 @@ func main() {
 	answerService := service.NewAnswerService(answerRepo)
 	_ = handlers.NewAnswerHandler(answerService) // Handler returns deprecation notices
 	sessionHandler := handlers.NewSessionHandler(sessionService, answerService, questionService)
+	
+	// Timeout handler for session timeout management
+	timeoutHandler := handlers.NewTimeoutHandler(sessionService)
 
 	// Public routes
 	resultRepo := repository.NewResultRepository(database)
@@ -185,6 +188,7 @@ func main() {
 
 	setupSessionRoutes(r, sessionHandler, publisher)       // DEPRECATED: Quiz-dependent sessions
 	setupGlobalSessionRoutes(r, sessionHandler, publisher) // RECOMMENDED: Global session routes (no quiz dependency)
+	setupTimeoutRoutes(r, timeoutHandler)                  // Session timeout management routes
 
 	r.Run(":6666")
 }
@@ -647,5 +651,24 @@ func setupGlobalSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHan
 				"mode":    "global",
 			})
 		})
+	}
+}
+
+// setupTimeoutRoutes configures session timeout management routes
+func setupTimeoutRoutes(r *gin.Engine, timeoutHandler *handlers.TimeoutHandler) {
+	// Protected timeout routes
+	protectedTimeout := r.Group("/protected/quizz/timeout")
+	{
+		// Get session timeout information
+		protectedTimeout.GET("/:id", timeoutHandler.GetSessionTimeoutInfo)
+		
+		// Extend session timeout
+		protectedTimeout.POST("/:id/extend", timeoutHandler.ExtendSessionTimeout)
+		
+		// Get current question state for a session
+		protectedTimeout.GET("/:id/question-state", timeoutHandler.GetCurrentQuestionState)
+		
+		// Get overall question state cache statistics
+		protectedTimeout.GET("/stats/question-states", timeoutHandler.GetQuestionStateStats)
 	}
 }
