@@ -3,14 +3,14 @@ package models
 import "time"
 
 // QuizAnswer represents an answer submitted for a question in a quiz session
-// 
+//
 // DEPRECATED PERSISTENCE: As of the cache-based implementation, individual answers are no longer
 // persisted to the database. Instead, they are cached in memory through SessionService.
 // This model is still used for:
-// - API compatibility and response formatting  
+// - API compatibility and response formatting
 // - Converting between cached answers and API responses
 // - Backward compatibility with existing integrations
-// 
+//
 // For current implementations:
 // - Use SessionService.CacheAnswer() to store answers in memory
 // - Use SessionService.GetCachedAnswers() to retrieve session answers

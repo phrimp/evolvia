@@ -183,7 +183,7 @@ func main() {
 		protectedConfig.POST("/:id/set-default", configHandler.SetDefaultConfig)
 	}
 
-	setupSessionRoutes(r, sessionHandler, publisher) // DEPRECATED: Quiz-dependent sessions
+	setupSessionRoutes(r, sessionHandler, publisher)       // DEPRECATED: Quiz-dependent sessions
 	setupGlobalSessionRoutes(r, sessionHandler, publisher) // RECOMMENDED: Global session routes (no quiz dependency)
 
 	r.Run(":6666")
@@ -196,18 +196,6 @@ func setupSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHandler, 
 	protectedSession := r.Group("/protected/quizz/session")
 	{
 		// === CORE SESSION MANAGEMENT ===
-
-		// DEPRECATED: Create new adaptive session with skill validation (requires quiz_id)
-		// Use POST /protected/quizz/global-session/ instead
-		protectedSession.POST("/", func(c *gin.Context) {
-			sessionHandler.CreateSession(c)
-			if publisher != nil {
-				publisher.Publish("quiz.session.creation_requested", gin.H{
-					"user_id":   c.GetHeader("X-User-ID"),
-					"timestamp": time.Now(),
-				})
-			}
-		})
 
 		// Update session information
 		protectedSession.PUT("/:id", func(c *gin.Context) {
@@ -595,12 +583,12 @@ func setupGlobalSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHan
 			if publisher != nil {
 				// Enhanced global session event routed to skills.events exchange
 				publisher.Publish("skills.events.session_submitted", gin.H{
-					"session_id":    c.Param("id"),
-					"user_id":       c.GetHeader("X-User-ID"),
-					"timestamp":     time.Now(),
-					"session_type":  "global",
-					"event_type":    "session_submission",
-					"exchange":      "skills.events",
+					"session_id":   c.Param("id"),
+					"user_id":      c.GetHeader("X-User-ID"),
+					"timestamp":    time.Now(),
+					"session_type": "global",
+					"event_type":   "session_submission",
+					"exchange":     "skills.events",
 					"client_info": gin.H{
 						"user_agent": c.GetHeader("User-Agent"),
 						"ip_address": c.ClientIP(),

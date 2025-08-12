@@ -119,4 +119,3 @@ func (r *ConfigRepository) SetAsDefault(ctx context.Context, id string) error {
 		bson.M{"$set": bson.M{"is_default": true, "updated_at": time.Now()}})
 	return err
 }
-

@@ -174,4 +174,3 @@ func (h *ConfigHandler) SetDefaultConfig(c *gin.Context) {
 		"message": "Default configuration updated successfully",
 	})
 }
-

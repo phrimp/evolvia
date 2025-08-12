@@ -385,4 +385,3 @@ func TestTimestampAndMetadata(t *testing.T) {
 		t.Errorf("Expected report session ID %s, got %s", sessionID, report.SessionID)
 	}
 }
-

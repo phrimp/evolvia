@@ -215,4 +215,3 @@ func (ca *CachedAnswer) ToCachedAnswerResponse() QuizAnswer {
 		AnsweredAt:       ca.AnsweredAt,
 	}
 }
-

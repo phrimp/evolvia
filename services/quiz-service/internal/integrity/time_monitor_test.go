@@ -287,4 +287,3 @@ func TestCustomConfig(t *testing.T) {
 		t.Errorf("Expected suspicious timing violation with custom lower threshold")
 	}
 }
-

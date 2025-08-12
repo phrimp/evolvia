@@ -6,10 +6,10 @@ import "time"
 // Session Architecture Evolution:
 // DEPRECATED: Quiz-dependent sessions (using QuizID) - legacy implementation
 // CURRENT: Global sessions (using ConfigID) - recommended for all new implementations
-// 
+//
 // Benefits of Global Sessions:
 // - No quiz dependency constraints
-// - Better performance with global configurations  
+// - Better performance with global configurations
 // - Enhanced caching capabilities
 // - Simplified session management
 // - Forward compatibility with configuration-based architecture
@@ -45,10 +45,9 @@ type QuizSession struct {
 
 // SessionMetadata structure for type-safe access to metadata
 type SessionMetadata struct {
-	SkillID        string              `json:"skill_id"`
-	SkillName      string              `json:"skill_name"`
-	SkillTags      []string            `json:"skill_tags"`
-	QuestionPools  map[string][]string `json:"question_pools,omitempty"`
-	QuizStartTime  int64               `json:"quiz_start_time"`
-	AdaptiveConfig map[string]any      `json:"adaptive_config,omitempty"`
+	SkillID        string         `json:"skill_id"`
+	SkillName      string         `json:"skill_name"`
+	SkillTags      []string       `json:"skill_tags"`
+	QuizStartTime  int64          `json:"quiz_start_time"`
+	AdaptiveConfig map[string]any `json:"adaptive_config,omitempty"`
 }

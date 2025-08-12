@@ -8,6 +8,49 @@ import (
 	"strings"
 )
 
+var pool_cache map[string]*QuizPool
+
+func init() {
+	pool_cache = make(map[string]*QuizPool)
+}
+
+// GetPoolFromCache retrieves a pool from the global cache
+func GetPoolFromCache(key string) (*QuizPool, bool) {
+	pool, exists := pool_cache[key]
+	return pool, exists
+}
+
+// SetPoolInCache stores a pool in the global cache
+func SetPoolInCache(key string, pool *QuizPool) {
+	pool_cache[key] = pool
+}
+
+// RemovePoolFromCache removes a pool from the cache
+func RemovePoolFromCache(key string) {
+	delete(pool_cache, key)
+}
+
+// ClearCache clears all pools from cache
+func ClearCache() {
+	pool_cache = make(map[string]*QuizPool)
+}
+
+// GetCacheStats returns cache statistics
+func GetCacheStats() map[string]interface{} {
+	return map[string]interface{}{
+		"total_pools": len(pool_cache),
+		"cache_keys":  getCacheKeys(),
+	}
+}
+
+func getCacheKeys() []string {
+	keys := make([]string, 0, len(pool_cache))
+	for k := range pool_cache {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // PoolManager manages quiz pools and question selection
 type PoolManager struct {
 	questionRepo *repository.QuestionRepository
@@ -738,7 +781,7 @@ func (pm *PoolManager) GetGlobalPoolForEnhancedSkill(ctx context.Context, skillI
 }
 
 // ValidateGlobalPoolWithBloom validates if global pool has sufficient questions
-func (pm *PoolManager) ValidateGlobalPoolWithBloom(ctx context.Context, skillInfo *SkillInfo) (bool, *QuizPoolValidation, error) {
+func (pm *PoolManager) ValidateGlobalPoolWithBloom(ctx context.Context, skillInfo *SkillInfo, sessionID string) (bool, *QuizPoolValidation, error) {
 	pool, err := pm.GetGlobalPoolWithBloom(ctx, skillInfo)
 	if err != nil {
 		return false, nil, err

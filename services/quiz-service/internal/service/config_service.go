@@ -59,7 +59,7 @@ func (s *ConfigService) UpdateConfig(ctx context.Context, id string, update map[
 		// Create a temporary config to validate stage config
 		tempConfig := &models.GlobalQuizConfig{
 			Name:        "temp",
-			StageConfig: stageConfig.(map[string]models.StageConfig),
+			StageConfig: stageConfig.(map[string]models.EnhancedStageConfig),
 		}
 		if err := tempConfig.Validate(); err != nil {
 			return fmt.Errorf("invalid stage configuration: %w", err)
@@ -102,4 +102,3 @@ func (s *ConfigService) GetConfigForSession(ctx context.Context, configID string
 	}
 	return s.GetConfig(ctx, configID)
 }
-

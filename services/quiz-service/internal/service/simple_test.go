@@ -36,4 +36,3 @@ func TestSimpleBloomBreakdown(t *testing.T) {
 		t.Errorf("Expected 100%% score percentage for apply, got %f", breakdown.Apply.ScorePercentage)
 	}
 }
-

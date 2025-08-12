@@ -9,6 +9,7 @@ import (
 	"quiz-service/internal/models"
 	"quiz-service/internal/repository"
 	"quiz-service/internal/selection"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -20,8 +21,7 @@ import (
 // SessionService handles quiz session operations
 type SessionService struct {
 	Repo                      *repository.SessionRepository
-	QuizRepo                  *repository.QuizRepository // DEPRECATED: Will be removed
-	ConfigService             *ConfigService             // NEW: For global configurations
+	ConfigService             *ConfigService // NEW: For global configurations
 	QuestionRepo              *repository.QuestionRepository
 	ResultRepo                *repository.ResultRepository
 	EventPublisher            *event.EventPublisher
@@ -39,17 +39,20 @@ func NewSessionService(
 	questionRepo *repository.QuestionRepository,
 	configService *ConfigService,
 ) *SessionService {
-	return &SessionService{
+	service := &SessionService{
 		Repo:                      repo,
-		QuizRepo:                  quizRepo, // DEPRECATED
 		ConfigService:             configService,
 		QuestionRepo:              questionRepo,
 		adaptiveManager:           adaptive.NewManager(nil),
 		poolManager:               selection.NewPoolManager(questionRepo),
 		sessionSkillCache:         make(map[string]*selection.SkillInfo),
 		sessionEnhancedSkillCache: make(map[string]*selection.EnhancedSkillInfo),
-		answerCache:               models.NewSessionAnswerCache(30 * time.Minute), // 30-minute retention
 	}
+
+	// Initialize answer cache using config-based retention
+	service.answerCache = service.createAnswerCacheFromConfig()
+
+	return service
 }
 
 // SetEventPublisher sets the event publisher
@@ -60,144 +63,6 @@ func (s *SessionService) SetEventPublisher(publisher *event.EventPublisher) {
 // GetSession retrieves a session by ID
 func (s *SessionService) GetSession(ctx context.Context, id string) (*models.QuizSession, error) {
 	return s.Repo.FindByID(ctx, id)
-}
-
-// CreateSessionWithEnhancedSkillInfo creates session with skill validation
-// DEPRECATED: This method is deprecated in favor of CreateGlobalSession
-// Quiz-dependent sessions have performance limitations and complexity overhead
-// Use CreateGlobalSession for new implementations - it provides the same functionality
-// without requiring quiz dependencies and uses global configurations for better performance
-func (s *SessionService) CreateSessionWithEnhancedSkillInfo(
-	ctx context.Context,
-	quizID string,
-	userID string,
-	skillInfo *selection.EnhancedSkillInfo,
-	preferredBloomLevels []string,
-	masteryScore int,
-) (*models.QuizSession, error) {
-	// Step 1: Check for past results (existing logic)
-	var startingBloomLevel string
-	var startingDifficulty string
-
-	if s.ResultRepo != nil {
-		pastResults, err := s.ResultRepo.FindByUser(ctx, userID)
-		if err == nil && len(pastResults) > 0 {
-			for _, result := range pastResults {
-				if session, err := s.Repo.FindByID(ctx, result.SessionID); err == nil {
-					if metadata := session.Metadata; metadata != nil {
-						if sid, ok := metadata["skill_id"].(string); ok && sid == skillInfo.ID {
-							startingBloomLevel = s.deriveBloomFromResult(&result)
-							startingDifficulty = s.deriveDifficultyFromResult(&result)
-							break
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Step 2: Set defaults if no past results
-	var bloomLevels []string
-	if startingBloomLevel == "" {
-		if len(preferredBloomLevels) > 0 {
-			bloomLevels = preferredBloomLevels
-			startingBloomLevel = preferredBloomLevels[0] // For backward compatibility
-		} else {
-			bloomLevels = []string{"remember"}
-			startingBloomLevel = "remember"
-		}
-	} else {
-		bloomLevels = []string{startingBloomLevel}
-	}
-
-	if masteryScore > 0 {
-		if masteryScore <= 3 {
-			startingDifficulty = "easy"
-		} else if masteryScore <= 7 {
-			startingDifficulty = "medium"
-		} else {
-			startingDifficulty = "hard"
-		}
-	} else {
-		startingDifficulty = "easy"
-	}
-
-	// Step 3: Validate quiz pool with enhanced skill info
-	quiz, err := s.QuizRepo.FindByID(ctx, quizID)
-	if err != nil {
-		return nil, fmt.Errorf("quiz not found: %w", err)
-	}
-
-	// Convert to standard SkillInfo for validation (backward compatibility)
-	standardSkillInfo := &selection.SkillInfo{
-		ID:   skillInfo.ID,
-		Name: skillInfo.Name,
-		Tags: s.mergeTags(skillInfo),
-	}
-
-	isValid, validation, err := s.poolManager.ValidateQuizPoolWithBloom(ctx, quizID, standardSkillInfo)
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate quiz pool: %w", err)
-	}
-	if !isValid {
-		return nil, fmt.Errorf("insufficient questions in pool: %v", validation.Warnings)
-	}
-
-	initialStage := s.mapBloomToStage(startingBloomLevel)
-
-	// Create session with enhanced metadata (backward compatibility - store quizID as configID)
-	session := &models.QuizSession{
-		ConfigID:     quizID, // For backward compatibility, treat quizID as configID
-		UserID:       userID,
-		SessionToken: s.generateSessionToken(),
-		StartTime:    time.Now(),
-		Status:       "active",
-		CurrentStage: initialStage,
-		StageProgress: map[string]models.StageProgress{
-			"easy":   {Attempted: 0, Correct: 0, Passed: false, Score: 0},
-			"medium": {Attempted: 0, Correct: 0, Passed: false, Score: 0},
-			"hard":   {Attempted: 0, Correct: 0, Passed: false, Score: 0},
-		},
-		TotalQuestionsAsked: 0,
-		QuestionsUsed:       []string{},
-		FinalScore:          0,
-		Metadata: map[string]any{
-			"skill_id":               skillInfo.ID,
-			"skill_name":             skillInfo.Name,
-			"primary_tags":           skillInfo.PrimaryTags,
-			"secondary_tags":         skillInfo.SecondaryTags,
-			"related_tags":           skillInfo.RelatedTags,
-			"tag_weights":            skillInfo.TagWeights,
-			"starting_bloom_level":   startingBloomLevel,
-			"preferred_bloom_levels": bloomLevels,
-			"starting_difficulty":    startingDifficulty,
-			"quiz_config":            quiz.StageConfig,
-			"quiz_start_time":        time.Now().Unix(),
-		},
-	}
-
-	err = s.Repo.Create(ctx, session)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create session: %w", err)
-	}
-
-	// Cache enhanced skill info
-	s.sessionSkillCache[session.ID] = standardSkillInfo
-	s.sessionEnhancedSkillCache[session.ID] = skillInfo // Add new cache for enhanced info
-
-	if s.EventPublisher != nil {
-		s.EventPublisher.Publish("quiz.session.created", map[string]any{
-			"session_id":           session.ID,
-			"quiz_id":              quizID,
-			"user_id":              userID,
-			"skill_id":             skillInfo.ID,
-			"tag_distribution":     s.getTagDistribution(skillInfo),
-			"starting_bloom_level": startingBloomLevel,
-			"starting_difficulty":  startingDifficulty,
-		})
-	}
-
-	return session, nil
 }
 
 // CreateGlobalSession creates session with global configuration (no quiz dependency)
@@ -251,13 +116,7 @@ func (s *SessionService) CreateGlobalSession(
 	}
 
 	if masteryScore > 0 {
-		if masteryScore <= 3 {
-			startingDifficulty = "easy"
-		} else if masteryScore <= 7 {
-			startingDifficulty = "medium"
-		} else {
-			startingDifficulty = "hard"
-		}
+		startingDifficulty = s.mapMasteryScoreToStage(masteryScore)
 	} else {
 		startingDifficulty = "easy"
 	}
@@ -269,7 +128,7 @@ func (s *SessionService) CreateGlobalSession(
 		Tags: s.mergeTags(skillInfo),
 	}
 
-	isValid, validation, err := s.poolManager.ValidateGlobalPoolWithBloom(ctx, standardSkillInfo)
+	isValid, validation, err := s.poolManager.ValidateGlobalPoolWithBloom(ctx, standardSkillInfo, "temp_session")
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate global question pool: %w", err)
 	}
@@ -319,6 +178,12 @@ func (s *SessionService) CreateGlobalSession(
 	s.sessionSkillCache[session.ID] = standardSkillInfo
 	s.sessionEnhancedSkillCache[session.ID] = skillInfo
 
+	// Generate and cache pools for the session
+	if err := s.generateSessionPool(ctx, session.ID, session); err != nil {
+		fmt.Printf("Warning: Failed to pre-generate pools for session %s: %v\n", session.ID, err)
+		// Don't fail session creation if pool generation fails - pools can be generated lazily
+	}
+
 	if s.EventPublisher != nil {
 		s.EventPublisher.Publish("quiz.session.created", map[string]any{
 			"session_id":           session.ID,
@@ -366,12 +231,57 @@ func (s *SessionService) deriveBloomFromResult(result *models.QuizResult) string
 
 // Helper: Derive difficulty from past result
 func (s *SessionService) deriveDifficultyFromResult(result *models.QuizResult) string {
+	// Use configuration-based thresholds
+	config, err := s.ConfigService.GetDefaultConfig(context.Background())
+	if err != nil {
+		// Fallback to hardcoded values
+		return s.getHardcodedDifficultyFromResult(result)
+	}
+
+	if result.Percentage >= config.ScoringConfig.DifficultyThresholds.MediumToHard {
+		return "hard"
+	} else if result.Percentage >= config.ScoringConfig.DifficultyThresholds.EasyToMedium {
+		return "medium"
+	}
+	return "easy"
+}
+
+// Fallback hardcoded difficulty mapping
+func (s *SessionService) getHardcodedDifficultyFromResult(result *models.QuizResult) string {
 	if result.Percentage >= 80 {
 		return "hard"
 	} else if result.Percentage >= 60 {
 		return "medium"
 	}
 	return "easy"
+}
+
+// mapMasteryScoreToStage maps mastery score to difficulty stage using config
+func (s *SessionService) mapMasteryScoreToStage(masteryScore int) string {
+	config, err := s.ConfigService.GetDefaultConfig(context.Background())
+	if err != nil {
+		// Fallback to hardcoded values
+		return s.getHardcodedMasteryStage(masteryScore)
+	}
+
+	if masteryScore <= config.ScoringConfig.DifficultyThresholds.MasteryEasy {
+		return "easy"
+	} else if masteryScore <= config.ScoringConfig.DifficultyThresholds.MasteryMedium {
+		return "medium"
+	} else {
+		return "hard"
+	}
+}
+
+// Fallback hardcoded mastery mapping
+func (s *SessionService) getHardcodedMasteryStage(masteryScore int) string {
+	if masteryScore <= 3 {
+		return "easy"
+	} else if masteryScore <= 7 {
+		return "medium"
+	} else {
+		return "hard"
+	}
 }
 
 // UpdateSession updates session fields
@@ -460,15 +370,13 @@ func (s *SessionService) GetNextQuestion(ctx context.Context, sessionID string) 
 		return nil, fmt.Errorf("skill information not found for session")
 	}
 
-	// Check for pre-generated pools first
-	if pools, ok := session.Metadata["question_pools"].(map[string][]string); ok {
-		question, err := s.getQuestionFromPreGeneratedPool(ctx, session, pools)
-		if err == nil {
-			return question, nil
-		}
-		// Fall back to dynamic selection if pre-generated fails
-		fmt.Printf("Pre-generated pool failed, using dynamic selection: %v\n", err)
+	// Use cache-based pool selection
+	question, err := s.getQuestionFromCachedPool(ctx, sessionID, session)
+	if err == nil {
+		return question, nil
 	}
+	// Log cache miss and continue with dynamic selection
+	fmt.Printf("Cache-based pool selection failed, using dynamic selection: %v\n", err)
 
 	// Dynamic selection with Bloom's criteria
 	adaptiveSession := s.reconstructAdaptiveSession(session)
@@ -481,7 +389,7 @@ func (s *SessionService) GetNextQuestion(ctx context.Context, sessionID string) 
 	var questions []models.Question
 	// Check if this is a true global session (created with CreateGlobalSession) or legacy
 	if metadata := session.Metadata; metadata != nil {
-		if isGlobal, ok := metadata["global_config"].(map[string]models.StageConfig); ok && isGlobal != nil {
+		if _, hasGlobalConfig := metadata["global_config"]; hasGlobalConfig {
 			// True global session - use global question selection
 			questions, err = s.selectGlobalQuestionsWithBloomCriteria(ctx, skillInfo, criteria)
 		} else {
@@ -500,7 +408,27 @@ func (s *SessionService) GetNextQuestion(ctx context.Context, sessionID string) 
 		return nil, fmt.Errorf("no available questions for current stage")
 	}
 
-	return &questions[0], nil
+	// Validate question pool before selection
+	if err := s.validateQuestionPool(questions, 1); err != nil {
+		return nil, fmt.Errorf("question pool validation failed: %w", err)
+	}
+
+	// Select first valid question
+	selectedQuestion := &questions[0]
+
+	// Perform comprehensive question validation
+	if err := s.validateQuestionEligibility(selectedQuestion, session, string(criteria.Stage)); err != nil {
+		return nil, fmt.Errorf("question validation failed: %w", err)
+	}
+
+	// Update session with used question to prevent future repetition
+	err = s.addQuestionToUsed(ctx, sessionID, selectedQuestion.ID)
+	if err != nil {
+		// Log error but don't fail - question selection is more important
+		fmt.Printf("Warning: Failed to update used questions for session %s: %v\n", sessionID, err)
+	}
+
+	return selectedQuestion, nil
 }
 
 // SubmitSession completes and submits the session
@@ -725,7 +653,9 @@ func (s *SessionService) reconstructAdaptiveSession(session *models.QuizSession)
 	}
 
 	adaptiveSession.TotalQuestionsAsked = session.TotalQuestionsAsked
-	adaptiveSession.UsedQuestionIDs = session.QuestionsUsed
+	// Ensure consistent question tracking between session and adaptive manager
+	adaptiveSession.UsedQuestionIDs = make([]string, len(session.QuestionsUsed))
+	copy(adaptiveSession.UsedQuestionIDs, session.QuestionsUsed)
 	adaptiveSession.TotalScore = session.FinalScore
 	adaptiveSession.IsComplete = session.Status == "completed"
 
@@ -1107,28 +1037,86 @@ func (s *SessionService) getSkillInfo(skillID string) *selection.SkillInfo {
 	}
 }
 
-func (s *SessionService) getQuestionFromPreGeneratedPool(
+// getQuestionFromCachedPool retrieves a question from the cache-based pool manager
+func (s *SessionService) getQuestionFromCachedPool(
 	ctx context.Context,
+	sessionID string,
 	session *models.QuizSession,
-	pools map[string][]string,
 ) (*models.Question, error) {
-	poolKey := s.determinePoolKey(session)
+	// Generate cache key based on session and current stage
+	cacheKey := s.generatePoolCacheKey(sessionID, session)
 
-	if questionIDs, ok := pools[poolKey]; ok {
-		for _, qID := range questionIDs {
-			if !s.isQuestionUsed(qID, session.QuestionsUsed) {
-				question, err := s.QuestionRepo.FindByID(ctx, qID)
-				if err == nil {
-					return question, nil
-				}
-			}
+	// Check if pool exists in cache
+	pool := s.getPoolFromCache(cacheKey)
+	if pool == nil {
+		// Pool not in cache - generate it lazily
+		if err := s.generateSessionPool(ctx, sessionID, session); err != nil {
+			return nil, fmt.Errorf("failed to generate pool for session %s: %w", sessionID, err)
+		}
+		pool = s.getPoolFromCache(cacheKey)
+		if pool == nil {
+			return nil, fmt.Errorf("pool generation failed for key: %s", cacheKey)
 		}
 	}
 
-	return nil, fmt.Errorf("no available questions in pool")
+	// Get current stage criteria
+	adaptiveSession := s.reconstructAdaptiveSession(session)
+	criteria, err := s.adaptiveManager.GetNextQuestionCriteria(adaptiveSession)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get question criteria: %w", err)
+	}
+
+	// Try each question in the cached pool
+	for _, question := range pool.Questions {
+		// Check if question is already used
+		if s.isQuestionUsed(question.ID, session.QuestionsUsed) {
+			continue
+		}
+
+		// Perform comprehensive validation
+		if err := s.validateQuestionEligibility(&question, session, string(criteria.Stage)); err != nil {
+			fmt.Printf("Warning: Cached question failed validation: %s, error: %v\n", question.ID, err)
+			continue
+		}
+
+		// Update session with used question immediately
+		updateErr := s.addQuestionToUsed(ctx, session.ID, question.ID)
+		if updateErr != nil {
+			fmt.Printf("Warning: Failed to update used questions for session %s: %v\n", session.ID, updateErr)
+		}
+
+		fmt.Printf("Selected cached question %s for stage %s from pool %s\n", question.ID, criteria.Stage, cacheKey)
+		return &question, nil
+	}
+
+	return nil, fmt.Errorf("no available questions in cached pool %s: all questions used or failed validation", cacheKey)
 }
 
 func (s *SessionService) getBloomDistribution(difficulty string) map[string]float64 {
+	// Get global configuration for Bloom distributions
+	config, err := s.ConfigService.GetDefaultConfig(context.Background())
+	if err != nil || config.StageConfig == nil {
+		// Fallback to hardcoded values if config unavailable
+		return s.getHardcodedBloomDistribution(difficulty)
+	}
+
+	// Use configuration-based distribution
+	if stageConfig, exists := config.StageConfig[difficulty]; exists {
+		return map[string]float64{
+			"remember":   stageConfig.InitialBloomDistribution.Remember,
+			"understand": stageConfig.InitialBloomDistribution.Understand,
+			"apply":      stageConfig.InitialBloomDistribution.Apply,
+			"analyze":    stageConfig.InitialBloomDistribution.Analyze,
+			"evaluate":   stageConfig.InitialBloomDistribution.Evaluate,
+			"create":     stageConfig.InitialBloomDistribution.Create,
+		}
+	}
+
+	return s.getHardcodedBloomDistribution(difficulty)
+}
+
+// Fallback hardcoded distribution
+func (s *SessionService) getHardcodedBloomDistribution(difficulty string) map[string]float64 {
 	switch difficulty {
 	case "easy":
 		return map[string]float64{
@@ -1150,6 +1138,52 @@ func (s *SessionService) getBloomDistribution(difficulty string) map[string]floa
 	}
 }
 
+// getRecoveryBloomDistribution returns recovery-specific Bloom distributions
+func (s *SessionService) getRecoveryBloomDistribution(difficulty string) map[string]float64 {
+	// Get global configuration for recovery Bloom distributions
+	config, err := s.ConfigService.GetDefaultConfig(context.Background())
+	if err != nil || config.StageConfig == nil {
+		// Fallback to hardcoded recovery values
+		return s.getHardcodedRecoveryBloomDistribution(difficulty)
+	}
+
+	// Use configuration-based recovery distribution
+	if stageConfig, exists := config.StageConfig[difficulty]; exists {
+		return map[string]float64{
+			"remember":   stageConfig.RecoveryBloomDistribution.Remember,
+			"understand": stageConfig.RecoveryBloomDistribution.Understand,
+			"apply":      stageConfig.RecoveryBloomDistribution.Apply,
+			"analyze":    stageConfig.RecoveryBloomDistribution.Analyze,
+			"evaluate":   stageConfig.RecoveryBloomDistribution.Evaluate,
+			"create":     stageConfig.RecoveryBloomDistribution.Create,
+		}
+	}
+
+	return s.getHardcodedRecoveryBloomDistribution(difficulty)
+}
+
+// Fallback hardcoded recovery distribution
+func (s *SessionService) getHardcodedRecoveryBloomDistribution(difficulty string) map[string]float64 {
+	switch difficulty {
+	case "easy":
+		return map[string]float64{
+			"remember": 0.6, "understand": 0.3, "apply": 0.1,
+		}
+	case "medium":
+		return map[string]float64{
+			"remember": 0.4, "understand": 0.3, "apply": 0.2, "analyze": 0.1,
+		}
+	case "hard":
+		return map[string]float64{
+			"remember": 0.25, "understand": 0.25, "apply": 0.25, "analyze": 0.15, "evaluate": 0.1,
+		}
+	default:
+		return map[string]float64{
+			"remember": 0.4, "understand": 0.3, "apply": 0.2, "analyze": 0.1,
+		}
+	}
+}
+
 func (s *SessionService) mapStageToDifficulty(stage adaptive.Stage) string {
 	switch stage {
 	case adaptive.StageEasy:
@@ -1163,23 +1197,110 @@ func (s *SessionService) mapStageToDifficulty(stage adaptive.Stage) string {
 	}
 }
 
-func (s *SessionService) determinePoolKey(session *models.QuizSession) string {
+// generatePoolCacheKey generates a cache key for session-specific pools
+func (s *SessionService) generatePoolCacheKey(sessionID string, session *models.QuizSession) string {
 	stage := session.CurrentStage
 	progress := session.StageProgress[stage]
 
 	if progress.RecoveryRound > 0 {
-		return fmt.Sprintf("%s_recovery", stage)
+		return fmt.Sprintf("session_%s_%s_recovery", sessionID, stage)
 	}
-	return fmt.Sprintf("%s_initial", stage)
+	return fmt.Sprintf("session_%s_%s_initial", sessionID, stage)
+}
+
+// getPoolFromCache retrieves pool from global cache
+func (s *SessionService) getPoolFromCache(cacheKey string) *selection.QuizPool {
+	if pool, exists := selection.GetPoolFromCache(cacheKey); exists {
+		return pool
+	}
+	return nil
+}
+
+// generateSessionPool creates and caches pools for a session
+func (s *SessionService) generateSessionPool(ctx context.Context, sessionID string, session *models.QuizSession) error {
+	skillInfo := s.getSkillInfoFromSession(session)
+	if skillInfo == nil {
+		return fmt.Errorf("skill information not found for session")
+	}
+
+	// Generate pools for all stages
+	stages := []string{"easy", "medium", "hard"}
+	for _, stage := range stages {
+		// Generate initial pool
+		initialKey := fmt.Sprintf("session_%s_%s_initial", sessionID, stage)
+		if err := s.generateStagePool(ctx, initialKey, skillInfo, stage, false); err != nil {
+			return fmt.Errorf("failed to generate initial pool for stage %s: %w", stage, err)
+		}
+
+		// Generate recovery pool
+		recoveryKey := fmt.Sprintf("session_%s_%s_recovery", sessionID, stage)
+		if err := s.generateStagePool(ctx, recoveryKey, skillInfo, stage, true); err != nil {
+			return fmt.Errorf("failed to generate recovery pool for stage %s: %w", stage, err)
+		}
+	}
+
+	return nil
+}
+
+// generateStagePool generates a pool for a specific stage and caches it
+func (s *SessionService) generateStagePool(ctx context.Context, cacheKey string, skillInfo *selection.SkillInfo, stage string, isRecovery bool) error {
+	poolManager := selection.NewPoolManager(s.QuestionRepo)
+
+	// Determine bloom distribution based on stage and recovery status
+	var bloomDistribution map[string]float64
+	if isRecovery {
+		bloomDistribution = s.getRecoveryBloomDistribution(stage)
+	} else {
+		bloomDistribution = s.getBloomDistribution(stage)
+	}
+
+	// Get pool size from configuration
+	poolSize := s.getPoolSizeFromConfig(isRecovery)
+
+	// Select questions for the pool
+	result, err := poolManager.SelectAdaptiveQuestionsWithBloomGlobal(
+		ctx,
+		skillInfo,
+		stage,
+		poolSize,
+		[]string{}, // No exclusions for pool generation
+		bloomDistribution,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to select questions for pool: %w", err)
+	}
+
+	// Create pool structure
+	pool := &selection.QuizPool{
+		ID:                fmt.Sprintf("session_pool_%s", cacheKey),
+		SkillID:           skillInfo.ID,
+		SkillTags:         skillInfo.Tags,
+		Questions:         result.Questions,
+		TotalCount:        len(result.Questions),
+		BloomDistribution: result.BloomCoverage,
+	}
+
+	// Cache the pool
+	selection.SetPoolInCache(cacheKey, pool)
+
+	fmt.Printf("Generated and cached pool %s with %d questions\n", cacheKey, pool.TotalCount)
+	return nil
 }
 
 func (s *SessionService) isQuestionUsed(questionID string, usedIDs []string) bool {
-	for _, id := range usedIDs {
-		if id == questionID {
-			return true
-		}
+	return slices.Contains(usedIDs, questionID)
+}
+
+// addQuestionToUsed adds a question ID to the session's used questions list
+func (s *SessionService) addQuestionToUsed(ctx context.Context, sessionID, questionID string) error {
+	// Update session's QuestionsUsed array in database
+	update := bson.M{
+		"$addToSet": bson.M{
+			"questions_used": questionID,
+		},
 	}
-	return false
+
+	return s.Repo.Update(ctx, sessionID, update)
 }
 
 func (s *SessionService) generateSessionToken() string {
@@ -1356,15 +1477,8 @@ func (s *SessionService) generateLearningRecommendation(bloomLevel string, perce
 }
 
 func (s *SessionService) createQuizResult(session *models.QuizSession, completionType string, finalScore float64) *models.QuizResult {
-	// Calculate badge level
-	badgeLevel := "beginner"
-	if finalScore >= 90 {
-		badgeLevel = "expert"
-	} else if finalScore >= 75 {
-		badgeLevel = "proficient"
-	} else if finalScore >= 60 {
-		badgeLevel = "intermediate"
-	}
+	// Calculate badge level using configuration
+	badgeLevel := s.calculateBadgeLevelFromConfig(finalScore)
 
 	// Build stage breakdown
 	stageBreakdown := make(map[string]models.StageBreakdown)
@@ -1502,6 +1616,30 @@ func (s *SessionService) extractKnowledgeData(session *models.QuizSession, resul
 
 // Helper methods for knowledge analytics
 func (s *SessionService) calculateMasteryLevel(score float64) string {
+	return s.calculateBadgeLevelFromConfig(score)
+}
+
+// calculateBadgeLevelFromConfig determines badge level using global configuration
+func (s *SessionService) calculateBadgeLevelFromConfig(score float64) string {
+	config, err := s.ConfigService.GetDefaultConfig(context.Background())
+	if err != nil || config.ScoringConfig.BadgeThresholds.Expert == 0 {
+		// Fallback to hardcoded values
+		return s.getHardcodedBadgeLevel(score)
+	}
+
+	// Use configuration-based thresholds
+	if score >= config.ScoringConfig.BadgeThresholds.Expert {
+		return "expert"
+	} else if score >= config.ScoringConfig.BadgeThresholds.Proficient {
+		return "proficient"
+	} else if score >= config.ScoringConfig.BadgeThresholds.Intermediate {
+		return "intermediate"
+	}
+	return "beginner"
+}
+
+// Fallback hardcoded badge levels
+func (s *SessionService) getHardcodedBadgeLevel(score float64) string {
 	if score >= 90 {
 		return "expert"
 	} else if score >= 75 {
@@ -1510,6 +1648,35 @@ func (s *SessionService) calculateMasteryLevel(score float64) string {
 		return "intermediate"
 	}
 	return "beginner"
+}
+
+// createAnswerCacheFromConfig creates answer cache using configuration-based retention
+func (s *SessionService) createAnswerCacheFromConfig() *models.SessionAnswerCache {
+	config, err := s.ConfigService.GetDefaultConfig(context.Background())
+	if err != nil {
+		// Fallback to hardcoded 30-minute retention
+		return models.NewSessionAnswerCache(30 * time.Minute)
+	}
+
+	retention := time.Duration(config.CacheConfig.AnswerCacheRetentionMinutes) * time.Minute
+	return models.NewSessionAnswerCache(retention)
+}
+
+// getPoolSizeFromConfig returns pool size from configuration
+func (s *SessionService) getPoolSizeFromConfig(isRecovery bool) int {
+	config, err := s.ConfigService.GetDefaultConfig(context.Background())
+	if err != nil {
+		// Fallback to hardcoded values
+		if isRecovery {
+			return 25 // Recovery pool size
+		}
+		return 50 // Initial pool size
+	}
+
+	if isRecovery {
+		return config.PoolConfig.RecoveryPoolSize
+	}
+	return config.PoolConfig.InitialPoolSize
 }
 
 func (s *SessionService) calculateImprovement(session *models.QuizSession, result *models.QuizResult) float64 {
@@ -1736,4 +1903,101 @@ func (s *SessionService) RemoveSessionCache(sessionID string) {
 // GetAnswerCacheStats returns cache statistics for monitoring
 func (s *SessionService) GetAnswerCacheStats() map[string]interface{} {
 	return s.answerCache.GetCacheStats()
+}
+
+// validateQuestionEligibility performs comprehensive question validation
+func (s *SessionService) validateQuestionEligibility(question *models.Question, session *models.QuizSession, stage string) error {
+	if question == nil {
+		return fmt.Errorf("question is nil")
+	}
+
+	// Validate question ID
+	if question.ID == "" {
+		return fmt.Errorf("question has empty ID")
+	}
+
+	// Check if question is already used
+	if s.isQuestionUsed(question.ID, session.QuestionsUsed) {
+		return fmt.Errorf("question already used in session: %s", question.ID)
+	}
+
+	// Validate question structure
+	if err := question.Validate(); err != nil {
+		return fmt.Errorf("question validation failed: %w", err)
+	}
+
+	// Ensure question has required fields for adaptive logic
+	if question.BloomLevel == "" {
+		return fmt.Errorf("question missing Bloom level: %s", question.ID)
+	}
+
+	// Validate question has appropriate stage scoring
+	stageScore := question.GetScoreForStage(stage)
+	if stageScore <= 0 {
+		return fmt.Errorf("question has invalid score for stage %s: %d", stage, stageScore)
+	}
+
+	// Check question type compatibility
+	if !s.isQuestionTypeSupported(question.Type) {
+		return fmt.Errorf("unsupported question type: %s", question.Type)
+	}
+
+	return nil
+}
+
+// isQuestionTypeSupported checks if the question type is supported
+func (s *SessionService) isQuestionTypeSupported(questionType string) bool {
+	supportedTypes := map[string]bool{
+		string(models.QuestionTypeMultipleChoice): true,
+		string(models.QuestionTypeSingleChoice):   true,
+		string(models.QuestionTypeTrueFalse):      true,
+	}
+
+	// Check modern format first
+	if supported, ok := supportedTypes[questionType]; ok {
+		return supported
+	}
+
+	// Check legacy formats
+	legacyTypes := map[string]bool{
+		"multiple_choice": true,
+		"single_choice":   true,
+		"true_false":      true,
+	}
+
+	return legacyTypes[questionType]
+}
+
+// validateQuestionPool validates the question pool before selection
+func (s *SessionService) validateQuestionPool(questions []models.Question, requiredCount int) error {
+	if len(questions) == 0 {
+		return fmt.Errorf("question pool is empty")
+	}
+
+	if len(questions) < requiredCount {
+		return fmt.Errorf("insufficient questions in pool: found %d, required %d", len(questions), requiredCount)
+	}
+
+	// Validate each question in the pool
+	validQuestions := 0
+	for i, question := range questions {
+		if err := question.Validate(); err != nil {
+			fmt.Printf("Warning: Question %d in pool is invalid: %v\n", i, err)
+			continue
+		}
+
+		if question.BloomLevel == "" {
+			fmt.Printf("Warning: Question %s missing Bloom level\n", question.ID)
+			continue
+		}
+
+		validQuestions++
+	}
+
+	if validQuestions < requiredCount {
+		return fmt.Errorf("insufficient valid questions in pool: %d valid out of %d total, required %d",
+			validQuestions, len(questions), requiredCount)
+	}
+
+	return nil
 }

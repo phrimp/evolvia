@@ -175,208 +175,6 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 	})
 }
 
-// CreateSession creates a new adaptive quiz session 
-// DEPRECATED: This method is deprecated in favor of CreateGlobalSession which doesn't require quiz dependencies
-// Global sessions provide better performance and flexibility without quiz constraints
-// Use CreateGlobalSession for all new implementations
-func (h *SessionHandler) CreateSession(c *gin.Context) {
-	var req struct {
-		QuizID    string `json:"quiz_id" binding:"required"`
-		SkillID   string `json:"skill_id" binding:"required"`
-		SkillName string `json:"skill_name"`
-
-		// Categorized tags for weighted selection
-		PrimaryTags   []string `json:"primary_tags"`   // Core skill concepts
-		SecondaryTags []string `json:"secondary_tags"` // Supporting concepts
-		RelatedTags   []string `json:"related_tags"`   // Peripheral concepts
-
-		// Optional: Backward compatibility with single tag list
-		SkillTags []string `json:"skill_tags"` // Legacy field
-
-		// Tag weight configuration
-		TagWeights struct {
-			PrimaryWeight   float64 `json:"primary_weight"`
-			SecondaryWeight float64 `json:"secondary_weight"`
-			RelatedWeight   float64 `json:"related_weight"`
-			ExactMatchBonus float64 `json:"exact_match_bonus"`
-		} `json:"tag_weights"`
-
-		// Initial mastery fields
-		CurrentBloomLevel    string   `json:"current_bloom_level"`
-		PreferredBloomLevels []string `json:"preferred_bloom_levels"`
-		MasteryScore         int      `json:"mastery_score"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User ID is required",
-		})
-		return
-	}
-
-	// Handle backward compatibility - if old skill_tags field is used
-	if len(req.PrimaryTags) == 0 && len(req.SkillTags) > 0 {
-		// Put all tags as primary for backward compatibility
-		req.PrimaryTags = req.SkillTags
-		fmt.Printf("[Session] Using legacy skill_tags field, treating all as primary tags\n")
-	}
-
-	// Validate we have at least some tags
-	totalTags := len(req.PrimaryTags) + len(req.SecondaryTags) + len(req.RelatedTags)
-	if totalTags == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "At least one tag (primary, secondary, or related) is required",
-		})
-		return
-	}
-
-	// Set default weights if not provided
-	if req.TagWeights.PrimaryWeight == 0 {
-		req.TagWeights.PrimaryWeight = 3.0
-	}
-	if req.TagWeights.SecondaryWeight == 0 {
-		req.TagWeights.SecondaryWeight = 1.5
-	}
-	if req.TagWeights.RelatedWeight == 0 {
-		req.TagWeights.RelatedWeight = 0.5
-	}
-	if req.TagWeights.ExactMatchBonus == 0 {
-		req.TagWeights.ExactMatchBonus = 2.0
-	}
-
-	// Set default skill name
-	if req.SkillName == "" {
-		req.SkillName = req.SkillID
-	}
-
-	// Create enhanced skill info
-	enhancedSkillInfo := &selection.EnhancedSkillInfo{
-		ID:            req.SkillID,
-		Name:          req.SkillName,
-		PrimaryTags:   req.PrimaryTags,
-		SecondaryTags: req.SecondaryTags,
-		RelatedTags:   req.RelatedTags,
-		TagWeights: selection.TagWeightConfig{
-			PrimaryWeight:   req.TagWeights.PrimaryWeight,
-			SecondaryWeight: req.TagWeights.SecondaryWeight,
-			RelatedWeight:   req.TagWeights.RelatedWeight,
-			ExactMatchBonus: req.TagWeights.ExactMatchBonus,
-		},
-	}
-
-	// Log tag distribution for monitoring
-	fmt.Printf("[Session] Creating session with tag distribution - Primary: %d, Secondary: %d, Related: %d\n",
-		len(req.PrimaryTags), len(req.SecondaryTags), len(req.RelatedTags))
-	fmt.Printf("[Session] Tag weights - Primary: %.1f, Secondary: %.1f, Related: %.1f, SkillBonus: %.1f\n",
-		req.TagWeights.PrimaryWeight, req.TagWeights.SecondaryWeight,
-		req.TagWeights.RelatedWeight, req.TagWeights.ExactMatchBonus)
-
-	// Determine bloom levels - prefer new format, fallback to legacy
-	var bloomLevels []string
-	if len(req.PreferredBloomLevels) > 0 {
-		bloomLevels = req.PreferredBloomLevels
-	} else if req.CurrentBloomLevel != "" {
-		bloomLevels = []string{req.CurrentBloomLevel}
-	}
-
-	// Create session with enhanced skill info
-	session, err := h.Service.CreateSessionWithEnhancedSkillInfo(
-		context.Background(),
-		req.QuizID,
-		userID,
-		enhancedSkillInfo,
-		bloomLevels,
-		req.MasteryScore,
-	)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to create session",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	// Calculate expected selection quality metrics
-	selectionMetrics := h.calculateExpectedSelectionQuality(enhancedSkillInfo)
-
-	c.JSON(http.StatusCreated, gin.H{
-		"session": session,
-		"message": "Session created successfully with enhanced tag weighting",
-		"deprecation_warning": gin.H{
-			"status":  "DEPRECATED",
-			"reason":  "Quiz-dependent sessions are deprecated in favor of global sessions",
-			"migrate_to": "POST /protected/quizz/global-session/",
-			"benefits": []string{
-				"No quiz dependency required",
-				"Better performance with global config",
-				"Simplified session management",
-				"Enhanced caching capabilities",
-			},
-			"timeline": "This endpoint will be removed in future versions",
-		},
-		"tag_configuration": gin.H{
-			"primary_tags":   req.PrimaryTags,
-			"secondary_tags": req.SecondaryTags,
-			"related_tags":   req.RelatedTags,
-			"weights": gin.H{
-				"primary":           req.TagWeights.PrimaryWeight,
-				"secondary":         req.TagWeights.SecondaryWeight,
-				"related":           req.TagWeights.RelatedWeight,
-				"exact_skill_bonus": req.TagWeights.ExactMatchBonus,
-			},
-			"total_tags": totalTags,
-		},
-		"selection_quality": selectionMetrics,
-		"next_step":         "Call /next endpoint to get first question",
-	})
-}
-
-// Add helper method to calculate expected selection quality
-func (h *SessionHandler) calculateExpectedSelectionQuality(
-	skillInfo *selection.EnhancedSkillInfo,
-) map[string]interface{} {
-	// Calculate effective weight for each tag category
-	primaryEffectiveWeight := float64(len(skillInfo.PrimaryTags)) * skillInfo.TagWeights.PrimaryWeight
-	secondaryEffectiveWeight := float64(len(skillInfo.SecondaryTags)) * skillInfo.TagWeights.SecondaryWeight
-	relatedEffectiveWeight := float64(len(skillInfo.RelatedTags)) * skillInfo.TagWeights.RelatedWeight
-
-	totalEffectiveWeight := primaryEffectiveWeight + secondaryEffectiveWeight + relatedEffectiveWeight
-
-	metrics := map[string]interface{}{
-		"primary_influence":   fmt.Sprintf("%.1f%%", (primaryEffectiveWeight/totalEffectiveWeight)*100),
-		"secondary_influence": fmt.Sprintf("%.1f%%", (secondaryEffectiveWeight/totalEffectiveWeight)*100),
-		"related_influence":   fmt.Sprintf("%.1f%%", (relatedEffectiveWeight/totalEffectiveWeight)*100),
-		"selection_strategy":  h.determineSelectionStrategy(skillInfo),
-	}
-
-	return metrics
-}
-
-func (h *SessionHandler) determineSelectionStrategy(skillInfo *selection.EnhancedSkillInfo) string {
-	primaryCount := len(skillInfo.PrimaryTags)
-	secondaryCount := len(skillInfo.SecondaryTags)
-	relatedCount := len(skillInfo.RelatedTags)
-
-	if primaryCount > secondaryCount+relatedCount {
-		return "Core-focused (emphasizing primary concepts)"
-	} else if secondaryCount > primaryCount {
-		return "Broad coverage (balanced primary and supporting concepts)"
-	} else if relatedCount > primaryCount+secondaryCount {
-		return "Exploratory (including peripheral concepts)"
-	} else {
-		return "Balanced (equal emphasis across categories)"
-	}
-}
-
 // UpdateSession updates session information
 func (h *SessionHandler) UpdateSession(c *gin.Context) {
 	id := c.Param("id")
@@ -777,11 +575,11 @@ func (h *SessionHandler) GetSessionAnswers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"answers":          answers,
-		"count":            len(answers),
-		"session_id":       sessionID,
-		"source":           "cache",
-		"includes_timing":  true,
+		"answers":           answers,
+		"count":             len(answers),
+		"session_id":        sessionID,
+		"source":            "cache",
+		"includes_timing":   true,
 		"includes_metadata": true,
 		"cache_info": gin.H{
 			"total_cached": h.Service.GetCachedAnswerCount(sessionID),
@@ -950,7 +748,7 @@ func (h *SessionHandler) GetAnswerCacheStats(c *gin.Context) {
 	}
 
 	stats := h.Service.GetAnswerCacheStats()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"cache_statistics": stats,
 		"timestamp":        time.Now(),
