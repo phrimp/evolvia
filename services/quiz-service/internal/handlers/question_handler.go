@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"quiz-service/internal/models"
 	"quiz-service/internal/service"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type QuestionHandler struct {
@@ -28,9 +30,20 @@ func (h *QuestionHandler) ListQuestions(c *gin.Context) {
 
 func (h *QuestionHandler) GetQuestion(c *gin.Context) {
 	id := c.Param("id")
+
+	// Validate ID format
+	if strings.TrimSpace(id) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Question ID is required"})
+		return
+	}
+
 	question, err := h.Service.GetQuestion(context.Background(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Question not found"})
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Question not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error", "details": err.Error()})
+		}
 		return
 	}
 

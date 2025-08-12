@@ -37,6 +37,9 @@ func (r *QuestionRepository) FindByID(ctx context.Context, id string) (*models.Q
 	var question models.Question
 	err := r.Col.FindOne(ctx, bson.M{"_id": id}).Decode(&question)
 	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, mongo.ErrNoDocuments
+		}
 		return nil, err
 	}
 	return &question, nil

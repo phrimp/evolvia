@@ -692,10 +692,12 @@ func (pm *PoolManager) GetGlobalPoolWithBloom(ctx context.Context, skillInfo *Sk
 // GetGlobalPoolForEnhancedSkill retrieves global question pool for enhanced skill info
 func (pm *PoolManager) GetGlobalPoolForEnhancedSkill(ctx context.Context, skillInfo *EnhancedSkillInfo) (*QuizPool, error) {
 	// Get all active questions
-	questions, err := pm.questionRepo.FindActiveQuestions(ctx)
+	questions, err := pm.questionRepo.FindAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get global questions: %w", err)
 	}
+
+	fmt.Println("find all question result: ", len(questions))
 
 	// Filter and score questions by enhanced skill matching
 	var filteredQuestions []models.Question

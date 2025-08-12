@@ -580,10 +580,12 @@ func setupGlobalSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHan
 		protectedGlobalSession.POST("/:id/answer", func(c *gin.Context) {
 			sessionHandler.SubmitAnswer(c)
 			if publisher != nil {
-				publisher.Publish("quiz.global_session.answer_submitted", gin.H{
+				publisher.Publish("skills.events.answer_submitted", gin.H{
 					"session_id": c.Param("id"),
 					"user_id":    c.GetHeader("X-User-ID"),
 					"timestamp":  time.Now(),
+					"event_type": "answer_submission",
+					"exchange":   "skills.events",
 				})
 			}
 		})
@@ -591,10 +593,18 @@ func setupGlobalSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHan
 		protectedGlobalSession.POST("/:id/submit", func(c *gin.Context) {
 			sessionHandler.SubmitSession(c)
 			if publisher != nil {
-				publisher.Publish("quiz.global_session.submitted", gin.H{
-					"session_id": c.Param("id"),
-					"user_id":    c.GetHeader("X-User-ID"),
-					"timestamp":  time.Now(),
+				// Enhanced global session event routed to skills.events exchange
+				publisher.Publish("skills.events.session_submitted", gin.H{
+					"session_id":    c.Param("id"),
+					"user_id":       c.GetHeader("X-User-ID"),
+					"timestamp":     time.Now(),
+					"session_type":  "global",
+					"event_type":    "session_submission",
+					"exchange":      "skills.events",
+					"client_info": gin.H{
+						"user_agent": c.GetHeader("User-Agent"),
+						"ip_address": c.ClientIP(),
+					},
 				})
 			}
 		})

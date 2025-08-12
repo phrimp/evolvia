@@ -38,8 +38,8 @@ func NewEventPublisher(amqpURL, exchange string) (*EventPublisher, error) {
 	return &EventPublisher{conn: conn, channel: ch, exchange: exchange}, nil
 }
 
-func (p *EventPublisher) Publish(eventType string, payload interface{}) error {
-	event := map[string]interface{}{
+func (p *EventPublisher) Publish(eventType string, payload any) error {
+	event := map[string]any{
 		"type":    eventType,
 		"payload": payload,
 	}
@@ -55,7 +55,7 @@ func (p *EventPublisher) Publish(eventType string, payload interface{}) error {
 	f, ferr := os.OpenFile("event.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if ferr == nil {
 		defer f.Close()
-		f.WriteString(fmt.Sprintf("[EVENT] %s: %v\n", eventType, payload))
+		fmt.Fprintf(f, "[EVENT] %s: %v\n", eventType, payload)
 	}
 
 	// Use the event type as the routing key for topic exchange

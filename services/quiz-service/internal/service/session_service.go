@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"quiz-service/internal/adaptive"
 	"quiz-service/internal/event"
 	"quiz-service/internal/models"
@@ -549,18 +550,23 @@ func (s *SessionService) SubmitSession(
 	// Mark session cache as completed for proper retention timing
 	s.MarkSessionCacheCompleted(sessionID)
 
-	// Publish completion event
+	// Publish enhanced events
 	if s.EventPublisher != nil {
+		// Legacy event for backward compatibility
 		s.EventPublisher.Publish("quiz.session.completed", map[string]interface{}{
 			"session_id":      sessionID,
 			"user_id":         session.UserID,
-			"config_id":       session.ConfigID, // Can be either configID or quizID for backward compatibility
+			"config_id":       session.ConfigID,
 			"skill_id":        s.extractSkillID(session),
 			"final_score":     finalScore,
 			"completion_type": completionType,
 			"duration":        int(time.Since(session.StartTime).Seconds()),
 			"questions_asked": session.TotalQuestionsAsked,
 		})
+
+		// Enhanced skills event with rich learning analytics
+		skillsData := s.extractKnowledgeData(session, result)
+		s.EventPublisher.Publish("skills.events.quiz_completed", skillsData)
 	}
 
 	return result, nil
@@ -1428,6 +1434,298 @@ func (s *SessionService) GetCachedAnswerCount(sessionID string) int {
 // MarkSessionCacheCompleted marks a session as completed in cache for retention timing
 func (s *SessionService) MarkSessionCacheCompleted(sessionID string) {
 	s.answerCache.MarkSessionCompleted(sessionID)
+}
+
+// extractKnowledgeData creates rich skills analytics from session and result data for skills.events exchange
+func (s *SessionService) extractKnowledgeData(session *models.QuizSession, result *models.QuizResult) map[string]interface{} {
+	// Extract skill progressions with Bloom level analysis
+	skillProgressions := make(map[string]interface{})
+	skillID := s.extractSkillID(session)
+
+	if skillID != "" {
+		skillProgressions[skillID] = map[string]interface{}{
+			"bloom_breakdown":   result.BloomBreakdown,
+			"mastery_level":     s.calculateMasteryLevel(result.FinalScore),
+			"improvement":       s.calculateImprovement(session, result),
+			"stage_performance": s.analyzeStagePerformance(session),
+		}
+	}
+
+	// Build cognitive profile from session patterns
+	cognitiveProfile := map[string]interface{}{
+		"analytical_strength": s.calculateAnalyticalStrength(&result.BloomBreakdown),
+		"memory_retention":    s.calculateMemoryRetention(&result.BloomBreakdown),
+		"problem_solving":     s.calculateProblemSolving(&result.BloomBreakdown),
+		"adaptation_speed":    s.calculateAdaptationSpeed(session),
+	}
+
+	// Extract learning patterns
+	learningPatterns := map[string]interface{}{
+		"optimal_difficulty":       s.determineOptimalDifficulty(session),
+		"preferred_question_types": s.analyzeQuestionTypePreferences(session),
+		"time_per_question":        s.calculateAverageTimePerQuestion(session),
+		"recovery_effectiveness":   s.analyzeRecoveryEffectiveness(session),
+	}
+
+	// Build comprehensive skills event payload for skills.events exchange
+	return map[string]interface{}{
+		"user_id":    session.UserID,
+		"session_id": session.ID,
+		"config_id":  session.ConfigID,
+		"timestamp":  time.Now(),
+		"event_type": "quiz_completion",
+		"exchange":   "skills.events",
+		"skills_data": map[string]interface{}{
+			"skill_progressions": skillProgressions,
+			"cognitive_profile":  cognitiveProfile,
+			"learning_patterns":  learningPatterns,
+		},
+		"performance_metrics": map[string]interface{}{
+			"final_score":         result.FinalScore,
+			"badge_level":         result.BadgeLevel,
+			"stage_breakdown":     result.StageBreakdown,
+			"bloom_breakdown":     result.BloomBreakdown,
+			"time_breakdown":      result.TimeBreakdown,
+			"completion_type":     result.CompletionType,
+			"duration_seconds":    int(time.Since(session.StartTime).Seconds()),
+			"questions_attempted": result.QuestionsAttempted,
+			"questions_correct":   result.QuestionsCorrect,
+		},
+		"session_metadata": map[string]interface{}{
+			"skill_id":         skillID,
+			"total_questions":  session.TotalQuestionsAsked,
+			"stages_completed": s.countCompletedStages(session),
+			"recovery_rounds":  s.countRecoveryRounds(session),
+		},
+	}
+}
+
+// Helper methods for knowledge analytics
+func (s *SessionService) calculateMasteryLevel(score float64) string {
+	if score >= 90 {
+		return "expert"
+	} else if score >= 75 {
+		return "proficient"
+	} else if score >= 60 {
+		return "intermediate"
+	}
+	return "beginner"
+}
+
+func (s *SessionService) calculateImprovement(session *models.QuizSession, result *models.QuizResult) float64 {
+	// Calculate improvement based on stage progression
+	// This could be enhanced with historical data comparison
+	if len(session.StageProgress) == 0 {
+		return 0.0
+	}
+
+	// Simple improvement calculation based on stage progression
+	totalStages := float64(len(session.StageProgress))
+	passedStages := 0.0
+
+	for _, progress := range session.StageProgress {
+		if progress.Passed {
+			passedStages++
+		}
+	}
+
+	return (passedStages / totalStages) * 0.3 // 30% max improvement score
+}
+
+func (s *SessionService) analyzeStagePerformance(session *models.QuizSession) map[string]interface{} {
+	stagePerf := make(map[string]interface{})
+
+	for stage, progress := range session.StageProgress {
+		accuracy := 0.0
+		if progress.Attempted > 0 {
+			accuracy = float64(progress.Correct) / float64(progress.Attempted)
+		}
+
+		stagePerf[stage] = map[string]interface{}{
+			"accuracy":        accuracy,
+			"attempts":        progress.Attempted,
+			"passed":          progress.Passed,
+			"recovery_rounds": progress.RecoveryRound,
+			"efficiency":      s.calculateStageEfficiency(progress),
+		}
+	}
+
+	return stagePerf
+}
+
+func (s *SessionService) calculateStageEfficiency(progress models.StageProgress) float64 {
+	if progress.Attempted == 0 {
+		return 0.0
+	}
+
+	// Efficiency based on correct answers vs attempts and recovery usage
+	baseEfficiency := float64(progress.Correct) / float64(progress.Attempted)
+
+	// Penalty for recovery rounds (indicates difficulty or mistakes)
+	recoveryPenalty := float64(progress.RecoveryRound) * 0.1
+
+	return math.Max(0.0, baseEfficiency-recoveryPenalty)
+}
+
+func (s *SessionService) calculateAnalyticalStrength(bloomBreakdown *models.BloomBreakdown) float64 {
+	// Focus on higher-order thinking skills
+	analytical := 0.0
+	total := 0.0
+
+	// Analyze level
+	if bloomBreakdown.Analyze.QuestionsAttempted > 0 {
+		analytical += float64(bloomBreakdown.Analyze.QuestionsCorrect)
+		total += float64(bloomBreakdown.Analyze.QuestionsAttempted)
+	}
+
+	// Evaluate level
+	if bloomBreakdown.Evaluate.QuestionsAttempted > 0 {
+		analytical += float64(bloomBreakdown.Evaluate.QuestionsCorrect)
+		total += float64(bloomBreakdown.Evaluate.QuestionsAttempted)
+	}
+
+	// Create level
+	if bloomBreakdown.Create.QuestionsAttempted > 0 {
+		analytical += float64(bloomBreakdown.Create.QuestionsCorrect)
+		total += float64(bloomBreakdown.Create.QuestionsAttempted)
+	}
+
+	if total == 0 {
+		return 0.5 // Neutral score if no analytical questions
+	}
+
+	return analytical / total
+}
+
+func (s *SessionService) calculateMemoryRetention(bloomBreakdown *models.BloomBreakdown) float64 {
+	// Focus on remember level
+	if bloomBreakdown.Remember.QuestionsAttempted > 0 {
+		return float64(bloomBreakdown.Remember.QuestionsCorrect) / float64(bloomBreakdown.Remember.QuestionsAttempted)
+	}
+
+	return 0.5 // Neutral score if no memory questions
+}
+
+func (s *SessionService) calculateProblemSolving(bloomBreakdown *models.BloomBreakdown) float64 {
+	// Focus on apply and analyze levels
+	problemSolving := 0.0
+	total := 0.0
+
+	// Apply level
+	if bloomBreakdown.Apply.QuestionsAttempted > 0 {
+		problemSolving += float64(bloomBreakdown.Apply.QuestionsCorrect)
+		total += float64(bloomBreakdown.Apply.QuestionsAttempted)
+	}
+
+	// Analyze level
+	if bloomBreakdown.Analyze.QuestionsAttempted > 0 {
+		problemSolving += float64(bloomBreakdown.Analyze.QuestionsCorrect)
+		total += float64(bloomBreakdown.Analyze.QuestionsAttempted)
+	}
+
+	if total == 0 {
+		return 0.5 // Neutral score
+	}
+
+	return problemSolving / total
+}
+
+func (s *SessionService) calculateAdaptationSpeed(session *models.QuizSession) float64 {
+	// Measure how quickly user adapts between difficulty stages
+	if len(session.StageProgress) <= 1 {
+		return 0.5 // Neutral if single stage
+	}
+
+	// Simple metric: fewer questions needed per stage indicates faster adaptation
+	totalQuestions := session.TotalQuestionsAsked
+	stages := len(session.StageProgress)
+
+	questionsPerStage := float64(totalQuestions) / float64(stages)
+
+	// Lower questions per stage = faster adaptation (normalize to 0-1)
+	// Assume 10 questions per stage is average (0.5), fewer is better
+	if questionsPerStage <= 5 {
+		return 1.0
+	} else if questionsPerStage >= 15 {
+		return 0.0
+	} else {
+		return 1.0 - ((questionsPerStage - 5) / 10)
+	}
+}
+
+func (s *SessionService) determineOptimalDifficulty(session *models.QuizSession) string {
+	// Analyze performance across stages to determine optimal difficulty
+	bestStage := ""
+	bestScore := 0.0
+
+	for stage, progress := range session.StageProgress {
+		if progress.Attempted > 0 {
+			score := float64(progress.Correct) / float64(progress.Attempted)
+			if score > bestScore {
+				bestScore = score
+				bestStage = stage
+			}
+		}
+	}
+
+	if bestStage == "" {
+		return "moderate"
+	}
+
+	return bestStage
+}
+
+func (s *SessionService) analyzeQuestionTypePreferences(session *models.QuizSession) []string {
+	// This would require tracking question types answered
+	// For now, return common types - could be enhanced with actual tracking
+	return []string{"multiple_choice", "single_choice", "true_false"}
+}
+
+func (s *SessionService) calculateAverageTimePerQuestion(session *models.QuizSession) float64 {
+	if session.TotalQuestionsAsked == 0 {
+		return 0.0
+	}
+
+	totalTime := time.Since(session.StartTime).Seconds()
+	return totalTime / float64(session.TotalQuestionsAsked)
+}
+
+func (s *SessionService) analyzeRecoveryEffectiveness(session *models.QuizSession) float64 {
+	totalRecoveryRounds := 0
+	successfulRecoveries := 0
+
+	for _, progress := range session.StageProgress {
+		if progress.RecoveryRound > 0 {
+			totalRecoveryRounds += progress.RecoveryRound
+			if progress.Passed {
+				successfulRecoveries++
+			}
+		}
+	}
+
+	if totalRecoveryRounds == 0 {
+		return 1.0 // No recovery needed = perfect
+	}
+
+	return float64(successfulRecoveries) / float64(len(session.StageProgress))
+}
+
+func (s *SessionService) countCompletedStages(session *models.QuizSession) int {
+	completed := 0
+	for _, progress := range session.StageProgress {
+		if progress.Passed {
+			completed++
+		}
+	}
+	return completed
+}
+
+func (s *SessionService) countRecoveryRounds(session *models.QuizSession) int {
+	total := 0
+	for _, progress := range session.StageProgress {
+		total += progress.RecoveryRound
+	}
+	return total
 }
 
 // RemoveSessionCache removes all cached data for a session
