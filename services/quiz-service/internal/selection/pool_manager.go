@@ -646,7 +646,7 @@ func (pm *PoolManager) countTagMatches(questionTags []string, targetTags []strin
 // This replaces GetQuizPoolWithBloom for the new global architecture
 func (pm *PoolManager) GetGlobalPoolWithBloom(ctx context.Context, skillInfo *SkillInfo) (*QuizPool, error) {
 	// Get all active questions from the global pool
-	questions, err := pm.questionRepo.FindActiveQuestions(ctx)
+	questions, err := pm.questionRepo.FindAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get global questions: %w", err)
 	}
