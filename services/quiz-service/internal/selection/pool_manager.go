@@ -651,6 +651,8 @@ func (pm *PoolManager) GetGlobalPoolWithBloom(ctx context.Context, skillInfo *Sk
 		return nil, fmt.Errorf("failed to get global questions: %w", err)
 	}
 
+	fmt.Println("questions get result: ", len(questions))
+
 	// Filter questions by skill tags
 	var filteredQuestions []models.Question
 	for _, q := range questions {
@@ -741,6 +743,8 @@ func (pm *PoolManager) ValidateGlobalPoolWithBloom(ctx context.Context, skillInf
 	if err != nil {
 		return false, nil, err
 	}
+
+	fmt.Println("pool result: ", pool.TotalCount)
 
 	validation := &QuizPoolValidation{
 		TotalQuestions:        pool.TotalCount,
