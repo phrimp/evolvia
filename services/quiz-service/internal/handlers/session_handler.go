@@ -178,7 +178,7 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 // UpdateSession updates session information
 func (h *SessionHandler) UpdateSession(c *gin.Context) {
 	id := c.Param("id")
-	var update map[string]interface{}
+	var update map[string]any
 	if err := c.ShouldBindJSON(&update); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

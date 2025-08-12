@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"quiz-service/internal/models"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -50,6 +51,24 @@ func (r *SessionRepository) Update(ctx context.Context, id string, update bson.M
 	if err != nil {
 		return err
 	}
-	_, err = r.Col.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": update})
+	
+	// Check if update contains special MongoDB operators that should not be wrapped in $set
+	hasOperators := false
+	for key := range update {
+		if strings.HasPrefix(key, "$") {
+			hasOperators = true
+			break
+		}
+	}
+	
+	// If update contains MongoDB operators, use them directly; otherwise wrap in $set
+	var updateDoc bson.M
+	if hasOperators {
+		updateDoc = update
+	} else {
+		updateDoc = bson.M{"$set": update}
+	}
+	
+	_, err = r.Col.UpdateOne(ctx, bson.M{"_id": objID}, updateDoc)
 	return err
 }
