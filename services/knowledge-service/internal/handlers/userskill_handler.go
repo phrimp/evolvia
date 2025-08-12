@@ -61,6 +61,9 @@ func (h *UserSkillHandler) RegisterRoutes(app *fiber.App) {
 	protectedGroup.Get("/user/:userId/skill/:skillID/progress", h.GetSkillProgress, utils.OwnerPermissionRequired(""))
 	protectedGroup.Get("/user/:userId/skill/:skillID/comprehensive-history", h.GetComprehensiveVerificationHistory, utils.OwnerPermissionRequired(""))
 
+	// Top user skill progress endpoint
+	protectedGroup.Get("/user/:userId/top-progress", h.GetTopUserSkillProgress, utils.OwnerPermissionRequired(""))
+
 	// Batch operations - require admin permissions
 	protectedGroup.Post("/batch", h.BatchAddUserSkills, utils.PermissionRequired(middleware.AdminUserSkillPermission))
 }
@@ -1308,5 +1311,68 @@ func (h *UserSkillHandler) GetComprehensiveVerificationHistory(c fiber.Ctx) erro
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"data":    comprehensiveHistory,
 		"message": "Comprehensive verification history retrieved successfully",
+	})
+}
+
+// TopUserSkillProgressResponse represents the response structure for top skill progress
+type TopUserSkillProgressResponse struct {
+	UserID   bson.ObjectID                        `json:"user_id"`
+	Skills   []*services.UserSkillProgressDetail  `json:"skills"`
+	Count    int                                  `json:"count"`
+	Criteria string                               `json:"criteria"`
+}
+
+// GetTopUserSkillProgress retrieves top 5 user skill progress with skill details and latest history
+func (h *UserSkillHandler) GetTopUserSkillProgress(c fiber.Ctx) error {
+	userIdStr := c.Params("userId")
+	if userIdStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID is required",
+		})
+	}
+
+	userId, err := bson.ObjectIDFromHex(userIdStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	// Parse query parameters for criteria and limit
+	criteria := c.Query("criteria", "overall_progress") // overall_progress, recent_activity, improvement
+	limit, _ := strconv.Atoi(c.Query("limit", "5"))
+	if limit < 1 || limit > 20 {
+		limit = 5
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Get user skills with detailed progress information
+	progressDetails, err := h.userSkillService.GetTopUserSkillProgress(ctx, userId, criteria, limit)
+	if err != nil {
+		log.Printf("Failed to get top user skill progress for %s: %v", userIdStr, err)
+		
+		if strings.Contains(err.Error(), "user not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "User not found",
+			})
+		}
+		
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve user skill progress",
+		})
+	}
+
+	response := TopUserSkillProgressResponse{
+		UserID:   userId,
+		Skills:   progressDetails,
+		Count:    len(progressDetails),
+		Criteria: criteria,
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data":    response,
+		"message": "Top user skill progress retrieved successfully",
 	})
 }

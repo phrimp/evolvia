@@ -1125,3 +1125,163 @@ func getTotalBuildsOnWeight(relations []models.SkillRelation) float64 {
 	}
 	return total
 }
+
+// UserSkillProgressDetail represents detailed skill progress information for the API response
+type UserSkillProgressDetail struct {
+	SkillID          bson.ObjectID                   `json:"skill_id"`
+	SkillName        string                          `json:"skill_name"`
+	SkillDescription string                          `json:"skill_description,omitempty"`
+	SkillLevel       models.SkillLevel               `json:"skill_level"`
+	Progress         float64                         `json:"progress"` // Overall progress score 0-100
+	BloomsAssessment models.BloomsTaxonomyAssessment `json:"blooms_assessment"`
+	LatestHistory    *ProgressHistorySummary         `json:"latest_history,omitempty"`
+	Confidence       float64                         `json:"confidence"`
+	YearsExperience  int                             `json:"years_experience"`
+	Verified         bool                            `json:"verified"`
+	LastUsed         *time.Time                      `json:"last_used,omitempty"`
+	UpdatedAt        time.Time                       `json:"updated_at"`
+}
+
+// ProgressHistorySummary represents summary of recent progress history
+type ProgressHistorySummary struct {
+	Timestamp      time.Time                       `json:"timestamp"`
+	TotalHours     float64                         `json:"total_hours"`
+	TriggerEvent   string                          `json:"trigger_event"`
+	OverallScore   float64                         `json:"overall_score"`
+	PreviousScore  float64                         `json:"previous_score,omitempty"`
+	Improvement    float64                         `json:"improvement,omitempty"`
+	BloomsSnapshot models.BloomsTaxonomyAssessment `json:"blooms_snapshot"`
+}
+
+// GetTopUserSkillProgress retrieves top user skill progress with comprehensive details
+func (s *UserSkillService) GetTopUserSkillProgress(ctx context.Context, userID bson.ObjectID, criteria string, limit int) ([]*UserSkillProgressDetail, error) {
+	if limit <= 0 || limit > 20 {
+		limit = 5
+	}
+
+	// Get all user skills for processing
+	userSkills, err := s.userSkillRepo.GetByUser(ctx, userID, repository.UserSkillListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user skills: %w", err)
+	}
+
+	if len(userSkills) == 0 {
+		return []*UserSkillProgressDetail{}, nil
+	}
+
+	// Build detailed progress information for each skill
+	var progressDetails []*UserSkillProgressDetail
+	for _, userSkill := range userSkills {
+		// Get skill details
+		skill, err := s.skillRepo.GetByID(ctx, userSkill.SkillID)
+		if err != nil {
+			log.Printf("Failed to get skill details for skill %s: %v", userSkill.SkillID.Hex(), err)
+			continue
+		}
+		if skill == nil {
+			continue
+		}
+
+		// Calculate overall progress using hybrid assessment
+		bloomsAssessment, err := s.GetSkillAssessmentWithAggregation(ctx, userID, userSkill.SkillID)
+		if err != nil {
+			log.Printf("Failed to get blooms assessment for skill %s: %v", userSkill.SkillID.Hex(), err)
+			// Use default empty assessment
+			bloomsAssessment = &models.BloomsTaxonomyAssessment{}
+		}
+
+		progress := bloomsAssessment.GetOverallScore()
+
+		// Get latest verification history for additional details
+		var latestHistory *ProgressHistorySummary
+		skillHistory, err := s.skillVerificationHistoryRepo.GetLatestByUserAndSkill(ctx, userID, userSkill.SkillID)
+		if err == nil && skillHistory != nil {
+			latestHistory = &ProgressHistorySummary{
+				Timestamp:      skillHistory.Timestamp,
+				TotalHours:     skillHistory.TotalHours,
+				TriggerEvent:   skillHistory.TriggerEvent,
+				OverallScore:   skillHistory.OverallScore,
+				BloomsSnapshot: skillHistory.BloomsSnapshot,
+			}
+
+			// Calculate improvement from previous record if available
+			allHistory, err := s.skillVerificationHistoryRepo.GetByUserAndSkill(ctx, userID, userSkill.SkillID)
+			if err == nil && len(allHistory) > 1 {
+				previousRecord := allHistory[1] // Second most recent
+				latestHistory.PreviousScore = previousRecord.OverallScore
+				latestHistory.Improvement = skillHistory.OverallScore - previousRecord.OverallScore
+			}
+		}
+
+		progressDetail := &UserSkillProgressDetail{
+			SkillID:          userSkill.SkillID,
+			SkillName:        skill.Name,
+			SkillDescription: skill.Description,
+			SkillLevel:       userSkill.Level,
+			Progress:         progress,
+			BloomsAssessment: *bloomsAssessment,
+			LatestHistory:    latestHistory,
+			Confidence:       userSkill.Confidence,
+			YearsExperience:  userSkill.YearsExperience,
+			Verified:         userSkill.Verified,
+			LastUsed:         userSkill.LastUsed,
+			UpdatedAt:        userSkill.UpdatedAt,
+		}
+
+		progressDetails = append(progressDetails, progressDetail)
+	}
+
+	// Sort based on criteria
+	switch criteria {
+	case "recent_activity":
+		// Sort by most recent activity (last_used or updated_at)
+		for i := 0; i < len(progressDetails)-1; i++ {
+			for j := i + 1; j < len(progressDetails); j++ {
+				iTime := progressDetails[i].UpdatedAt
+				if progressDetails[i].LastUsed != nil {
+					iTime = *progressDetails[i].LastUsed
+				}
+				jTime := progressDetails[j].UpdatedAt
+				if progressDetails[j].LastUsed != nil {
+					jTime = *progressDetails[j].LastUsed
+				}
+				if iTime.Before(jTime) {
+					progressDetails[i], progressDetails[j] = progressDetails[j], progressDetails[i]
+				}
+			}
+		}
+	case "improvement":
+		// Sort by recent improvement (requires history)
+		for i := 0; i < len(progressDetails)-1; i++ {
+			for j := i + 1; j < len(progressDetails); j++ {
+				iImprovement := 0.0
+				jImprovement := 0.0
+				if progressDetails[i].LatestHistory != nil {
+					iImprovement = progressDetails[i].LatestHistory.Improvement
+				}
+				if progressDetails[j].LatestHistory != nil {
+					jImprovement = progressDetails[j].LatestHistory.Improvement
+				}
+				if iImprovement < jImprovement {
+					progressDetails[i], progressDetails[j] = progressDetails[j], progressDetails[i]
+				}
+			}
+		}
+	default: // "overall_progress" and fallback
+		// Sort by overall progress score
+		for i := 0; i < len(progressDetails)-1; i++ {
+			for j := i + 1; j < len(progressDetails); j++ {
+				if progressDetails[i].Progress < progressDetails[j].Progress {
+					progressDetails[i], progressDetails[j] = progressDetails[j], progressDetails[i]
+				}
+			}
+		}
+	}
+
+	// Return top N results
+	if len(progressDetails) > limit {
+		progressDetails = progressDetails[:limit]
+	}
+
+	return progressDetails, nil
+}
