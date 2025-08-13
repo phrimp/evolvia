@@ -612,6 +612,114 @@ func setupGlobalSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHan
 				})
 			}
 		})
+
+		// Get detailed session progress
+		protectedGlobalSession.GET("/:id/progress", func(c *gin.Context) {
+			sessionHandler.GetSessionProgress(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.progress_checked", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Get session statistics
+		protectedGlobalSession.GET("/:id/statistics", func(c *gin.Context) {
+			sessionHandler.GetSessionStatistics(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.statistics_requested", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Integrity monitoring endpoint
+		protectedGlobalSession.GET("/:id/integrity", func(c *gin.Context) {
+			sessionHandler.GetSessionIntegrityReport(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.integrity_requested", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Pause session
+		protectedGlobalSession.POST("/:id/pause", func(c *gin.Context) {
+			sessionHandler.PauseSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.paused", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Resume session
+		protectedGlobalSession.POST("/:id/resume", func(c *gin.Context) {
+			sessionHandler.ResumeSession(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.resumed", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Get all answers for a session
+		protectedGlobalSession.GET("/:id/answers", func(c *gin.Context) {
+			sessionHandler.GetSessionAnswers(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.answers_requested", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Validate session access
+		protectedGlobalSession.GET("/:id/validate", func(c *gin.Context) {
+			sessionHandler.ValidateSessionAccess(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.access_validated", gin.H{
+					"session_id": c.Param("id"),
+					"user_id":    c.GetHeader("X-User-ID"),
+					"timestamp":  time.Now(),
+				})
+			}
+		})
+
+		// Get batch sessions (admin endpoint)
+		protectedGlobalSession.GET("/batch", func(c *gin.Context) {
+			sessionHandler.GetBatchSessions(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.batch_requested", gin.H{
+					"user_id":   c.GetHeader("X-User-ID"),
+					"limit":     c.Query("limit"),
+					"offset":    c.Query("offset"),
+					"timestamp": time.Now(),
+				})
+			}
+		})
+
+		// Get answer cache statistics (admin endpoint)
+		protectedGlobalSession.GET("/cache-stats", func(c *gin.Context) {
+			sessionHandler.GetAnswerCacheStats(c)
+			if publisher != nil {
+				publisher.Publish("quiz.global_session.cache_stats_requested", gin.H{
+					"user_id":   c.GetHeader("X-User-ID"),
+					"timestamp": time.Now(),
+				})
+			}
+		})
 	}
 
 	// Public global session routes
