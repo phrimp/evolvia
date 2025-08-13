@@ -42,6 +42,7 @@ func (r *ResultRepository) FindByUser(ctx context.Context, userID string) ([]mod
 	return results, nil
 }
 
+// DEPRECATED
 func (r *ResultRepository) FindByQuiz(ctx context.Context, quizID string) ([]models.QuizResult, error) {
 	cur, err := r.Col.Find(ctx, bson.M{"quiz_id": quizID})
 	if err != nil {

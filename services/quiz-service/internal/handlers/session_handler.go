@@ -16,15 +16,13 @@ import (
 
 type SessionHandler struct {
 	Service          *service.SessionService
-	AnswerService    *service.AnswerService
 	QuestionService  *service.QuestionService
 	IntegrityMonitor *integrity.TimeIntegrityMonitor
 }
 
-func NewSessionHandler(s *service.SessionService, as *service.AnswerService, qs *service.QuestionService) *SessionHandler {
+func NewSessionHandler(s *service.SessionService, qs *service.QuestionService) *SessionHandler {
 	return &SessionHandler{
 		Service:          s,
-		AnswerService:    as,
 		QuestionService:  qs,
 		IntegrityMonitor: integrity.NewTimeIntegrityMonitor(nil), // Use default config
 	}

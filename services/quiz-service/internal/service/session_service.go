@@ -30,15 +30,14 @@ type SessionService struct {
 	poolManager               *selection.PoolManager
 	sessionSkillCache         map[string]*selection.SkillInfo
 	sessionEnhancedSkillCache map[string]*selection.EnhancedSkillInfo
-	answerCache               *models.SessionAnswerCache             // NEW: Cache for individual answers
-	questionStateCache        *models.SessionQuestionStateCache     // NEW: Current question state tracking
-	timeoutManager            *timeout.SessionTimeoutManager        // NEW: Session timeout management
+	answerCache               *models.SessionAnswerCache        // NEW: Cache for individual answers
+	questionStateCache        *models.SessionQuestionStateCache // NEW: Current question state tracking
+	timeoutManager            *timeout.SessionTimeoutManager    // NEW: Session timeout management
 }
 
 // NewSessionService creates a new session service
 func NewSessionService(
 	repo *repository.SessionRepository,
-	quizRepo *repository.QuizRepository, // DEPRECATED: Will be removed
 	questionRepo *repository.QuestionRepository,
 	configService *ConfigService,
 ) *SessionService {
@@ -1795,7 +1794,7 @@ func (s *SessionService) handleSessionTimeout(sessionID string) {
 	// Clean up session caches
 	delete(s.sessionSkillCache, sessionID)
 	delete(s.sessionEnhancedSkillCache, sessionID)
-	
+
 	// Clear current question state for timed out session
 	s.questionStateCache.ClearCurrentQuestion(sessionID)
 
@@ -1866,8 +1865,8 @@ func (s *SessionService) calculateImprovement(session *models.QuizSession, resul
 	return (passedStages / totalStages) * 0.3 // 30% max improvement score
 }
 
-func (s *SessionService) analyzeStagePerformance(session *models.QuizSession) map[string]interface{} {
-	stagePerf := make(map[string]interface{})
+func (s *SessionService) analyzeStagePerformance(session *models.QuizSession) map[string]any {
+	stagePerf := make(map[string]any)
 
 	for stage, progress := range session.StageProgress {
 		accuracy := 0.0
@@ -1875,7 +1874,7 @@ func (s *SessionService) analyzeStagePerformance(session *models.QuizSession) ma
 			accuracy = float64(progress.Correct) / float64(progress.Attempted)
 		}
 
-		stagePerf[stage] = map[string]interface{}{
+		stagePerf[stage] = map[string]any{
 			"accuracy":        accuracy,
 			"attempts":        progress.Attempted,
 			"passed":          progress.Passed,
@@ -2068,7 +2067,7 @@ func (s *SessionService) RemoveSessionCache(sessionID string) {
 }
 
 // GetAnswerCacheStats returns cache statistics for monitoring
-func (s *SessionService) GetAnswerCacheStats() map[string]interface{} {
+func (s *SessionService) GetAnswerCacheStats() map[string]any {
 	return s.answerCache.GetCacheStats()
 }
 
@@ -2177,7 +2176,7 @@ func (s *SessionService) GetCurrentQuestionInfo(sessionID string) *models.Sessio
 }
 
 // GetQuestionStateStats returns statistics about the question state cache
-func (s *SessionService) GetQuestionStateStats() map[string]interface{} {
+func (s *SessionService) GetQuestionStateStats() map[string]any {
 	return s.questionStateCache.GetCacheStats()
 }
 

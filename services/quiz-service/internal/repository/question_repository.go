@@ -56,12 +56,22 @@ func (r *QuestionRepository) Create(ctx context.Context, question *models.Questi
 }
 
 func (r *QuestionRepository) Update(ctx context.Context, id string, update bson.M) error {
-	_, err := r.Col.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": update})
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.Col.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": update})
 	return err
 }
 
 func (r *QuestionRepository) Delete(ctx context.Context, id string) error {
-	_, err := r.Col.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": bson.M{"status": "deleted"}})
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.Col.DeleteOne(ctx, bson.M{"_id": objID})
 	return err
 }
 
