@@ -541,7 +541,7 @@ func (s *SessionService) SubmitSession(
 
 		// Enhanced skills event with rich learning analytics
 		skillsData := s.extractKnowledgeData(session, result)
-		s.EventPublisher.Publish("skills.events.quiz_completed", skillsData)
+		s.EventPublisher.Publish("quiz_completed", skillsData)
 	}
 
 	return result, nil
@@ -1629,19 +1629,19 @@ func (s *SessionService) extractKnowledgeData(session *models.QuizSession, resul
 	}
 
 	// Build comprehensive skills event payload for skills.events exchange
-	return map[string]interface{}{
+	return map[string]any{
 		"user_id":    session.UserID,
 		"session_id": session.ID,
 		"config_id":  session.ConfigID,
 		"timestamp":  time.Now(),
 		"event_type": "quiz_completion",
 		"exchange":   "skills.events",
-		"skills_data": map[string]interface{}{
+		"skills_data": map[string]any{
 			"skill_progressions": skillProgressions,
 			"cognitive_profile":  cognitiveProfile,
 			"learning_patterns":  learningPatterns,
 		},
-		"performance_metrics": map[string]interface{}{
+		"performance_metrics": map[string]any{
 			"final_score":         result.FinalScore,
 			"badge_level":         result.BadgeLevel,
 			"stage_breakdown":     result.StageBreakdown,
@@ -1652,7 +1652,7 @@ func (s *SessionService) extractKnowledgeData(session *models.QuizSession, resul
 			"questions_attempted": result.QuestionsAttempted,
 			"questions_correct":   result.QuestionsCorrect,
 		},
-		"session_metadata": map[string]interface{}{
+		"session_metadata": map[string]any{
 			"skill_id":         skillID,
 			"total_questions":  session.TotalQuestionsAsked,
 			"stages_completed": s.countCompletedStages(session),

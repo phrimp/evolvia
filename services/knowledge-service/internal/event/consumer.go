@@ -99,18 +99,18 @@ func NewEventConsumer(rabbitURI string, userSkillService *services.UserSkillServ
 		return nil, fmt.Errorf("failed to bind queue: %w", err)
 	}
 
-	// Bind the queue to handle quiz result events
+	// Bind the queue to handle quiz.session events
 	err = channel.QueueBind(
-		queue.Name,              // queue name
-		"quiz.result.completed", // routing key
-		exchangeName,            // exchange
-		false,                   // no-wait
-		nil,                     // arguments
+		queue.Name,       // queue name
+		"quiz_completed", // routing key
+		exchangeName,     // exchange
+		false,            // no-wait
+		nil,              // arguments
 	)
 	if err != nil {
 		channel.Close()
 		conn.Close()
-		return nil, fmt.Errorf("failed to bind queue to quiz result events: %w", err)
+		return nil, fmt.Errorf("failed to bind queue to quiz.session events: %w", err)
 	}
 
 	return &EventConsumer{
@@ -156,10 +156,15 @@ func (c *EventConsumer) Start() error {
 
 	// Process messages in a goroutine
 	go func() {
+		retry := 10
 		for msg := range msgs {
 			if err := c.processMessage(msg); err != nil {
-				log.Printf("Failed to process message: %v", err)
+				if retry == 0 {
+					msg.Ack(false)
+				}
+				log.Printf("Failed to process message: %v, retry number remain: %v", err, retry)
 				msg.Nack(false, true) // Nack and requeue
+				retry--
 			} else {
 				msg.Ack(false) // Acknowledge message
 			}
@@ -176,7 +181,7 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 	switch msg.RoutingKey {
 	case "input.skill":
 		return c.handleInputSkillEvent(msg.Body)
-	case "quiz.result.completed":
+	case "quiz_completed":
 		return c.handleQuizResultEvent(msg.Body)
 	default:
 		log.Printf("Unknown routing key: %s", msg.RoutingKey)
@@ -420,29 +425,32 @@ func (c *EventConsumer) addSkillToUser(ctx context.Context, userID bson.ObjectID
 
 // handleQuizResultEvent processes quiz completion events and creates verification history
 func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
-	// Parse the generic event structure first
-	var genericEvent struct {
-		Type    string      `json:"type"`
-		Payload interface{} `json:"payload"`
-	}
-
-	if err := json.Unmarshal(body, &genericEvent); err != nil {
-		return fmt.Errorf("failed to unmarshal generic event: %w", err)
-	}
-
-	// Extract the payload as QuizResultEvent
-	payloadBytes, err := json.Marshal(genericEvent.Payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal quiz result payload: %w", err)
-	}
-
+	// Parse the enriched quiz result event directly
 	var quizResult QuizResultEvent
-	if err := json.Unmarshal(payloadBytes, &quizResult); err != nil {
-		return fmt.Errorf("failed to unmarshal quiz result event: %w", err)
+	if err := json.Unmarshal(body, &quizResult); err != nil {
+		// Try parsing legacy format with nested payload structure
+		var genericEvent struct {
+			Type    string      `json:"type"`
+			Payload interface{} `json:"payload"`
+		}
+
+		if err := json.Unmarshal(body, &genericEvent); err != nil {
+			return fmt.Errorf("failed to unmarshal quiz result event: %w", err)
+		}
+
+		// Extract the payload as QuizResultEvent
+		payloadBytes, err := json.Marshal(genericEvent.Payload)
+		if err != nil {
+			return fmt.Errorf("failed to marshal quiz payload: %w", err)
+		}
+
+		if err := json.Unmarshal(payloadBytes, &quizResult); err != nil {
+			return fmt.Errorf("failed to unmarshal quiz result from payload: %w", err)
+		}
 	}
 
-	log.Printf("Processing quiz result event for user %s, quiz %s, score: %.2f",
-		quizResult.UserID, quizResult.QuizID, quizResult.FinalScore)
+	log.Printf("Processing enriched quiz completion event for user %s, session %s, config %s, score: %.2f",
+		quizResult.UserID, quizResult.SessionID, quizResult.ConfigID, quizResult.FinalScore)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -453,12 +461,103 @@ func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
 		return fmt.Errorf("invalid user ID format: %w", err)
 	}
 
+	// Process skill progressions if available
+	if len(quizResult.SkillProgressions) > 0 {
+		log.Printf("Processing %d skill progressions for user %s", len(quizResult.SkillProgressions), quizResult.UserID)
+
+		for _, skillProgression := range quizResult.SkillProgressions {
+			err := c.processSkillProgression(ctx, userObjectID, skillProgression, &quizResult)
+			if err != nil {
+				log.Printf("Failed to process skill progression for skill %s: %v", skillProgression.SkillID, err)
+				continue
+			}
+		}
+	} else {
+		// Fallback to legacy processing for all user skills
+		log.Printf("No skill progressions found, falling back to legacy processing")
+		err := c.processLegacyQuizResult(ctx, userObjectID, &quizResult)
+		if err != nil {
+			return fmt.Errorf("failed to process legacy quiz result: %w", err)
+		}
+	}
+
+	// Log cognitive profile insights if available
+	if len(quizResult.CognitiveProfile.DominantStrengths) > 0 {
+		log.Printf("User %s cognitive profile - strengths: %v, growth areas: %v, complexity: %.2f",
+			quizResult.UserID,
+			quizResult.CognitiveProfile.DominantStrengths,
+			quizResult.CognitiveProfile.GrowthAreas,
+			quizResult.CognitiveProfile.CognitiveComplexity)
+	}
+
+	// Log learning patterns if available
+	if quizResult.LearningPatterns.LearningStyle != "" {
+		log.Printf("User %s learning patterns - style: %s, adaptability: %.2f, preferred levels: %v",
+			quizResult.UserID,
+			quizResult.LearningPatterns.LearningStyle,
+			quizResult.LearningPatterns.AdaptabilityScore,
+			quizResult.LearningPatterns.PreferredBloomLevels)
+	}
+
+	log.Printf("Successfully processed enriched quiz completion event for session %s", quizResult.SessionID)
+	return nil
+}
+
+// processSkillProgression handles individual skill progression from quiz results
+func (c *EventConsumer) processSkillProgression(ctx context.Context, userObjectID bson.ObjectID, skillProgression SkillProgression, quizResult *QuizResultEvent) error {
+	// Convert skill ID from string to ObjectID
+	skillObjectID, err := bson.ObjectIDFromHex(skillProgression.SkillID)
+	if err != nil {
+		return fmt.Errorf("invalid skill ID format: %w", err)
+	}
+
+	// Calculate total hours from quiz duration
+	totalHours := float64(quizResult.PerformanceMetrics.DurationSeconds) / 3600.0
+	if totalHours == 0 {
+		// Fallback to legacy time breakdown
+		totalHours = float64(quizResult.TimeBreakdown.TotalTimeSeconds) / 3600.0
+	}
+
+	// Map the Bloom improvement to assessment format
+	bloomsAssessment := skillProgression.BloomImprovement
+	bloomsAssessment.Verified = skillProgression.Verified
+	bloomsAssessment.LastUpdated = time.Now()
+
+	// Calculate overall score from Bloom improvement
+	overallScore := bloomsAssessment.GetOverallScore()
+
+	// Create skill progress history entry with enriched data
+	progressHistory := &models.SkillProgressHistory{
+		UserID:            userObjectID,
+		SkillID:           skillObjectID,
+		BloomsSnapshot:    bloomsAssessment,
+		TotalHours:        totalHours,
+		VerificationCount: 1,
+		Timestamp:         quizResult.Timestamp,
+		TriggerEvent:      "quiz_completion",
+		OverallScore:      overallScore,
+		IsAggregated:      false,
+	}
+
+	// Save to verification history repository
+	_, err = c.skillVerificationHistoryRepo.Create(ctx, progressHistory)
+	if err != nil {
+		return fmt.Errorf("failed to create verification history: %w", err)
+	}
+
+	log.Printf("Created verification history for skill %s (%s): progress gain %.2f, overall score %.2f",
+		skillProgression.SkillID, skillProgression.SkillName, skillProgression.ProgressGain, overallScore)
+
+	return nil
+}
+
+// processLegacyQuizResult handles quiz results without skill progressions (legacy format)
+func (c *EventConsumer) processLegacyQuizResult(ctx context.Context, userObjectID bson.ObjectID, quizResult *QuizResultEvent) error {
 	// Get user's skills to determine which ones to update verification history for
 	userSkills, err := c.userSkillService.GetUserSkills(ctx, userObjectID, repository.UserSkillListOptions{})
 	if err != nil {
 		log.Printf("Warning: Could not retrieve user skills for verification update: %v", err)
-		// Continue processing even if we can't get user skills
-		// We'll still create a general verification record
+		return err
 	}
 
 	// Create verification history entries for each user skill
@@ -476,9 +575,11 @@ func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
 			SkillID:           userSkill.SkillID,
 			BloomsSnapshot:    bloomsAssessment,
 			TotalHours:        totalHours,
-			VerificationCount: 1, // This is one verification event
+			VerificationCount: 1,
 			Timestamp:         time.Now(),
 			TriggerEvent:      "quiz_verification",
+			OverallScore:      bloomsAssessment.GetOverallScore(),
+			IsAggregated:      false,
 		}
 
 		// Save to verification history repository
@@ -486,15 +587,15 @@ func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
 		if err != nil {
 			log.Printf("Failed to create verification history for user %s, skill %s: %v",
 				quizResult.UserID, userSkill.SkillID.Hex(), err)
-			continue // Continue with other skills
+			continue
 		}
 
 		totalHistoryEntries++
-		log.Printf("Created verification history entry for user %s, skill %s, overall score: %.2f",
+		log.Printf("Created legacy verification history entry for user %s, skill %s, overall score: %.2f",
 			quizResult.UserID, userSkill.SkillID.Hex(), bloomsAssessment.GetOverallScore())
 	}
 
-	log.Printf("Successfully created %d verification history entries for quiz result %s",
+	log.Printf("Successfully created %d legacy verification history entries for quiz %s",
 		totalHistoryEntries, quizResult.ResultID)
 
 	return nil

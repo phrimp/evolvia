@@ -113,20 +113,33 @@ type InputSkillEventData struct {
 
 // QuizResultEvent represents quiz completion result events
 type QuizResultEvent struct {
-	ResultID           string                    `json:"result_id"`
-	SessionID          string                    `json:"session_id"`
-	UserID             string                    `json:"user_id"`
-	QuizID             string                    `json:"quiz_id"`
-	FinalScore         float64                   `json:"final_score"`
-	Percentage         float64                   `json:"percentage"`
-	BadgeLevel         string                    `json:"badge_level"`
-	QuestionsAttempted int                       `json:"questions_attempted"`
-	QuestionsCorrect   int                       `json:"questions_correct"`
-	BloomBreakdown     QuizBloomBreakdown        `json:"bloom_breakdown"`
-	StageBreakdown     map[string]StageBreakdown `json:"stage_breakdown"`
-	TimeBreakdown      TimeBreakdown             `json:"time_breakdown"`
-	CompletionType     string                    `json:"completion_type"`
-	CreatedAt          string                    `json:"created_at"`
+	ResultID             string                    `json:"result_id"`
+	SessionID            string                    `json:"session_id"`
+	UserID               string                    `json:"user_id"`
+	QuizID               string                    `json:"quiz_id"`
+	ConfigID             string                    `json:"config_id"`
+	FinalScore           float64                   `json:"final_score"`
+	Percentage           float64                   `json:"percentage"`
+	BadgeLevel           string                    `json:"badge_level"`
+	QuestionsAttempted   int                       `json:"questions_attempted"`
+	QuestionsCorrect     int                       `json:"questions_correct"`
+	BloomBreakdown       QuizBloomBreakdown        `json:"bloom_breakdown"`
+	StageBreakdown       map[string]StageBreakdown `json:"stage_breakdown"`
+	TimeBreakdown        TimeBreakdown             `json:"time_breakdown"`
+	CompletionType       string                    `json:"completion_type"`
+	CreatedAt            string                    `json:"created_at"`
+	
+	// Enhanced data fields
+	SkillProgressions    []SkillProgression        `json:"skill_progressions"`
+	CognitiveProfile     CognitiveProfile          `json:"cognitive_profile"`
+	LearningPatterns     LearningPatterns          `json:"learning_patterns"`
+	PerformanceMetrics   PerformanceMetrics        `json:"performance_metrics"`
+	SessionMetadata      SessionMetadata           `json:"session_metadata"`
+	
+	// Additional context
+	Timestamp            time.Time                 `json:"timestamp"`
+	EventType            string                    `json:"event_type"`
+	Exchange             string                    `json:"exchange"`
 }
 
 // QuizBloomBreakdown represents Bloom's taxonomy breakdown from quiz
@@ -178,6 +191,73 @@ type CognitiveProfile struct {
 	CognitiveComplexity     float64  `json:"cognitive_complexity"`
 	OverallPercentage       float64  `json:"overall_percentage"`
 	LearningRecommendations []string `json:"learning_recommendations"`
+}
+
+// SkillProgression represents progress tracking for specific skills
+type SkillProgression struct {
+	SkillID           string                        `json:"skill_id"`
+	SkillName         string                        `json:"skill_name"`
+	PreQuizLevel      string                        `json:"pre_quiz_level"`
+	PostQuizLevel     string                        `json:"post_quiz_level"`
+	ProgressGain      float64                       `json:"progress_gain"`
+	BloomImprovement  models.BloomsTaxonomyAssessment `json:"bloom_improvement"`
+	ConfidenceChange  float64                       `json:"confidence_change"`
+	Verified          bool                          `json:"verified"`
+}
+
+// LearningPatterns represents user learning behavior analysis
+type LearningPatterns struct {
+	PreferredBloomLevels  []string             `json:"preferred_bloom_levels"`
+	LearningStyle         string               `json:"learning_style"`
+	ResponsePatterns      map[string]float64   `json:"response_patterns"`
+	TimeManagement        TimeManagementProfile `json:"time_management"`
+	EngagementMetrics     EngagementMetrics    `json:"engagement_metrics"`
+	AdaptabilityScore     float64              `json:"adaptability_score"`
+}
+
+// TimeManagementProfile represents how user manages time during quiz
+type TimeManagementProfile struct {
+	AverageThinkTime      float64 `json:"average_think_time"`
+	RushingTendency       float64 `json:"rushing_tendency"`
+	PauseBehavior         float64 `json:"pause_behavior"`
+	ConsistencyScore      float64 `json:"consistency_score"`
+}
+
+// EngagementMetrics represents user engagement during quiz
+type EngagementMetrics struct {
+	AttentionScore        float64 `json:"attention_score"`
+	PersistenceScore      float64 `json:"persistence_score"`
+	FocusConsistency      float64 `json:"focus_consistency"`
+	InteractionQuality    float64 `json:"interaction_quality"`
+}
+
+// PerformanceMetrics represents comprehensive performance analysis
+type PerformanceMetrics struct {
+	FinalScore           float64             `json:"final_score"`
+	BadgeLevel           string              `json:"badge_level"`
+	StageBreakdown       map[string]StageBreakdown `json:"stage_breakdown"`
+	BloomBreakdown       QuizBloomBreakdown  `json:"bloom_breakdown"`
+	TimeBreakdown        TimeBreakdown       `json:"time_breakdown"`
+	CompletionType       string              `json:"completion_type"`
+	DurationSeconds      int                 `json:"duration_seconds"`
+	QuestionsAttempted   int                 `json:"questions_attempted"`
+	QuestionsCorrect     int                 `json:"questions_correct"`
+	EfficiencyRating     string              `json:"efficiency_rating"`
+	DifficultyProgression float64            `json:"difficulty_progression"`
+	AccuracyTrend        []float64           `json:"accuracy_trend"`
+}
+
+// SessionMetadata represents metadata about the quiz session
+type SessionMetadata struct {
+	SkillID            string               `json:"skill_id"`
+	TotalQuestions     int                  `json:"total_questions"`
+	StagesCompleted    int                  `json:"stages_completed"`
+	RecoveryRounds     int                  `json:"recovery_rounds"`
+	AdaptiveAdjustments int                 `json:"adaptive_adjustments"`
+	DeviceType         string               `json:"device_type"`
+	ConnectionQuality  string               `json:"connection_quality"`
+	StartTime          time.Time            `json:"start_time"`
+	EndTime            time.Time            `json:"end_time"`
 }
 
 // InputSkill represents a single skill input
