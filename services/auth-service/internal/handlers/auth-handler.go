@@ -413,7 +413,7 @@ func (h *AuthHandler) CreateUserSession(ctx context.Context, userAuth *models.Us
 			userAgent,
 			userAuth.Username,
 			userAuth.Email,
-			userAuth.ID.String(),
+			userAuth.ID.Hex(),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create session: %w", err)
