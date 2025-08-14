@@ -408,12 +408,12 @@ func (h *AuthHandler) CreateUserSession(ctx context.Context, userAuth *models.Us
 	if err != nil {
 		// Create new session if none exists
 		session, err = h.sessionService.NewSession(
-			&models.Session{}, 
-			permissions, 
-			userAgent, 
-			userAuth.Username, 
-			userAuth.Email, 
-			userAuth.ID.Hex(),
+			&models.Session{},
+			permissions,
+			userAgent,
+			userAuth.Username,
+			userAuth.Email,
+			userAuth.ID.String(),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create session: %w", err)
@@ -478,6 +478,7 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 		Username: login_data["username"].(string),
 		Email:    login_data["email"].(string),
 	}
+	log.Printf("$$$$$$$$$$$$ LOGGING FOR AUTH USER: %s %s %s", userAuth.ID.Hex(), userAuth.Username, userAuth.Email)
 
 	// Use shared session creation method
 	session, err := h.CreateUserSession(c.Context(), userAuth, c.Get("User-Agent"))

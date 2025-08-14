@@ -527,18 +527,6 @@ func (s *SessionService) SubmitSession(
 
 	// Publish enhanced events
 	if s.EventPublisher != nil {
-		// Legacy event for backward compatibility
-		s.EventPublisher.Publish("quiz.session.completed", map[string]interface{}{
-			"session_id":      sessionID,
-			"user_id":         session.UserID,
-			"config_id":       session.ConfigID,
-			"skill_id":        s.extractSkillID(session),
-			"final_score":     finalScore,
-			"completion_type": completionType,
-			"duration":        int(time.Since(session.StartTime).Seconds()),
-			"questions_asked": session.TotalQuestionsAsked,
-		})
-
 		// Enhanced skills event with rich learning analytics
 		skillsData := s.extractKnowledgeData(session, result)
 		s.EventPublisher.Publish("quiz_completed", skillsData)

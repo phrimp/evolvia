@@ -1,0 +1,11 @@
+evolvia/enterprise?type=class_management
+
+
+what already has: 
+personal lms (personal monitor, stats, reports)
+skills and skill tree
+
+
+key feature: 
+management: admin -> enterprise -> teacher -> class -> student
+
