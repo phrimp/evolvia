@@ -2,6 +2,7 @@ package adaptive
 
 import (
 	"fmt"
+	"math"
 	"quiz-service/internal/models"
 	"strings"
 	"time"
@@ -214,6 +215,17 @@ func (m *Manager) GetNextQuestionCriteria(session *AdaptiveSession) (*QuestionRe
 
 // CalculateFinalScore calculates the final percentage score
 func (m *Manager) CalculateFinalScore(session *AdaptiveSession) float64 {
+	// Validate session input to prevent issues
+	if session == nil {
+		return 0.0
+	}
+
+	// Check for invalid session score values
+	if math.IsInf(session.TotalScore, 0) || math.IsNaN(session.TotalScore) {
+		fmt.Printf("[AdaptiveManager] WARNING: Invalid session total score (%v), defaulting to 0\n", session.TotalScore)
+		return 0.0
+	}
+
 	// Maximum possible score if all stages completed perfectly
 	maxScore := 0.0
 
@@ -231,9 +243,20 @@ func (m *Manager) CalculateFinalScore(session *AdaptiveSession) float64 {
 	}
 
 	percentage := (session.TotalScore / maxScore) * 100
+
+	// Ensure the result is finite and within reasonable bounds
+	if math.IsInf(percentage, 0) || math.IsNaN(percentage) {
+		fmt.Printf("[AdaptiveManager] WARNING: Invalid percentage calculated (%v), defaulting to 0\n", percentage)
+		return 0.0
+	}
+
 	if percentage > 100 {
 		return 100
 	}
+	if percentage < 0 {
+		return 0
+	}
+
 	return percentage
 }
 

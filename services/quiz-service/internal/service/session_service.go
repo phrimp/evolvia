@@ -491,6 +491,9 @@ func (s *SessionService) SubmitSession(
 	// Calculate final score if not provided
 	if finalScore == 0 {
 		adaptiveSession := s.reconstructAdaptiveSession(session)
+		if adaptiveSession == nil {
+			return nil, fmt.Errorf("no session found")
+		}
 		finalScore = s.adaptiveManager.CalculateFinalScore(adaptiveSession)
 	}
 
@@ -650,6 +653,9 @@ func (s *SessionService) SelectQuestionsForStage(
 // Helper methods
 
 func (s *SessionService) reconstructAdaptiveSession(session *models.QuizSession) *adaptive.AdaptiveSession {
+	if session.ID == "" {
+		return nil
+	}
 	adaptiveSession := adaptive.NewAdaptiveSession(session.ID)
 
 	// Map current stage
@@ -1544,6 +1550,19 @@ func (s *SessionService) createQuizResult(session *models.QuizSession, completio
 	adaptiveSession := s.reconstructAdaptiveSession(session)
 	bloomBreakdown := s.buildBloomBreakdown(adaptiveSession)
 
+	// Calculate average time per question safely to prevent +Inf values
+	totalTimeSeconds := int(time.Since(session.StartTime).Seconds())
+	averageTimePerQuestion := 0.0
+	if totalAttempted > 0 {
+		averageTimePerQuestion = float64(totalTimeSeconds) / float64(totalAttempted)
+	}
+
+	// Validate finalScore for infinite values before creating result
+	if math.IsInf(finalScore, 0) || math.IsNaN(finalScore) {
+		fmt.Printf("[SessionService] WARNING: Invalid final score detected (%v), defaulting to 0\n", finalScore)
+		finalScore = 0.0
+	}
+
 	return &models.QuizResult{
 		SessionID:          session.ID,
 		UserID:             session.UserID,
@@ -1555,8 +1574,8 @@ func (s *SessionService) createQuizResult(session *models.QuizSession, completio
 		QuestionsCorrect:   totalCorrect,
 		StageBreakdown:     stageBreakdown,
 		TimeBreakdown: models.TimeBreakdown{
-			TotalTimeSeconds:       int(time.Since(session.StartTime).Seconds()),
-			AverageTimePerQuestion: float64(int(time.Since(session.StartTime).Seconds())) / float64(totalAttempted),
+			TotalTimeSeconds:       totalTimeSeconds,
+			AverageTimePerQuestion: averageTimePerQuestion,
 		},
 		BloomBreakdown: bloomBreakdown,
 		CompletionType: completionType,

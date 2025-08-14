@@ -1,6 +1,10 @@
 package adaptive
 
-import "time"
+import (
+	"fmt"
+	"math"
+	"time"
+)
 
 type Stage string
 
@@ -155,14 +159,40 @@ func (session *AdaptiveSession) InitializeBloomTracking() {
 
 // CalculateMetrics calculates derived performance metrics for a Bloom level
 func (blp *BloomLevelPerformance) CalculateMetrics() {
+	// Validate input values to prevent infinite values
+	if math.IsInf(blp.ActualScore, 0) || math.IsNaN(blp.ActualScore) {
+		fmt.Printf("[BloomPerformance] WARNING: Invalid ActualScore (%v), defaulting to 0\n", blp.ActualScore)
+		blp.ActualScore = 0.0
+	}
+	if math.IsInf(blp.PossibleScore, 0) || math.IsNaN(blp.PossibleScore) {
+		fmt.Printf("[BloomPerformance] WARNING: Invalid PossibleScore (%v), defaulting to 0\n", blp.PossibleScore)
+		blp.PossibleScore = 0.0
+	}
+
 	if blp.QuestionsAttempted > 0 {
 		blp.AccuracyPercentage = (float64(blp.QuestionsCorrect) / float64(blp.QuestionsAttempted)) * 100
 		blp.AverageQuestionScore = blp.ActualScore / float64(blp.QuestionsAttempted)
 		blp.AverageTimePerQ = float64(blp.TotalTimeSpent) / float64(blp.QuestionsAttempted)
+
+		// Validate calculated values
+		if math.IsInf(blp.AccuracyPercentage, 0) || math.IsNaN(blp.AccuracyPercentage) {
+			blp.AccuracyPercentage = 0.0
+		}
+		if math.IsInf(blp.AverageQuestionScore, 0) || math.IsNaN(blp.AverageQuestionScore) {
+			blp.AverageQuestionScore = 0.0
+		}
+		if math.IsInf(blp.AverageTimePerQ, 0) || math.IsNaN(blp.AverageTimePerQ) {
+			blp.AverageTimePerQ = 0.0
+		}
 	}
 
 	if blp.PossibleScore > 0 {
 		blp.ScorePercentage = (blp.ActualScore / blp.PossibleScore) * 100
+
+		// Validate calculated percentage
+		if math.IsInf(blp.ScorePercentage, 0) || math.IsNaN(blp.ScorePercentage) {
+			blp.ScorePercentage = 0.0
+		}
 	}
 
 	// Assign efficiency rating based on score percentage
