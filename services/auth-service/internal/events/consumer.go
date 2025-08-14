@@ -1,18 +1,15 @@
 package events
 
 import (
-	"auth_service/internal/config"
 	"auth_service/internal/models"
 	"auth_service/internal/repository"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
-	utils "proto-gen/utils"
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -34,9 +31,15 @@ type EventConsumer struct {
 	userRoleRepo   *repository.UserRoleRepository
 	permissionRepo *repository.PermissionRepository
 	eventPublisher *EventPublisher
+	authHandler    AuthSessionCreator
 	shutdown       chan struct{}
 	wg             sync.WaitGroup
 	enabled        bool
+}
+
+// AuthSessionCreator interface for session creation
+type AuthSessionCreator interface {
+	CreateUserSession(ctx context.Context, userAuth *models.UserAuth, userAgent string) (*models.Session, error)
 }
 
 // Exchange configuration
@@ -57,7 +60,7 @@ type BindingConfig struct {
 }
 
 // NewEventConsumer creates a new event consumer
-func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRepo *repository.UserAuthRepository, roleRepo *repository.RoleRepository, permissionRepo *repository.PermissionRepository, userRoleRepo *repository.UserRoleRepository, eventPublisher *EventPublisher) (*EventConsumer, error) {
+func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRepo *repository.UserAuthRepository, roleRepo *repository.RoleRepository, permissionRepo *repository.PermissionRepository, userRoleRepo *repository.UserRoleRepository, eventPublisher *EventPublisher, authHandler AuthSessionCreator) (*EventConsumer, error) {
 	if rabbitURI == "" {
 		log.Println("Warning: RabbitMQ URI is empty, event consumption is disabled")
 		return &EventConsumer{
@@ -67,6 +70,7 @@ func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRep
 			userRoleRepo:   userRoleRepo,
 			permissionRepo: permissionRepo,
 			eventPublisher: eventPublisher,
+			authHandler:    authHandler,
 			shutdown:       make(chan struct{}),
 			enabled:        false,
 		}, nil
@@ -107,6 +111,7 @@ func NewEventConsumer(rabbitURI string, redisRepo *repository.RedisRepo, userRep
 		userRoleRepo:   userRoleRepo,
 		permissionRepo: permissionRepo,
 		eventPublisher: eventPublisher,
+		authHandler:    authHandler,
 		shutdown:       make(chan struct{}),
 		enabled:        true,
 	}, nil
@@ -465,14 +470,15 @@ func (c *EventConsumer) handleGoogleLoginRequest(body []byte) error {
 		log.Printf("Existing user found for Google login: %s", event.Email)
 	}
 
-	// Create session token (this logic should match your existing login flow)
-	sessionToken, err = c.createSessionForUser(ctx, userAuth)
+	// Create session token using shared session creation logic
+	session, err := c.authHandler.CreateUserSession(ctx, userAuth, "google-oauth")
 	if err != nil {
 		log.Printf("Failed to create session: %v", err)
 		// Publish failure response
 		c.publishLoginResponse(ctx, event.RequestID, false, "", "Failed to create session", userID)
 		return fmt.Errorf("failed to create session: %w", err)
 	}
+	sessionToken = session.Token
 
 	// Publish success response
 	c.publishLoginResponse(ctx, event.RequestID, true, sessionToken, "", userID)
@@ -481,119 +487,8 @@ func (c *EventConsumer) handleGoogleLoginRequest(body []byte) error {
 	return nil
 }
 
-// Helper function to create session for user (extracted from existing login logic)
-func (c *EventConsumer) createSessionForUser(ctx context.Context, userAuth *models.UserAuth) (string, error) {
-	// Get user permissions from role system
-	permissions, err := c.getUserPermissions(ctx, userAuth.ID)
-	if err != nil {
-		log.Printf("Warning: Failed to get user permissions for %s: %v", userAuth.Username, err)
-		permissions = []string{} // Use empty permissions as fallback
-	}
 
-	// Generate JWT token with user permissions
-	jwtToken, err := c.generateJWTToken(permissions, userAuth.Username, userAuth.Email, userAuth.ID.Hex())
-	if err != nil {
-		return "", fmt.Errorf("failed to generate JWT token: %w", err)
-	}
 
-	// Create session model with proper structure
-	currentTime := int(time.Now().Unix())
-	session := &models.Session{
-		Token:          jwtToken,
-		IPAddress:      "", // Set by caller if available
-		IsValid:        true,
-		CreatedAt:      currentTime,
-		LastActivityAt: currentTime,
-		Device: models.Device{
-			Type:    "google-oauth",
-			OS:      "Unknown",
-			Browser: "Google",
-		},
-		Location: models.Location{
-			Country: "",
-			Region:  "",
-			City:    "",
-		},
-	}
-
-	// Save session in Redis using the same pattern as SessionService
-	cacheKey := "auth-service-session-" + userAuth.Username
-	_, err = c.redisRepo.SaveStructCached(ctx, userAuth.Username, cacheKey, session, 24) // 24 hours
-	if err != nil {
-		return "", fmt.Errorf("failed to store session: %w", err)
-	}
-
-	log.Printf("Successfully created session for user %s with %d permissions", userAuth.Username, len(permissions))
-	
-	return jwtToken, nil
-}
-
-// Helper function to get user permissions using repositories directly
-func (c *EventConsumer) getUserPermissions(ctx context.Context, userID bson.ObjectID) ([]string, error) {
-	// Get user roles
-	userRoles, err := c.userRoleRepo.FindByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find user roles: %w", err)
-	}
-
-	// Collect all permissions from roles
-	permissionMap := make(map[string]bool)
-	for _, userRole := range userRoles {
-		// Skip inactive or expired roles
-		if !userRole.IsActive {
-			continue
-		}
-		
-		// Check expiration
-		if userRole.ExpiresAt > 0 && int64(userRole.ExpiresAt) < time.Now().Unix() {
-			continue
-		}
-
-		// Get role details
-		role, err := c.roleRepo.FindByID(ctx, userRole.RoleID)
-		if err != nil {
-			log.Printf("Warning: Failed to find role %s: %v", userRole.RoleID.Hex(), err)
-			continue
-		}
-
-		// Add all role permissions to map (deduplication)
-		for _, permission := range role.Permissions {
-			permissionMap[permission] = true
-		}
-	}
-
-	// Convert map to slice
-	permissions := make([]string, 0, len(permissionMap))
-	for permission := range permissionMap {
-		permissions = append(permissions, permission)
-	}
-
-	return permissions, nil
-}
-
-// Helper function to generate JWT token (avoids import cycle with service package)
-func (c *EventConsumer) generateJWTToken(permissions []string, username, email, userID string) (string, error) {
-	claimID := "C-" + utils.GenerateRandomStringWithLength(6)
-	claims := models.Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			IssuedAt: jwt.NewNumericDate(time.Now()),
-			Issuer:   "auth-service",
-		},
-		Id:          claimID,
-		UserID:      userID,
-		Username:    username,
-		Email:       email,
-		Permissions: permissions,
-	}
-	
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(config.ServiceConfig.JWTSecret))
-	if err != nil {
-		return "", fmt.Errorf("failed to sign JWT token: %w", err)
-	}
-	
-	return tokenString, nil
-}
 
 // Helper function to publish login response
 func (c *EventConsumer) publishLoginResponse(ctx context.Context, requestID string, success bool, sessionToken, errorMsg, userID string) {

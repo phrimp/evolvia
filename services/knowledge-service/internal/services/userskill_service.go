@@ -1285,3 +1285,77 @@ func (s *UserSkillService) GetTopUserSkillProgress(ctx context.Context, userID b
 
 	return progressDetails, nil
 }
+
+// GetTotalPassedSkillsCount calculates total passed skills count based on IsComplete criteria (totalWeightVerified >= 0.699)
+func (s *UserSkillService) GetTotalPassedSkillsCount(ctx context.Context, userID bson.ObjectID) (*models.TotalPassedSkillsResult, error) {
+	// Get all user skills for this user
+	userSkills, err := s.userSkillRepo.GetByUser(ctx, userID, repository.UserSkillListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user skills: %w", err)
+	}
+
+	var totalPassedSkills int
+	var totalAssessedSkills int
+	const completionThreshold = 0.699
+
+	// Iterate through user skills and check completion status
+	for _, userSkill := range userSkills {
+		// Check if skill has builds_on relationships for aggregated assessment
+		skill, err := s.skillRepo.GetByID(ctx, userSkill.SkillID)
+		if err != nil {
+			log.Printf("Failed to get skill details for skill %s: %v", userSkill.SkillID.Hex(), err)
+			continue // Skip this skill if we can't get details
+		}
+		if skill == nil {
+			continue
+		}
+
+		// Check if skill has builds_on relationships
+		hasBuildsOn := false
+		for _, relation := range skill.Relations {
+			if relation.RelationType == models.RelationBuildsOn {
+				hasBuildsOn = true
+				break
+			}
+		}
+
+		// For skills with builds_on relationships, use aggregated assessment
+		if hasBuildsOn {
+			aggregatedAssessment, err := s.GetAggregatedSkillAssessment(ctx, userID, userSkill.SkillID)
+			if err == nil && aggregatedAssessment != nil {
+				totalAssessedSkills++
+				if aggregatedAssessment.IsComplete {
+					totalPassedSkills++
+				}
+			}
+		} else {
+			// For skills without builds_on relationships, check if they have verification history
+			ownHistory, err := s.skillVerificationHistoryRepo.GetByUserAndSkill(ctx, userID, userSkill.SkillID)
+			if err == nil && len(ownHistory) > 0 {
+				totalAssessedSkills++
+				// For skills without builds_on, consider them passed if they have any verification history
+				// Since the completion logic is specifically for aggregated skills, we consider
+				// standalone skills as passed if they have verification records
+				totalPassedSkills++
+			}
+		}
+	}
+
+	// Calculate pass rate
+	var passRate float64
+	if totalAssessedSkills > 0 {
+		passRate = (float64(totalPassedSkills) / float64(totalAssessedSkills)) * 100
+	}
+
+	result := &models.TotalPassedSkillsResult{
+		UserID:              userID,
+		TotalPassedSkills:   totalPassedSkills,
+		TotalAssessedSkills: totalAssessedSkills,
+		PassRate:            passRate,
+		CompletionThreshold: completionThreshold,
+		CalculationMethod:   "aggregated_assessment",
+		LastCalculated:      time.Now(),
+	}
+
+	return result, nil
+}

@@ -557,6 +557,17 @@ type TopSkillsResponse struct {
 	Timestamp time.Time         `json:"timestamp"`
 }
 
+// TotalPassedSkillsResult represents the result of total passed skills calculation
+type TotalPassedSkillsResult struct {
+	UserID              bson.ObjectID `json:"user_id"`
+	TotalPassedSkills   int           `json:"total_passed_skills"`
+	TotalAssessedSkills int           `json:"total_assessed_skills"`
+	PassRate            float64       `json:"pass_rate"`
+	CompletionThreshold float64       `json:"completion_threshold"`
+	CalculationMethod   string        `json:"calculation_method"`
+	LastCalculated      time.Time     `json:"last_calculated"`
+}
+
 // TopSkillsCriteria defines available criteria for top skills selection
 type TopSkillsCriteria string
 

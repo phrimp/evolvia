@@ -395,6 +395,50 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	return c.Redirect().To(h.FeAddress)
 }
 
+// CreateUserSession creates a session for a given user with permissions
+func (h *AuthHandler) CreateUserSession(ctx context.Context, userAuth *models.UserAuth, userAgent string) (*models.Session, error) {
+	// Get user permissions
+	permissions, err := h.userRoleService.GetUserPermissions(ctx, userAuth.ID, "", bson.NilObjectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user permissions: %w", err)
+	}
+
+	// Check if session already exists
+	session, err := h.sessionService.GetSession(ctx, userAuth.Username)
+	if err != nil {
+		// Create new session if none exists
+		session, err = h.sessionService.NewSession(
+			&models.Session{}, 
+			permissions, 
+			userAgent, 
+			userAuth.Username, 
+			userAuth.Email, 
+			userAuth.ID.Hex(),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create session: %w", err)
+		}
+		activeSessions.Inc()
+	}
+
+	// Send session to middleware via gRPC (async)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		for i := range 5 {
+			err := h.gRPCSessionService.SendSession(ctx, session, "middleware")
+			if err != nil {
+				log.Printf("Error sending session to middleware for user %s: %s -- Retry: %v", userAuth.Username, err, i)
+			} else {
+				log.Printf("Successfully sent session to middleware for user: %s", userAuth.Username)
+				return
+			}
+		}
+	}()
+
+	return session, nil
+}
+
 func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 	timer := prometheus.NewTimer(loginDuration.WithLabelValues("pending"))
 	defer timer.ObserveDuration()
@@ -428,39 +472,22 @@ func (h *AuthHandler) LoginWToken(c fiber.Ctx) error {
 	}
 	user_id := login_data["user_id"].(bson.ObjectID)
 
-	permissions, err := h.userRoleService.GetUserPermissions(c.Context(), user_id, "", bson.NilObjectID)
+	// Get user auth object for session creation
+	userAuth := &models.UserAuth{
+		ID:       user_id,
+		Username: login_data["username"].(string),
+		Email:    login_data["email"].(string),
+	}
+
+	// Use shared session creation method
+	session, err := h.CreateUserSession(c.Context(), userAuth, c.Get("User-Agent"))
 	if err != nil {
-		log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
 		loginAttempts.WithLabelValues("failure", "regular").Inc()
+		log.Printf("Error creating session for username: %s : %s", loginRequest.Username, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Service Error",
 		})
 	}
-	session, err := h.sessionService.GetSession(c.Context(), login_data["username"].(string))
-	if err != nil {
-		session, err = h.sessionService.NewSession(&models.Session{}, permissions, c.Get("User-Agent"), login_data["username"].(string), login_data["email"].(string), user_id.String())
-		if err != nil {
-			loginAttempts.WithLabelValues("failure", "regular").Inc()
-			log.Printf("Error login with username: %s : %s", loginRequest.Username, err)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Service Error",
-			})
-		}
-		activeSessions.Inc()
-	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		for i := range 5 {
-			err = h.gRPCSessionService.SendSession(ctx, session, "middleware")
-			if err != nil {
-				log.Printf("Error login with username: %s : %s -- Retry: %v", loginRequest.Username, err, i)
-			} else {
-				log.Printf("Successfully sent session to middleware")
-				return
-			}
-		}
-	}()
 
 	// Processing Basic Profile Data
 	basic_profile := login_data["basic_profile"].(models.UserProfile)

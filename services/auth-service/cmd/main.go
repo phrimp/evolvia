@@ -90,7 +90,21 @@ func main() {
 		defer eventPublisher.Close()
 	}
 
-	eventConsumer, err := events.NewEventConsumer(rabbitmqURI, repository.Repositories_instance.RedisRepository, repository.Repositories_instance.UserAuthRepository, repository.Repositories_instance.RoleRepository, repository.Repositories_instance.PermissionRepository, repository.Repositories_instance.UserRoleRepository, eventPublisher)
+	services_init := &ServerServices{
+		JwtService:         service.NewJWTService(),
+		UserService:        service.NewUserService(eventPublisher),
+		UserRoleService:    service.NewUserRoleService(),
+		RoleService:        service.NewRoleService(),
+		PermissionService:  service.NewPermissionService(),
+		SessionService:     service.NewSessionService(),
+		gRPCSessionService: grpcServer.NewSessionSenderService(discovery.ServiceDiscovery),
+		gRPCGoogleService:  grpcServer.NewGoogleAuthService(discovery.ServiceDiscovery),
+	}
+
+	// Create auth handler before event consumer
+	auth_handler := handlers.NewAuthHandler(services_init.UserService, services_init.JwtService, services_init.SessionService, services_init.UserRoleService, services_init.gRPCSessionService, services_init.gRPCGoogleService, services_init.RoleService)
+
+	eventConsumer, err := events.NewEventConsumer(rabbitmqURI, repository.Repositories_instance.RedisRepository, repository.Repositories_instance.UserAuthRepository, repository.Repositories_instance.RoleRepository, repository.Repositories_instance.PermissionRepository, repository.Repositories_instance.UserRoleRepository, eventPublisher, auth_handler)
 	if err != nil {
 		log.Printf("Warning: Failed to initialize event consumer: %v", err)
 	} else {
@@ -103,17 +117,6 @@ func main() {
 			// Ensure consumer is closed when application exits
 			defer eventConsumer.Close()
 		}
-	}
-
-	services_init := &ServerServices{
-		JwtService:         service.NewJWTService(),
-		UserService:        service.NewUserService(eventPublisher),
-		UserRoleService:    service.NewUserRoleService(),
-		RoleService:        service.NewRoleService(),
-		PermissionService:  service.NewPermissionService(),
-		SessionService:     service.NewSessionService(),
-		gRPCSessionService: grpcServer.NewSessionSenderService(discovery.ServiceDiscovery),
-		gRPCGoogleService:  grpcServer.NewGoogleAuthService(discovery.ServiceDiscovery),
 	}
 
 	createDefaultAdminAccount(services_init)
@@ -149,8 +152,7 @@ func main() {
 		return c.Next()
 	})
 
-	// Init Handlers
-	auth_handler := handlers.NewAuthHandler(services_init.UserService, services_init.JwtService, services_init.SessionService, services_init.UserRoleService, services_init.gRPCSessionService, services_init.gRPCGoogleService, services_init.RoleService)
+	// Init Other Handlers
 	role_handler := handlers.NewRoleHandler(services_init.RoleService, services_init.UserRoleService)
 	permission_handler := handlers.NewPermissionHanlder(services_init.RoleService, services_init.UserRoleService, services_init.PermissionService)
 	user_handler := handlers.NewUserHandler(services_init.UserService, services_init.UserRoleService)
