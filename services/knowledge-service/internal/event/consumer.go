@@ -181,7 +181,7 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 	switch msg.RoutingKey {
 	case "input.skill":
 		return c.handleInputSkillEvent(msg.Body)
-	case "quiz_completed":
+	case "quiz.result.completed":
 		return c.handleQuizResultEvent(msg.Body)
 	default:
 		log.Printf("Unknown routing key: %s", msg.RoutingKey)
