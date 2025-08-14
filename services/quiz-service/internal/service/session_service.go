@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"math"
 	"quiz-service/internal/adaptive"
 	"quiz-service/internal/event"
@@ -24,7 +25,7 @@ type SessionService struct {
 	Repo                      *repository.SessionRepository
 	ConfigService             *ConfigService // NEW: For global configurations
 	QuestionRepo              *repository.QuestionRepository
-	ResultRepo                *repository.ResultRepository
+	ResultService             *ResultService // FIXED: Use service layer instead of direct repo access
 	EventPublisher            *event.EventPublisher
 	adaptiveManager           *adaptive.Manager
 	poolManager               *selection.PoolManager
@@ -40,11 +41,13 @@ func NewSessionService(
 	repo *repository.SessionRepository,
 	questionRepo *repository.QuestionRepository,
 	configService *ConfigService,
+	resultService *ResultService, // FIXED: Add ResultService dependency
 ) *SessionService {
 	service := &SessionService{
 		Repo:                      repo,
 		ConfigService:             configService,
 		QuestionRepo:              questionRepo,
+		ResultService:             resultService, // FIXED: Initialize ResultService
 		adaptiveManager:           adaptive.NewManager(nil),
 		poolManager:               selection.NewPoolManager(questionRepo),
 		sessionSkillCache:         make(map[string]*selection.SkillInfo),
@@ -95,8 +98,8 @@ func (s *SessionService) CreateGlobalSession(
 	var startingBloomLevel string
 	var startingDifficulty string
 
-	if s.ResultRepo != nil {
-		pastResults, err := s.ResultRepo.FindByUser(ctx, userID)
+	if s.ResultService != nil {
+		pastResults, err := s.ResultService.GetResultsByUser(ctx, userID)
 		if err == nil && len(pastResults) > 0 {
 			for _, result := range pastResults {
 				if session, err := s.Repo.FindByID(ctx, result.SessionID); err == nil {
@@ -482,6 +485,11 @@ func (s *SessionService) SubmitSession(
 	completionType string,
 	finalScore float64,
 ) (*models.QuizResult, error) {
+	exist, err := s.ResultService.GetResultBySession(ctx, sessionID)
+	if exist != nil {
+		log.Printf("SESSION SUBMIT ERROR: this session is completed but check this detail too: %s", err)
+		return nil, fmt.Errorf("this session is completed")
+	}
 	// Get session
 	session, err := s.Repo.FindByID(ctx, sessionID)
 	if err != nil {
@@ -515,8 +523,8 @@ func (s *SessionService) SubmitSession(
 	result := s.createQuizResult(session, completionType, finalScore)
 
 	// Store result if repository is available
-	if s.ResultRepo != nil {
-		err = s.ResultRepo.Create(ctx, result)
+	if s.ResultService != nil {
+		err = s.ResultService.CreateResult(ctx, result)
 		if err != nil {
 			fmt.Printf("Failed to store result: %v\n", err)
 		}
@@ -1519,7 +1527,12 @@ func (s *SessionService) generateLearningRecommendation(bloomLevel string, perce
 
 func (s *SessionService) createQuizResult(session *models.QuizSession, completionType string, finalScore float64) *models.QuizResult {
 	// Calculate badge level using configuration
-	badgeLevel := s.calculateBadgeLevelFromConfig(finalScore)
+	badgeLevel := ""
+	if session.CompletionType != "manual_submit" {
+		badgeLevel = s.calculateBadgeLevelFromConfig(finalScore)
+	} else {
+		badgeLevel = "Unidentified"
+	}
 
 	// Build stage breakdown
 	stageBreakdown := make(map[string]models.StageBreakdown)

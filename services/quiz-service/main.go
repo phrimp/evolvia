@@ -68,6 +68,8 @@ func main() {
 		log.Fatalf("Failed to ensure default config exists: %v", err)
 	}
 
+	resultRepo := repository.NewResultRepository(database)
+	resultService := service.NewResultService(resultRepo, publisher)
 	quizRepo := repository.NewQuizRepository(database)
 	quizService := service.NewQuizService(quizRepo)
 	quizHandler := handlers.NewQuizHandler(quizService)
@@ -79,15 +81,14 @@ func main() {
 		sessionRepo,
 		questionRepo,
 		configService,
+		resultService,
 	)
 	sessionHandler := handlers.NewSessionHandler(sessionService, questionService)
-	
+
 	// Timeout handler for session timeout management
 	timeoutHandler := handlers.NewTimeoutHandler(sessionService)
 
 	// Public routes
-	resultRepo := repository.NewResultRepository(database)
-	resultService := service.NewResultService(resultRepo, publisher)
 	resultHandler := handlers.NewResultHandler(resultService)
 	publicQuiz := r.Group("/public/quizz/quiz")
 	{
@@ -182,7 +183,6 @@ func main() {
 
 	r.Run(":6666")
 }
-
 
 // setupGlobalSessionRoutes sets up routes for global session management (no quiz dependency)
 // Benefits: Better performance, no quiz constraints, enhanced caching, simplified management
@@ -438,13 +438,13 @@ func setupTimeoutRoutes(r *gin.Engine, timeoutHandler *handlers.TimeoutHandler) 
 	{
 		// Get session timeout information
 		protectedTimeout.GET("/:id", timeoutHandler.GetSessionTimeoutInfo)
-		
+
 		// Extend session timeout
 		protectedTimeout.POST("/:id/extend", timeoutHandler.ExtendSessionTimeout)
-		
+
 		// Get current question state for a session
 		protectedTimeout.GET("/:id/question-state", timeoutHandler.GetCurrentQuestionState)
-		
+
 		// Get overall question state cache statistics
 		protectedTimeout.GET("/stats/question-states", timeoutHandler.GetQuestionStateStats)
 	}
