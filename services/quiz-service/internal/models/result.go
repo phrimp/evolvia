@@ -2,6 +2,8 @@ package models
 
 import "time"
 
+const ManualSubmit string = "manual_submit"
+
 type StageBreakdown struct {
 	Attempted    int     `bson:"attempted" json:"attempted"`
 	Correct      int     `bson:"correct" json:"correct"`

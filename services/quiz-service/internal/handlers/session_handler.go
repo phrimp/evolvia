@@ -406,7 +406,7 @@ func (h *SessionHandler) SubmitSession(c *gin.Context) {
 
 	// Set default completion type
 	if submitData.CompletionType == "" {
-		submitData.CompletionType = "manual_submit"
+		submitData.CompletionType = models.ManualSubmit
 	}
 
 	result, err := h.Service.SubmitSession(
@@ -432,10 +432,16 @@ func (h *SessionHandler) SubmitSession(c *gin.Context) {
 		return
 	}
 
+	detail_answers := []models.CachedAnswer{}
+	if detail_answers_cache, ok := h.Service.GetCachedAnswers(sessionID); ok {
+		detail_answers = detail_answers_cache
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"result":  result,
-		"message": "Session submitted successfully",
-		"summary": h.generateSessionSummary(result),
+		"result":         result,
+		"detail_answers": detail_answers,
+		"message":        "Session submitted successfully",
+		"summary":        h.generateSessionSummary(result),
 	})
 }
 

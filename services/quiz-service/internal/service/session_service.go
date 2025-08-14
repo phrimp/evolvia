@@ -1528,7 +1528,7 @@ func (s *SessionService) generateLearningRecommendation(bloomLevel string, perce
 func (s *SessionService) createQuizResult(session *models.QuizSession, completionType string, finalScore float64) *models.QuizResult {
 	// Calculate badge level using configuration
 	badgeLevel := ""
-	if session.CompletionType != "manual_submit" {
+	if session.CompletionType != models.ManualSubmit {
 		badgeLevel = s.calculateBadgeLevelFromConfig(finalScore)
 	} else {
 		badgeLevel = "Unidentified"
