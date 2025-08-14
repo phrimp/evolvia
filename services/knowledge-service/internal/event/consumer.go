@@ -435,16 +435,19 @@ func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
 		}
 
 		if err := json.Unmarshal(body, &genericEvent); err != nil {
+			log.Printf("failed to unmarshal quiz result event: %s", err)
 			return fmt.Errorf("failed to unmarshal quiz result event: %w", err)
 		}
 
 		// Extract the payload as QuizResultEvent
 		payloadBytes, err := json.Marshal(genericEvent.Payload)
 		if err != nil {
+			log.Printf("failed to marshal quiz payload: %s", err)
 			return fmt.Errorf("failed to marshal quiz payload: %w", err)
 		}
 
 		if err := json.Unmarshal(payloadBytes, &quizResult); err != nil {
+			log.Printf("failed to unmarshal quiz result from payload: %s", err)
 			return fmt.Errorf("failed to unmarshal quiz result from payload: %w", err)
 		}
 	}
