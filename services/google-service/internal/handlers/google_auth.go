@@ -187,9 +187,8 @@ func (h *AuthHandler) HandleGoogleCallback(c fiber.Ctx) error {
 	c.Cookie(tokenCookie)
 	c.Cookie(userCookie)
 
-	return c.Redirect().To(h.FE_Address)
+	return c.Redirect().To(h.FE_Address + "?google_login=true")
 }
-
 
 // waitForLoginResponse waits for the auth service to respond to the login request
 func (h *AuthHandler) waitForLoginResponse(ctx context.Context, requestID string) (string, error) {

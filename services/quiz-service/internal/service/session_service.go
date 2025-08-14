@@ -189,8 +189,8 @@ func (s *SessionService) CreateGlobalSession(
 	s.sessionSkillCache[session.ID] = standardSkillInfo
 	s.sessionEnhancedSkillCache[session.ID] = skillInfo
 
-	// Generate and cache pools for the session
-	if err := s.generateSessionPool(ctx, session.ID, session); err != nil {
+	// Generate and cache pools for the session using optimized batch generation
+	if err := s.generateSessionPoolOptimized(ctx, session.ID, session); err != nil {
 		fmt.Printf("Warning: Failed to pre-generate pools for session %s: %v\n", session.ID, err)
 		// Don't fail session creation if pool generation fails - pools can be generated lazily
 	}

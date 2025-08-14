@@ -375,6 +375,15 @@ func (h *SessionHandler) NextQuestion(c *gin.Context) {
 		return
 	}
 
+	// Validate question is not nil before calling methods
+	if question == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Internal error: question data is invalid",
+			"details": "Retrieved question is nil",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"question": question.ToSafeResponse(), // Use sanitized response to hide sensitive fields
 		"message":  "Next question retrieved successfully",
@@ -410,6 +419,15 @@ func (h *SessionHandler) SubmitSession(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to submit session",
 			"details": err.Error(),
+		})
+		return
+	}
+
+	// Validate result is not nil before generating summary
+	if result == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Internal error: session result is invalid",
+			"details": "Retrieved result is nil",
 		})
 		return
 	}
@@ -656,12 +674,25 @@ func (h *SessionHandler) GetSessionStatistics(c *gin.Context) {
 // Helper methods
 
 func (h *SessionHandler) generateSessionSummary(result *models.QuizResult) map[string]interface{} {
+	// Defensive nil check (though caller should validate)
+	if result == nil {
+		return map[string]interface{}{
+			"error": "Invalid result data",
+		}
+	}
+
+	// Calculate accuracy safely to avoid division by zero
+	accuracy := 0.0
+	if result.QuestionsAttempted > 0 {
+		accuracy = float64(result.QuestionsCorrect) / float64(result.QuestionsAttempted) * 100
+	}
+
 	return map[string]interface{}{
 		"final_percentage":    result.Percentage,
 		"badge_level":         result.BadgeLevel,
 		"questions_attempted": result.QuestionsAttempted,
 		"questions_correct":   result.QuestionsCorrect,
-		"accuracy":            float64(result.QuestionsCorrect) / float64(result.QuestionsAttempted) * 100,
+		"accuracy":            accuracy,
 		"completion_type":     result.CompletionType,
 	}
 }
