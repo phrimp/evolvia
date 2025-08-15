@@ -88,76 +88,149 @@ func (s *SessionService) CreateGlobalSession(
 	masteryScore int,
 	configID string, // Optional: if empty, uses default config
 ) (*models.QuizSession, error) {
+	// Session creation tracking
+	sessionCreationStart := time.Now()
+	sessionCreationID := fmt.Sprintf("session_creation_%d", time.Now().UnixNano())
+
+	log.Printf("[SESSION_CREATION] [%s] Starting global session creation for user: %s, skill: %s (%s)", 
+		sessionCreationID, userID, skillInfo.ID, skillInfo.Name)
+	log.Printf("[SESSION_CREATION] [%s] Request parameters - ConfigID: '%s', MasteryScore: %d, BloomLevels: %v", 
+		sessionCreationID, configID, masteryScore, preferredBloomLevels)
+	log.Printf("[SESSION_CREATION] [%s] Skill tags - Primary: %v, Secondary: %v, Related: %v", 
+		sessionCreationID, skillInfo.PrimaryTags, skillInfo.SecondaryTags, skillInfo.RelatedTags)
+	log.Printf("[SESSION_CREATION] [%s] Tag weights - Primary: %.1f, Secondary: %.1f, Related: %.1f, ExactBonus: %.1f", 
+		sessionCreationID, skillInfo.TagWeights.PrimaryWeight, skillInfo.TagWeights.SecondaryWeight, 
+		skillInfo.TagWeights.RelatedWeight, skillInfo.TagWeights.ExactMatchBonus)
+
 	// Step 1: Get global configuration
+	log.Printf("[SESSION_CREATION] [%s] Step 1: Retrieving global configuration", sessionCreationID)
+	configStart := time.Now()
 	config, err := s.ConfigService.GetConfigForSession(ctx, configID)
+	configDuration := time.Since(configStart)
 	if err != nil {
+		log.Printf("[SESSION_CREATION] [%s] ERROR: Failed to get global configuration (took %v): %v", 
+			sessionCreationID, configDuration, err)
 		return nil, fmt.Errorf("failed to get global configuration: %w", err)
 	}
+	log.Printf("[SESSION_CREATION] [%s] Successfully retrieved config ID: '%s' (took %v)", 
+		sessionCreationID, config.ID, configDuration)
+	log.Printf("[SESSION_CREATION] [%s] Config details - TotalDuration: %ds, StageConfigs: %d", 
+		sessionCreationID, config.TotalDurationSeconds, len(config.StageConfig))
 
 	// Step 2: Check for past results (existing logic)
+	log.Printf("[SESSION_CREATION] [%s] Step 2: Checking for past results to determine starting levels", sessionCreationID)
+	pastResultsStart := time.Now()
 	var startingBloomLevel string
 	var startingDifficulty string
+	var foundPastResults bool
 
 	if s.ResultService != nil {
 		pastResults, err := s.ResultService.GetResultsByUser(ctx, userID)
+		pastResultsDuration := time.Since(pastResultsStart)
 		if err == nil && len(pastResults) > 0 {
-			for _, result := range pastResults {
+			log.Printf("[SESSION_CREATION] [%s] Found %d past results for user (took %v)", 
+				sessionCreationID, len(pastResults), pastResultsDuration)
+			for i, result := range pastResults {
 				if session, err := s.Repo.FindByID(ctx, result.SessionID); err == nil {
 					if metadata := session.Metadata; metadata != nil {
 						if sid, ok := metadata["skill_id"].(string); ok && sid == skillInfo.ID {
 							startingBloomLevel = s.deriveBloomFromResult(&result)
 							startingDifficulty = s.deriveDifficultyFromResult(&result)
+							foundPastResults = true
+							log.Printf("[SESSION_CREATION] [%s] Found matching past result #%d: Bloom='%s', Difficulty='%s', Score=%.1f", 
+								sessionCreationID, i+1, startingBloomLevel, startingDifficulty, result.FinalScore)
 							break
 						}
 					}
 				}
 			}
+			if !foundPastResults {
+				log.Printf("[SESSION_CREATION] [%s] No matching past results found for skill '%s'", 
+					sessionCreationID, skillInfo.ID)
+			}
+		} else if err != nil {
+			log.Printf("[SESSION_CREATION] [%s] Warning: Error retrieving past results (took %v): %v", 
+				sessionCreationID, pastResultsDuration, err)
+		} else {
+			log.Printf("[SESSION_CREATION] [%s] No past results found for user (took %v)", 
+				sessionCreationID, pastResultsDuration)
 		}
+	} else {
+		log.Printf("[SESSION_CREATION] [%s] ResultService not available, skipping past results check", sessionCreationID)
 	}
 
 	// Step 3: Set defaults if no past results
+	log.Printf("[SESSION_CREATION] [%s] Step 3: Setting starting levels and defaults", sessionCreationID)
 	var bloomLevels []string
 	if startingBloomLevel == "" {
 		if len(preferredBloomLevels) > 0 {
 			bloomLevels = preferredBloomLevels
 			startingBloomLevel = preferredBloomLevels[0]
+			log.Printf("[SESSION_CREATION] [%s] Using preferred Bloom levels: %v (starting: '%s')", 
+				sessionCreationID, bloomLevels, startingBloomLevel)
 		} else {
 			bloomLevels = []string{"remember"}
 			startingBloomLevel = "remember"
+			log.Printf("[SESSION_CREATION] [%s] Using default Bloom level: 'remember'", sessionCreationID)
 		}
 	} else {
 		bloomLevels = []string{startingBloomLevel}
+		log.Printf("[SESSION_CREATION] [%s] Using Bloom level from past results: '%s'", 
+			sessionCreationID, startingBloomLevel)
 	}
 
 	if masteryScore > 0 {
 		startingDifficulty = s.mapMasteryScoreToStage(masteryScore)
-	} else {
+		log.Printf("[SESSION_CREATION] [%s] Mapped mastery score %d to difficulty: '%s'", 
+			sessionCreationID, masteryScore, startingDifficulty)
+	} else if startingDifficulty == "" {
 		startingDifficulty = "easy"
+		log.Printf("[SESSION_CREATION] [%s] Using default difficulty: 'easy'", sessionCreationID)
+	} else {
+		log.Printf("[SESSION_CREATION] [%s] Using difficulty from past results: '%s'", 
+			sessionCreationID, startingDifficulty)
 	}
 
 	// Step 4: Validate global question pool with enhanced skill info
+	log.Printf("[SESSION_CREATION] [%s] Step 4: Validating global question pool", sessionCreationID)
+	poolValidationStart := time.Now()
 	standardSkillInfo := &selection.SkillInfo{
 		ID:   skillInfo.ID,
 		Name: skillInfo.Name,
 		Tags: s.mergeTags(skillInfo),
 	}
+	log.Printf("[SESSION_CREATION] [%s] Merged tags for validation: %v (total: %d)", 
+		sessionCreationID, standardSkillInfo.Tags, len(standardSkillInfo.Tags))
 
 	isValid, validation, err := s.poolManager.ValidateGlobalPoolWithBloom(ctx, standardSkillInfo, "temp_session")
+	poolValidationDuration := time.Since(poolValidationStart)
 	if err != nil {
+		log.Printf("[SESSION_CREATION] [%s] ERROR: Pool validation failed (took %v): %v", 
+			sessionCreationID, poolValidationDuration, err)
 		return nil, fmt.Errorf("failed to validate global question pool: %w", err)
 	}
 	if !isValid {
+		log.Printf("[SESSION_CREATION] [%s] ERROR: Insufficient questions in pool (took %v): %v", 
+			sessionCreationID, poolValidationDuration, validation.Warnings)
 		return nil, fmt.Errorf("insufficient questions in global pool: %v", validation.Warnings)
 	}
+	log.Printf("[SESSION_CREATION] [%s] Pool validation successful (took %v): %d available questions", 
+		sessionCreationID, poolValidationDuration, validation.TotalQuestions)
 
 	initialStage := s.mapBloomToStage(startingBloomLevel)
+	log.Printf("[SESSION_CREATION] [%s] Step 5: Creating session object - Initial stage: '%s'", 
+		sessionCreationID, initialStage)
+
+	// Generate session token and prepare session object
+	sessionToken := s.generateSessionToken()
+	sessionStartTime := time.Now()
 
 	// Create session with global configuration
 	session := &models.QuizSession{
 		ConfigID:     config.ID, // Use ConfigID instead of QuizID
 		UserID:       userID,
-		SessionToken: s.generateSessionToken(),
-		StartTime:    time.Now(),
+		SessionToken: sessionToken,
+		StartTime:    sessionStartTime,
 		Status:       "active",
 		CurrentStage: initialStage,
 		StageProgress: map[string]models.StageProgress{
@@ -179,41 +252,121 @@ func (s *SessionService) CreateGlobalSession(
 			"preferred_bloom_levels": bloomLevels,
 			"starting_difficulty":    startingDifficulty,
 			"global_config":          config.StageConfig, // Store config instead of quiz config
-			"quiz_start_time":        time.Now().Unix(),
+			"quiz_start_time":        sessionStartTime.Unix(),
+			"session_creation_id":    sessionCreationID,
+			"past_results_found":     foundPastResults,
+			"creation_context": map[string]any{
+				"requested_config_id":     configID,
+				"requested_mastery_score": masteryScore,
+				"requested_bloom_levels":  preferredBloomLevels,
+				"total_tags_count":        len(standardSkillInfo.Tags),
+			},
 		},
 	}
 
+	log.Printf("[SESSION_CREATION] [%s] Session object created - Token: %s", 
+		sessionCreationID, sessionToken)
+	log.Printf("[SESSION_CREATION] [%s] Metadata - SkillID: '%s', InitialStage: '%s', BloomLevel: '%s'", 
+		sessionCreationID, skillInfo.ID, initialStage, startingBloomLevel)
+
+	// Step 6: Persist session to database
+	log.Printf("[SESSION_CREATION] [%s] Step 6: Persisting session to database", sessionCreationID)
+	dbCreateStart := time.Now()
 	err = s.Repo.Create(ctx, session)
+	dbCreateDuration := time.Since(dbCreateStart)
 	if err != nil {
+		log.Printf("[SESSION_CREATION] [%s] ERROR: Failed to create session in database (took %v): %v", 
+			sessionCreationID, dbCreateDuration, err)
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
+	log.Printf("[SESSION_CREATION] [%s] Session successfully created in database (took %v) - ID: %s", 
+		sessionCreationID, dbCreateDuration, session.ID)
+
+	// Step 7: Cache skill info and generate question pools
+	log.Printf("[SESSION_CREATION] [%s] Step 7: Caching skill info and generating question pools", sessionCreationID)
+	cacheStart := time.Now()
 
 	// Cache skill info
 	s.sessionSkillCache[session.ID] = standardSkillInfo
 	s.sessionEnhancedSkillCache[session.ID] = skillInfo
+	cacheDuration := time.Since(cacheStart)
+	log.Printf("[SESSION_CREATION] [%s] Skill info cached (took %v) - Standard: %d tags, Enhanced: P:%d S:%d R:%d", 
+		sessionCreationID, cacheDuration, len(standardSkillInfo.Tags), 
+		len(skillInfo.PrimaryTags), len(skillInfo.SecondaryTags), len(skillInfo.RelatedTags))
 
 	// Generate and cache pools for the session using optimized batch generation
+	poolGenStart := time.Now()
 	if err := s.generateSessionPoolOptimized(ctx, session.ID, session); err != nil {
-		fmt.Printf("Warning: Failed to pre-generate pools for session %s: %v\n", session.ID, err)
+		poolGenDuration := time.Since(poolGenStart)
+		log.Printf("[SESSION_CREATION] [%s] Warning: Failed to pre-generate pools (took %v): %v", 
+			sessionCreationID, poolGenDuration, err)
 		// Don't fail session creation if pool generation fails - pools can be generated lazily
+	} else {
+		poolGenDuration := time.Since(poolGenStart)
+		log.Printf("[SESSION_CREATION] [%s] Question pools successfully pre-generated (took %v)", 
+			sessionCreationID, poolGenDuration)
 	}
+
+	// Step 8: Initialize session timeout management
+	log.Printf("[SESSION_CREATION] [%s] Step 8: Starting first question timeout", sessionCreationID)
+	timeoutStart := time.Now()
 
 	// Start first question timeout countdown - user must request first question within configured time
 	// NOTE: Main session timeout will start ONLY when first question is requested
 	s.timeoutManager.StartFirstQuestionTimeout(session.ID)
+	timeoutDuration := time.Since(timeoutStart)
+	log.Printf("[SESSION_CREATION] [%s] First question timeout started (took %v)", 
+		sessionCreationID, timeoutDuration)
+
+	// Step 9: Publish session creation event
+	log.Printf("[SESSION_CREATION] [%s] Step 9: Publishing session creation event", sessionCreationID)
+	eventStart := time.Now()
 
 	if s.EventPublisher != nil {
-		s.EventPublisher.Publish("quiz.session.created", map[string]any{
+		eventData := map[string]any{
 			"session_id":           session.ID,
 			"config_id":            config.ID,
 			"user_id":              userID,
 			"skill_id":             skillInfo.ID,
+			"skill_name":           skillInfo.Name,
 			"tag_distribution":     s.getTagDistribution(skillInfo),
 			"starting_bloom_level": startingBloomLevel,
 			"starting_difficulty":  startingDifficulty,
 			"global_config":        true, // Flag to indicate this is a global config session
-		})
+			"creation_context": map[string]any{
+				"session_creation_id":    sessionCreationID,
+				"total_creation_time_ms": time.Since(sessionCreationStart).Milliseconds(),
+				"past_results_found":     foundPastResults,
+				"pool_validation_passed": isValid,
+				"requested_config_id":    configID,
+				"mastery_score":          masteryScore,
+				"preferred_bloom_levels": preferredBloomLevels,
+			},
+			"performance_metrics": map[string]any{
+				"config_retrieval_ms":    configDuration.Milliseconds(),
+				"past_results_check_ms":  time.Since(pastResultsStart).Milliseconds(),
+				"pool_validation_ms":     poolValidationDuration.Milliseconds(),
+				"db_creation_ms":         dbCreateDuration.Milliseconds(),
+				"total_creation_ms":      time.Since(sessionCreationStart).Milliseconds(),
+			},
+		}
+		s.EventPublisher.Publish("quiz.session.created", eventData)
+		eventDuration := time.Since(eventStart)
+		log.Printf("[SESSION_CREATION] [%s] Event published successfully (took %v)", 
+			sessionCreationID, eventDuration)
+	} else {
+		log.Printf("[SESSION_CREATION] [%s] Warning: EventPublisher not available, skipping event", sessionCreationID)
 	}
+
+	// Session creation completed successfully
+	totalCreationTime := time.Since(sessionCreationStart)
+	log.Printf("[SESSION_CREATION] [%s] ✅ SUCCESS: Global session created successfully", sessionCreationID)
+	log.Printf("[SESSION_CREATION] [%s] Final details - SessionID: %s, UserID: %s, SkillID: %s", 
+		sessionCreationID, session.ID, userID, skillInfo.ID)
+	log.Printf("[SESSION_CREATION] [%s] Performance summary - Total: %v, DB: %v, Pools: %v, Config: %v", 
+		sessionCreationID, totalCreationTime, dbCreateDuration, 
+		time.Since(poolGenStart), configDuration)
+	log.Printf("[SESSION_CREATION] [%s] Session ready for first question request", sessionCreationID)
 
 	return session, nil
 }
@@ -660,24 +813,48 @@ func (s *SessionService) SelectQuestionsForStage(
 
 // Helper methods
 
+// reconstructAdaptiveSession rebuilds adaptive session state with comprehensive logging
 func (s *SessionService) reconstructAdaptiveSession(session *models.QuizSession) *adaptive.AdaptiveSession {
+	reconstructStart := time.Now()
+	reconstructID := fmt.Sprintf("reconstruct_%d", time.Now().UnixNano())
+	log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Starting adaptive session reconstruction for %s", 
+		reconstructID, session.ID)
+
 	if session.ID == "" {
+		log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] ERROR: Session ID is empty", reconstructID)
 		return nil
 	}
+
+	// Create new adaptive session
 	adaptiveSession := adaptive.NewAdaptiveSession(session.ID)
+	log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Created new adaptive session object", reconstructID)
 
 	// Map current stage
+	log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Mapping current stage: %s", reconstructID, session.CurrentStage)
 	switch session.CurrentStage {
 	case "easy":
 		adaptiveSession.CurrentStage = adaptive.StageEasy
+		log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Mapped to StageEasy", reconstructID)
 	case "medium":
 		adaptiveSession.CurrentStage = adaptive.StageMedium
+		log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Mapped to StageMedium", reconstructID)
 	case "hard":
 		adaptiveSession.CurrentStage = adaptive.StageHard
+		log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Mapped to StageHard", reconstructID)
+	default:
+		log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Warning: Unknown stage '%s', defaulting to StageEasy", 
+			reconstructID, session.CurrentStage)
+		adaptiveSession.CurrentStage = adaptive.StageEasy
 	}
 
-	// Map stage progress
+	// Map stage progress with detailed logging
+	log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Mapping %d stage progress entries", 
+		reconstructID, len(session.StageProgress))
+	stagesMapped := 0
 	for stage, progress := range session.StageProgress {
+		log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Processing stage '%s' - Attempted: %d, Correct: %d, Passed: %v, Score: %.2f", 
+			reconstructID, stage, progress.Attempted, progress.Correct, progress.Passed, progress.Score)
+
 		var adaptiveStage adaptive.Stage
 		switch stage {
 		case "easy":
@@ -687,6 +864,8 @@ func (s *SessionService) reconstructAdaptiveSession(session *models.QuizSession)
 		case "hard":
 			adaptiveStage = adaptive.StageHard
 		default:
+			log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Warning: Skipping unknown stage '%s'", 
+				reconstructID, stage)
 			continue
 		}
 
@@ -699,14 +878,33 @@ func (s *SessionService) reconstructAdaptiveSession(session *models.QuizSession)
 			Passed:         progress.Passed,
 			Score:          progress.Score,
 		}
+		stagesMapped++
+		log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Mapped stage '%s' - InRecovery: %v, RecoveryRound: %d", 
+			reconstructID, stage, progress.RecoveryRound > 0, progress.RecoveryRound)
 	}
+	log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Successfully mapped %d stages", reconstructID, stagesMapped)
 
+	// Set aggregate session data
 	adaptiveSession.TotalQuestionsAsked = session.TotalQuestionsAsked
+	log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Set TotalQuestionsAsked: %d", 
+		reconstructID, session.TotalQuestionsAsked)
+
 	// Ensure consistent question tracking between session and adaptive manager
 	adaptiveSession.UsedQuestionIDs = make([]string, len(session.QuestionsUsed))
 	copy(adaptiveSession.UsedQuestionIDs, session.QuestionsUsed)
+	log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Copied %d used question IDs", 
+		reconstructID, len(session.QuestionsUsed))
+
 	adaptiveSession.TotalScore = session.FinalScore
 	adaptiveSession.IsComplete = session.Status == "completed"
+	log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Set final state - TotalScore: %.2f, IsComplete: %v (status: %s)", 
+		reconstructID, session.FinalScore, adaptiveSession.IsComplete, session.Status)
+
+	reconstructDuration := time.Since(reconstructStart)
+	log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] ✅ Adaptive session reconstruction completed (took %v)", 
+		reconstructID, reconstructDuration)
+	log.Printf("[ADAPTIVE_RECONSTRUCT] [%s] Final state - CurrentStage: %v, StageStatuses: %d, UsedQuestions: %d", 
+		reconstructID, adaptiveSession.CurrentStage, len(adaptiveSession.StageStatuses), len(adaptiveSession.UsedQuestionIDs))
 
 	return adaptiveSession
 }
@@ -1365,22 +1563,48 @@ func (s *SessionService) extractSkillID(session *models.QuizSession) string {
 	return ""
 }
 
+// calculateTimeRemaining calculates remaining time for session with detailed logging
 func (s *SessionService) calculateTimeRemaining(session *models.QuizSession) int {
+	log.Printf("[TIME_CALCULATION] Starting time remaining calculation for session %s", session.ID)
+	calcStart := time.Now()
+
 	// Default 60 minutes total time
 	totalTime := 3600
+	log.Printf("[TIME_CALCULATION] Default total time: %d seconds (60 minutes)", totalTime)
+
+	// Check for custom total time in metadata
 	if metadata := session.Metadata; metadata != nil {
+		log.Printf("[TIME_CALCULATION] Checking metadata for custom total time")
 		if config, ok := metadata["quiz_config"].(map[string]interface{}); ok {
+			log.Printf("[TIME_CALCULATION] Found quiz_config in metadata")
 			if duration, ok := config["total_duration_seconds"].(int); ok {
 				totalTime = duration
+				log.Printf("[TIME_CALCULATION] Using custom total time from metadata: %d seconds", totalTime)
+			} else {
+				log.Printf("[TIME_CALCULATION] total_duration_seconds not found in config, using default")
 			}
+		} else {
+			log.Printf("[TIME_CALCULATION] quiz_config not found in metadata, using default")
 		}
+	} else {
+		log.Printf("[TIME_CALCULATION] No metadata found, using default total time")
 	}
 
+	// Calculate elapsed and remaining time
 	elapsed := int(time.Since(session.StartTime).Seconds())
 	remaining := totalTime - elapsed
+	log.Printf("[TIME_CALCULATION] Time breakdown - Total: %ds, Elapsed: %ds, Raw remaining: %ds", 
+		totalTime, elapsed, remaining)
+
 	if remaining < 0 {
-		return 0
+		log.Printf("[TIME_CALCULATION] Time exceeded, setting remaining to 0 (was %d)", remaining)
+		remaining = 0
 	}
+
+	calcDuration := time.Since(calcStart)
+	log.Printf("[TIME_CALCULATION] Time calculation completed (took %v) - Final remaining: %ds (%.1f minutes)", 
+		calcDuration, remaining, float64(remaining)/60.0)
+
 	return remaining
 }
 

@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"quiz-service/internal/integrity"
 	"quiz-service/internal/models"
@@ -41,6 +42,15 @@ func (h *SessionHandler) GetSession(c *gin.Context) {
 
 // CreateGlobalSession creates a new adaptive session using global configuration (no quiz dependency)
 func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
+	// Generate request tracking ID for logging
+	requestStart := time.Now()
+	requestID := fmt.Sprintf("req_%d", time.Now().UnixNano())
+	clientIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+
+	log.Printf("[SESSION_HANDLER] [%s] → POST /create-global-session from IP: %s", requestID, clientIP)
+	log.Printf("[SESSION_HANDLER] [%s] User-Agent: %s", requestID, userAgent)
+
 	var req struct {
 		ConfigID  string `json:"config_id"` // Optional: uses default if empty
 		SkillID   string `json:"skill_id" binding:"required"`
@@ -68,39 +78,62 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 		MasteryScore         int      `json:"mastery_score"`
 	}
 
+	// Parse and validate request body
+	log.Printf("[SESSION_HANDLER] [%s] Parsing request body", requestID)
+	parseStart := time.Now()
 	if err := c.ShouldBindJSON(&req); err != nil {
+		parseDuration := time.Since(parseStart)
+		log.Printf("[SESSION_HANDLER] [%s] ❌ ERROR: Invalid request format (took %v): %v", 
+			requestID, parseDuration, err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
+			"error":     "Invalid request format",
+			"details":   err.Error(),
+			"request_id": requestID,
 		})
 		return
 	}
+	parseDuration := time.Since(parseStart)
+	log.Printf("[SESSION_HANDLER] [%s] Request parsed successfully (took %v)", requestID, parseDuration)
+	log.Printf("[SESSION_HANDLER] [%s] Request parameters - SkillID: '%s', ConfigID: '%s', MasteryScore: %d", 
+		requestID, req.SkillID, req.ConfigID, req.MasteryScore)
 
+	// Extract and validate user ID
 	userID := c.GetHeader("X-User-ID")
 	if userID == "" {
+		log.Printf("[SESSION_HANDLER] [%s] ❌ ERROR: Missing X-User-ID header", requestID)
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User ID is required",
+			"error":      "User ID is required",
+			"request_id": requestID,
 		})
 		return
 	}
+	log.Printf("[SESSION_HANDLER] [%s] Authenticated user: %s", requestID, userID)
 
 	// Handle backward compatibility - if old skill_tags field is used
 	if len(req.PrimaryTags) == 0 && len(req.SkillTags) > 0 {
 		// Put all tags as primary for backward compatibility
 		req.PrimaryTags = req.SkillTags
-		fmt.Printf("[Session] Using legacy skill_tags field, treating all as primary tags\n")
+		log.Printf("[SESSION_HANDLER] [%s] Using legacy skill_tags field, treating %d tags as primary", 
+			requestID, len(req.SkillTags))
 	}
 
 	// Validate we have at least some tags
 	totalTags := len(req.PrimaryTags) + len(req.SecondaryTags) + len(req.RelatedTags)
 	if totalTags == 0 {
+		log.Printf("[SESSION_HANDLER] [%s] ❌ ERROR: No tags provided in request", requestID)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "At least one tag (primary, secondary, or related) is required",
+			"error":      "At least one tag (primary, secondary, or related) is required",
+			"request_id": requestID,
 		})
 		return
 	}
+	log.Printf("[SESSION_HANDLER] [%s] Tag validation passed - Total: %d (P:%d, S:%d, R:%d)", 
+		requestID, totalTags, len(req.PrimaryTags), len(req.SecondaryTags), len(req.RelatedTags))
 
 	// Set default weights if not provided
+	weightsProvided := req.TagWeights.PrimaryWeight > 0 || req.TagWeights.SecondaryWeight > 0 || 
+		req.TagWeights.RelatedWeight > 0 || req.TagWeights.ExactMatchBonus > 0
+
 	if req.TagWeights.PrimaryWeight == 0 {
 		req.TagWeights.PrimaryWeight = 3.0
 	}
@@ -114,9 +147,22 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 		req.TagWeights.ExactMatchBonus = 2.0
 	}
 
+	if weightsProvided {
+		log.Printf("[SESSION_HANDLER] [%s] Using provided tag weights - P:%.1f, S:%.1f, R:%.1f, EB:%.1f", 
+			requestID, req.TagWeights.PrimaryWeight, req.TagWeights.SecondaryWeight,
+			req.TagWeights.RelatedWeight, req.TagWeights.ExactMatchBonus)
+	} else {
+		log.Printf("[SESSION_HANDLER] [%s] Using default tag weights - P:%.1f, S:%.1f, R:%.1f, EB:%.1f", 
+			requestID, req.TagWeights.PrimaryWeight, req.TagWeights.SecondaryWeight,
+			req.TagWeights.RelatedWeight, req.TagWeights.ExactMatchBonus)
+	}
+
 	// Set default skill name
 	if req.SkillName == "" {
 		req.SkillName = req.SkillID
+		log.Printf("[SESSION_HANDLER] [%s] Using SkillID as skill name: '%s'", requestID, req.SkillName)
+	} else {
+		log.Printf("[SESSION_HANDLER] [%s] Using provided skill name: '%s'", requestID, req.SkillName)
 	}
 
 	// Create enhanced skill info
@@ -134,22 +180,29 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 		},
 	}
 
-	// Log tag distribution for monitoring
-	fmt.Printf("[GlobalSession] Creating session with tag distribution - Primary: %d, Secondary: %d, Related: %d\n",
-		len(req.PrimaryTags), len(req.SecondaryTags), len(req.RelatedTags))
-	fmt.Printf("[GlobalSession] Tag weights - Primary: %.1f, Secondary: %.1f, Related: %.1f, ExactBonus: %.1f\n",
-		req.TagWeights.PrimaryWeight, req.TagWeights.SecondaryWeight,
-		req.TagWeights.RelatedWeight, req.TagWeights.ExactMatchBonus)
+	// Log enhanced skill info creation
+	log.Printf("[SESSION_HANDLER] [%s] Creating enhanced skill info object", requestID)
+	log.Printf("[SESSION_HANDLER] [%s] Tag distribution - Primary: %d, Secondary: %d, Related: %d", 
+		requestID, len(req.PrimaryTags), len(req.SecondaryTags), len(req.RelatedTags))
+	log.Printf("[SESSION_HANDLER] [%s] Tag details - Primary: %v", requestID, req.PrimaryTags)
+	log.Printf("[SESSION_HANDLER] [%s] Tag details - Secondary: %v", requestID, req.SecondaryTags)
+	log.Printf("[SESSION_HANDLER] [%s] Tag details - Related: %v", requestID, req.RelatedTags)
 
 	// Determine bloom levels - prefer new format, fallback to legacy
 	var bloomLevels []string
 	if len(req.PreferredBloomLevels) > 0 {
 		bloomLevels = req.PreferredBloomLevels
+		log.Printf("[SESSION_HANDLER] [%s] Using preferred Bloom levels: %v", requestID, bloomLevels)
 	} else if req.CurrentBloomLevel != "" {
 		bloomLevels = []string{req.CurrentBloomLevel}
+		log.Printf("[SESSION_HANDLER] [%s] Using current Bloom level: '%s'", requestID, req.CurrentBloomLevel)
+	} else {
+		log.Printf("[SESSION_HANDLER] [%s] No Bloom levels specified, will use service defaults", requestID)
 	}
 
 	// Create global session
+	log.Printf("[SESSION_HANDLER] [%s] Calling SessionService.CreateGlobalSession", requestID)
+	sessionCreateStart := time.Now()
 	session, err := h.Service.CreateGlobalSession(
 		context.Background(),
 		userID,
@@ -158,19 +211,54 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 		req.MasteryScore,
 		req.ConfigID, // Uses default if empty
 	)
+	sessionCreateDuration := time.Since(sessionCreateStart)
 	if err != nil {
+		log.Printf("[SESSION_HANDLER] [%s] ❌ ERROR: Session creation failed (took %v): %v", 
+			requestID, sessionCreateDuration, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to create global session",
-			"details": err.Error(),
+			"error":      "Failed to create global session",
+			"details":    err.Error(),
+			"request_id": requestID,
+			"duration_ms": sessionCreateDuration.Milliseconds(),
 		})
 		return
 	}
+	log.Printf("[SESSION_HANDLER] [%s] ✅ Session created successfully (took %v) - ID: %s", 
+		requestID, sessionCreateDuration, session.ID)
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "Global session created successfully",
-		"session": session,
-		"mode":    "global", // Indicate this is using global configuration
-	})
+	// Return successful response
+	totalRequestDuration := time.Since(requestStart)
+	log.Printf("[SESSION_HANDLER] [%s] ✅ SUCCESS: Global session creation completed", requestID)
+	log.Printf("[SESSION_HANDLER] [%s] Performance summary - Total: %v, SessionCreate: %v, Parse: %v", 
+		requestID, totalRequestDuration, sessionCreateDuration, parseDuration)
+	log.Printf("[SESSION_HANDLER] [%s] Final session details - ID: %s, UserID: %s, ConfigID: %s", 
+		requestID, session.ID, userID, session.ConfigID)
+
+	responseData := gin.H{
+		"message":    "Global session created successfully",
+		"session":    session,
+		"mode":       "global", // Indicate this is using global configuration
+		"request_id": requestID,
+		"performance": gin.H{
+			"total_duration_ms":          totalRequestDuration.Milliseconds(),
+			"session_creation_duration_ms": sessionCreateDuration.Milliseconds(),
+			"request_parse_duration_ms":   parseDuration.Milliseconds(),
+		},
+		"metadata": gin.H{
+			"client_ip":         clientIP,
+			"total_tags":        totalTags,
+			"tag_distribution": gin.H{
+				"primary":   len(req.PrimaryTags),
+				"secondary": len(req.SecondaryTags),
+				"related":   len(req.RelatedTags),
+			},
+			"weights_provided": weightsProvided,
+			"bloom_levels":     bloomLevels,
+		},
+	}
+
+	c.JSON(http.StatusCreated, responseData)
+	log.Printf("[SESSION_HANDLER] [%s] → Response sent (201 Created) - SessionID: %s", requestID, session.ID)
 }
 
 // UpdateSession updates session information
@@ -493,21 +581,90 @@ func (h *SessionHandler) ResumeSession(c *gin.Context) {
 
 // GetSessionStatus returns current adaptive session status
 func (h *SessionHandler) GetSessionStatus(c *gin.Context) {
-	sessionID := c.Param("id")
+	// Generate request tracking ID
+	handlerStart := time.Now()
+	requestID := fmt.Sprintf("status_handler_%d", time.Now().UnixNano())
+	clientIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	userID := c.GetHeader("X-User-ID")
 
+	sessionID := c.Param("id")
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] → GET /session/%s/status from IP: %s", 
+		requestID, sessionID, clientIP)
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] User-Agent: %s, UserID: %s", 
+		requestID, userAgent, userID)
+
+	// Validate session ID parameter
+	if sessionID == "" {
+		log.Printf("[SESSION_STATUS_HANDLER] [%s] ❌ ERROR: Missing session ID parameter", requestID)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":      "Session ID is required",
+			"request_id": requestID,
+		})
+		return
+	}
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] Processing status request for session: %s", 
+		requestID, sessionID)
+
+	// Call service layer
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] Calling SessionService.GetSessionStatus", requestID)
+	serviceCallStart := time.Now()
 	status, err := h.Service.GetSessionStatus(context.Background(), sessionID)
+	serviceCallDuration := time.Since(serviceCallStart)
+
 	if err != nil {
+		log.Printf("[SESSION_STATUS_HANDLER] [%s] ❌ ERROR: Service call failed (took %v): %v", 
+			requestID, serviceCallDuration, err)
 		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "Session not found",
-			"details": err.Error(),
+			"error":      "Session not found",
+			"details":    err.Error(),
+			"request_id": requestID,
+			"duration_ms": serviceCallDuration.Milliseconds(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] Service call successful (took %v)", 
+		requestID, serviceCallDuration)
+
+	// Log key status information
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] Status details - CurrentStage: %v, IsComplete: %v", 
+		requestID, status["current_stage"], status["is_complete"])
+	if timeElapsed, exists := status["time_elapsed"]; exists {
+		log.Printf("[SESSION_STATUS_HANDLER] [%s] Timing - Elapsed: %vs, Remaining: %vs", 
+			requestID, timeElapsed, status["time_remaining"])
+	}
+	if skillInfo, exists := status["skill_info"]; exists {
+		if skill, ok := skillInfo.(map[string]interface{}); ok {
+			log.Printf("[SESSION_STATUS_HANDLER] [%s] Skill info - Name: %v, Tags: %d", 
+				requestID, skill["Name"], len(skill["Tags"].([]string)))
+		}
+	}
+
+	// Prepare response
+	totalHandlerDuration := time.Since(handlerStart)
+	responseData := gin.H{
 		"status":    status,
 		"timestamp": time.Now(),
-	})
+		"request_id": requestID,
+		"performance": gin.H{
+			"handler_duration_ms":       totalHandlerDuration.Milliseconds(),
+			"service_call_duration_ms": serviceCallDuration.Milliseconds(),
+		},
+		"metadata": gin.H{
+			"client_ip": clientIP,
+			"user_id":   userID,
+		},
+	}
+
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] ✅ Status request completed successfully (took %v)", 
+		requestID, totalHandlerDuration)
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] Performance - Handler: %v, Service: %v", 
+		requestID, totalHandlerDuration, serviceCallDuration)
+
+	c.JSON(http.StatusOK, responseData)
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] → Response sent (200 OK) - SessionID: %s", 
+		requestID, sessionID)
 }
 
 // GetQuizPoolInfo returns information about the quiz question pool
@@ -679,60 +836,153 @@ func (h *SessionHandler) GetSessionStatistics(c *gin.Context) {
 
 // Helper methods
 
+// generateSessionSummary creates session summary with comprehensive calculation logging
 func (h *SessionHandler) generateSessionSummary(result *models.QuizResult) map[string]interface{} {
+	summaryStart := time.Now()
+	summaryID := fmt.Sprintf("summary_%d", time.Now().UnixNano())
+	log.Printf("[SESSION_SUMMARY] [%s] Starting session summary generation", summaryID)
+
 	// Defensive nil check (though caller should validate)
 	if result == nil {
+		log.Printf("[SESSION_SUMMARY] [%s] ERROR: Result is nil", summaryID)
 		return map[string]interface{}{
 			"error": "Invalid result data",
 		}
 	}
 
+	log.Printf("[SESSION_SUMMARY] [%s] Input data - SessionID: %s, UserID: %s, FinalScore: %.2f", 
+		summaryID, result.SessionID, result.UserID, result.FinalScore)
+	log.Printf("[SESSION_SUMMARY] [%s] Question stats - Attempted: %d, Correct: %d, BadgeLevel: %s", 
+		summaryID, result.QuestionsAttempted, result.QuestionsCorrect, result.BadgeLevel)
+
 	// Calculate accuracy safely to avoid division by zero
+	log.Printf("[SESSION_SUMMARY] [%s] Calculating accuracy", summaryID)
 	accuracy := 0.0
 	if result.QuestionsAttempted > 0 {
 		accuracy = float64(result.QuestionsCorrect) / float64(result.QuestionsAttempted) * 100
+		log.Printf("[SESSION_SUMMARY] [%s] Accuracy calculated: %.2f%% (%d/%d)", 
+			summaryID, accuracy, result.QuestionsCorrect, result.QuestionsAttempted)
+	} else {
+		log.Printf("[SESSION_SUMMARY] [%s] No questions attempted, accuracy remains 0%%", summaryID)
 	}
 
-	return map[string]interface{}{
+	// Create summary object
+	summary := map[string]interface{}{
 		"final_percentage":    result.Percentage,
 		"badge_level":         result.BadgeLevel,
 		"questions_attempted": result.QuestionsAttempted,
 		"questions_correct":   result.QuestionsCorrect,
 		"accuracy":            accuracy,
 		"completion_type":     result.CompletionType,
+		"calculation_metadata": map[string]interface{}{
+			"summary_id":              summaryID,
+			"generation_duration_ms": time.Since(summaryStart).Milliseconds(),
+			"accuracy_formula":       "(correct / attempted) * 100",
+			"input_validation":       "passed",
+		},
 	}
+
+	summaryDuration := time.Since(summaryStart)
+	log.Printf("[SESSION_SUMMARY] [%s] ✅ Session summary generated successfully (took %v)", 
+		summaryID, summaryDuration)
+	log.Printf("[SESSION_SUMMARY] [%s] Summary values - Percentage: %.2f%%, Badge: %s, Accuracy: %.2f%%", 
+		summaryID, result.Percentage, result.BadgeLevel, accuracy)
+
+	return summary
 }
 
+// calculateDetailedProgress computes detailed session progress with comprehensive calculation logging
 func (h *SessionHandler) calculateDetailedProgress(session *models.QuizSession) map[string]interface{} {
-	totalPossibleQuestions := 15 // 5 per stage
-	progressPercentage := float64(session.TotalQuestionsAsked) / float64(totalPossibleQuestions) * 100
+	progressStart := time.Now()
+	progressID := fmt.Sprintf("progress_%d", time.Now().UnixNano())
+	log.Printf("[DETAILED_PROGRESS] [%s] Starting detailed progress calculation for session %s", 
+		progressID, session.ID)
 
+	// Calculate overall progress
+	totalPossibleQuestions := 15 // 5 per stage
+	log.Printf("[DETAILED_PROGRESS] [%s] Progress calculation - Questions asked: %d, Total possible: %d", 
+		progressID, session.TotalQuestionsAsked, totalPossibleQuestions)
+	progressPercentage := float64(session.TotalQuestionsAsked) / float64(totalPossibleQuestions) * 100
+	log.Printf("[DETAILED_PROGRESS] [%s] Overall progress: %.2f%% (%d/%d questions)", 
+		progressID, progressPercentage, session.TotalQuestionsAsked, totalPossibleQuestions)
+
+	// Calculate stage-specific progress
+	log.Printf("[DETAILED_PROGRESS] [%s] Calculating stage progress for %d stages", 
+		progressID, len(session.StageProgress))
 	stageProgress := make(map[string]interface{})
+	stagesProcessed := 0
+
 	for stage, progress := range session.StageProgress {
+		log.Printf("[DETAILED_PROGRESS] [%s] Processing stage '%s' - Attempted: %d, Correct: %d, Passed: %v", 
+			progressID, stage, progress.Attempted, progress.Correct, progress.Passed)
+
+		// Calculate stage accuracy
 		accuracy := 0.0
 		if progress.Attempted > 0 {
 			accuracy = float64(progress.Correct) / float64(progress.Attempted) * 100
+			log.Printf("[DETAILED_PROGRESS] [%s] Stage '%s' accuracy: %.2f%% (%d/%d)", 
+				progressID, stage, accuracy, progress.Correct, progress.Attempted)
+		} else {
+			log.Printf("[DETAILED_PROGRESS] [%s] Stage '%s' not attempted, accuracy: 0%%", 
+				progressID, stage)
 		}
 
-		stageProgress[stage] = map[string]interface{}{
+		// Create stage progress entry
+		stageEntry := map[string]interface{}{
 			"attempted":   progress.Attempted,
 			"correct":     progress.Correct,
 			"accuracy":    accuracy,
 			"passed":      progress.Passed,
 			"score":       progress.Score,
 			"in_recovery": progress.RecoveryRound > 0,
+			"recovery_round": progress.RecoveryRound,
+			"calculation_details": map[string]interface{}{
+				"accuracy_formula": "(correct / attempted) * 100",
+				"raw_correct":      progress.Correct,
+				"raw_attempted":    progress.Attempted,
+				"recovery_status":  progress.RecoveryRound > 0,
+			},
 		}
+		stageProgress[stage] = stageEntry
+		stagesProcessed++
+
+		log.Printf("[DETAILED_PROGRESS] [%s] Stage '%s' completed - Score: %.2f, InRecovery: %v", 
+			progressID, stage, progress.Score, progress.RecoveryRound > 0)
 	}
 
-	return map[string]interface{}{
+	log.Printf("[DETAILED_PROGRESS] [%s] Processed %d stages successfully", progressID, stagesProcessed)
+
+	// Calculate session duration
+	sessionDurationMinutes := time.Since(session.StartTime).Minutes()
+	log.Printf("[DETAILED_PROGRESS] [%s] Session duration: %.2f minutes (started: %v)", 
+		progressID, sessionDurationMinutes, session.StartTime)
+
+	// Create comprehensive progress report
+	progressReport := map[string]interface{}{
 		"overall_progress":   progressPercentage,
 		"current_stage":      session.CurrentStage,
 		"questions_answered": session.TotalQuestionsAsked,
 		"stage_breakdown":    stageProgress,
 		"current_score":      session.FinalScore,
-		"session_duration":   time.Since(session.StartTime).Minutes(),
+		"session_duration":   sessionDurationMinutes,
 		"status":             session.Status,
+		"calculation_metadata": map[string]interface{}{
+			"progress_id":              progressID,
+			"calculation_duration_ms": time.Since(progressStart).Milliseconds(),
+			"total_possible_questions": totalPossibleQuestions,
+			"stages_processed":         stagesProcessed,
+			"progress_formula":         "(questions_answered / total_possible) * 100",
+			"session_start_time":       session.StartTime,
+		},
 	}
+
+	progressDuration := time.Since(progressStart)
+	log.Printf("[DETAILED_PROGRESS] [%s] ✅ Detailed progress calculation completed (took %v)", 
+		progressID, progressDuration)
+	log.Printf("[DETAILED_PROGRESS] [%s] Final results - Progress: %.2f%%, CurrentStage: %s, Score: %.2f", 
+		progressID, progressPercentage, session.CurrentStage, session.FinalScore)
+
+	return progressReport
 }
 
 func (h *SessionHandler) generateSessionStatistics(session *models.QuizSession) map[string]interface{} {

@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"quiz-service/internal/models"
 	"quiz-service/internal/selection"
 	"time"
@@ -26,16 +27,16 @@ func (s *SessionService) generateSessionPoolOptimized(ctx context.Context, sessi
 		return fmt.Errorf("pool manager is not initialized")
 	}
 
-	fmt.Printf("[SessionService] DEBUG: Starting optimized pool generation for session %s\n", sessionID)
+	log.Printf("[POOL_GENERATION] Starting optimized pool generation for session %s", sessionID)
 
 	sessionStartTime := time.Now()
 	skillInfo := s.getSkillInfoFromSession(session)
 	if skillInfo == nil {
-		fmt.Printf("[SessionService] ERROR: Skill information not found for session %s\n", sessionID)
+		log.Printf("[POOL_GENERATION] ERROR: Skill information not found for session %s", sessionID)
 		return fmt.Errorf("skill information not found for session")
 	}
 
-	fmt.Printf("[SessionService] DEBUG: Retrieved skill info for session %s - skill: '%s' (ID: %s), tags: %v\n",
+	log.Printf("[POOL_GENERATION] Retrieved skill info for session %s - skill: '%s' (ID: %s), tags: %v",
 		sessionID, skillInfo.Name, skillInfo.ID, skillInfo.Tags)
 
 	// Define all pool configurations that need to be generated
@@ -81,7 +82,8 @@ func (s *SessionService) generateSessionPoolOptimized(ctx context.Context, sessi
 		},
 	}
 
-	fmt.Printf("[SessionService] DEBUG: Created %d pool configurations for session %s\n", len(poolConfigs), sessionID)
+	log.Printf("[POOL_GENERATION] Created %d pool configurations for session %s", len(poolConfigs), sessionID)
+	log.Printf("[POOL_GENERATION] Pool breakdown - Easy: 2 (initial+recovery), Medium: 2, Hard: 2")
 
 	// Generate all pools in a single batch operation using skill cache
 	batchStartTime := time.Now()
@@ -89,14 +91,16 @@ func (s *SessionService) generateSessionPoolOptimized(ctx context.Context, sessi
 	batchDuration := time.Since(batchStartTime)
 
 	if err != nil {
-		fmt.Printf("[SessionService] ERROR: Batch pool generation failed for session %s: %v (took %v)\n",
-			sessionID, err, batchDuration)
+		log.Printf("[POOL_GENERATION] ERROR: Batch pool generation failed for session %s (took %v): %v",
+			sessionID, batchDuration, err)
 		return fmt.Errorf("failed to batch generate pools: %w", err)
 	}
 
 	totalDuration := time.Since(sessionStartTime)
-	fmt.Printf("[SessionService] DEBUG: Successfully generated %d pools for session %s in %v (batch: %v)\n",
+	log.Printf("[POOL_GENERATION] SUCCESS: Generated %d pools for session %s (total: %v, batch: %v)",
 		len(poolConfigs), sessionID, totalDuration, batchDuration)
+	log.Printf("[POOL_GENERATION] Performance - Avg per pool: %v, Skill: %s", 
+		totalDuration/time.Duration(len(poolConfigs)), skillInfo.Name)
 
 	return nil
 }
@@ -114,10 +118,10 @@ func (s *SessionService) GetSkillCacheStats() map[string]interface{} {
 		}
 	}
 
-	fmt.Printf("[SessionService] DEBUG: Retrieving skill cache statistics\n")
+	log.Printf("[SKILL_CACHE] Retrieving skill cache statistics")
 	skillCache := selection.GetSkillCache()
 	if skillCache == nil {
-		fmt.Printf("[SessionService] ERROR: Skill cache is not initialized\n")
+		log.Printf("[SKILL_CACHE] ERROR: Skill cache is not initialized")
 		return map[string]interface{}{
 			"error": "skill cache is not initialized",
 		}
@@ -125,13 +129,13 @@ func (s *SessionService) GetSkillCacheStats() map[string]interface{} {
 
 	stats := skillCache.GetCacheStats()
 	if stats == nil {
-		fmt.Printf("[SessionService] ERROR: Failed to retrieve cache stats\n")
+		log.Printf("[SKILL_CACHE] ERROR: Failed to retrieve cache stats")
 		return map[string]interface{}{
 			"error": "failed to retrieve cache stats",
 		}
 	}
 
-	fmt.Printf("[SessionService] DEBUG: Current cache stats - entries: %v, total questions: %v\n",
+	log.Printf("[SKILL_CACHE] Current cache stats - entries: %v, total questions: %v",
 		stats["total_entries"], stats["total_questions"])
 
 	return stats
