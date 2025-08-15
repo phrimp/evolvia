@@ -316,8 +316,8 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		return
 	}
 
-	// Ensure question has Bloom scores calculated
-	question.EnsureBloomScores()
+	// Ensure question has Bloom scores calculated using centralized service
+	question.EnsureBloomScoresWithService(h.Service.GetBloomScoringService())
 
 	// Validate and determine correctness based on question type
 	var isAnswerCorrect bool

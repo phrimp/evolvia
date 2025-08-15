@@ -89,7 +89,7 @@ type QuizPoolValidation struct {
 	DifficultyBloomMatrix map[string]map[string]int `json:"difficulty_bloom_matrix"`
 }
 
-// Default selection configuration
+// Default selection configuration (DEPRECATED: use BloomScoringService for distribution)
 func DefaultSelectionCriteria() *SelectionCriteria {
 	return &SelectionCriteria{
 		Count:          5,
@@ -106,7 +106,7 @@ func DefaultSelectionCriteria() *SelectionCriteria {
 	}
 }
 
-// BloomTaxonomyLevels defines the standard Bloom's taxonomy levels in order
+// BloomTaxonomyLevels defines the standard Bloom's taxonomy levels in order (DEPRECATED: use constants.BloomTaxonomyLevels)
 var BloomTaxonomyLevels = []string{
 	"remember",
 	"understand",
@@ -116,7 +116,7 @@ var BloomTaxonomyLevels = []string{
 	"create",
 }
 
-// BloomLevelWeights defines default importance weights for each Bloom level
+// BloomLevelWeights defines default importance weights for each Bloom level (DEPRECATED: use BloomScoringService)
 var BloomLevelWeights = map[string]float64{
 	"remember":   1.0,
 	"understand": 1.2,
@@ -126,7 +126,7 @@ var BloomLevelWeights = map[string]float64{
 	"create":     2.5,
 }
 
-// DifficultyBloomMatrix defines typical Bloom's distribution per difficulty
+// DifficultyBloomMatrix defines typical Bloom's distribution per difficulty (DEPRECATED: use BloomScoringService)
 var DifficultyBloomMatrix = map[string]map[string]float64{
 	"easy": {
 		"remember":   0.5,

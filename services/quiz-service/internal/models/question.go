@@ -61,7 +61,14 @@ type Question struct {
 	BloomScoresByStage map[string]int `bson:"bloom_scores_by_stage" json:"bloom_scores_by_stage"`
 }
 
-// BloomBaseScores defines base scores for each Bloom taxonomy level
+// BloomScoringInterface defines the interface for Bloom scoring services
+type BloomScoringInterface interface {
+	GetQuestionScore(bloomLevel, difficulty string) int
+	GetQuestionScoresByStage(bloomLevel string) map[string]int
+	GetCustomBloomDistribution(targetBlooms []string) map[string]float64
+}
+
+// BloomBaseScores defines base scores for each Bloom taxonomy level (DEPRECATED: use BloomScoringService)
 var BloomBaseScores = map[string]int{
 	"remember":   10,
 	"understand": 15,
@@ -71,7 +78,7 @@ var BloomBaseScores = map[string]int{
 	"create":     35,
 }
 
-// StageMultipliers defines score multipliers for difficulty stages
+// StageMultipliers defines score multipliers for difficulty stages (DEPRECATED: use BloomScoringService)
 var StageMultipliers = map[string]float64{
 	"easy":   1.0,
 	"medium": 1.2,
@@ -118,6 +125,35 @@ func (q *Question) EnsureBloomScores() {
 	}
 	if len(q.BloomScoresByStage) == 0 {
 		q.CalculateBloomScoresByStage()
+	}
+}
+
+// CalculateBloomScoreWithService calculates score using centralized Bloom scoring service
+func (q *Question) CalculateBloomScoreWithService(scorer BloomScoringInterface) {
+	if scorer != nil {
+		q.BloomScore = scorer.GetQuestionScore(q.BloomLevel, "medium") // Use medium as default for base score
+	} else {
+		q.CalculateBloomScore() // Fallback to hardcoded values
+	}
+}
+
+// CalculateBloomScoresByStageWithService calculates scores for all stages using centralized service
+func (q *Question) CalculateBloomScoresByStageWithService(scorer BloomScoringInterface) {
+	if scorer != nil {
+		q.BloomScoresByStage = scorer.GetQuestionScoresByStage(q.BloomLevel)
+		// Set base score as medium difficulty
+		if mediumScore, exists := q.BloomScoresByStage["medium"]; exists {
+			q.BloomScore = mediumScore
+		}
+	} else {
+		q.CalculateBloomScoresByStage() // Fallback to hardcoded values
+	}
+}
+
+// EnsureBloomScoresWithService ensures scores are populated using centralized service
+func (q *Question) EnsureBloomScoresWithService(scorer BloomScoringInterface) {
+	if q.BloomScore == 0 || len(q.BloomScoresByStage) == 0 {
+		q.CalculateBloomScoresByStageWithService(scorer)
 	}
 }
 

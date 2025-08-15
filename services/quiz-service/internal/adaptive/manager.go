@@ -8,9 +8,16 @@ import (
 	"time"
 )
 
+// BloomScoringInterface defines the interface for Bloom scoring services
+type BloomScoringInterface interface {
+	GetQuestionScore(bloomLevel, difficulty string) int
+	GetQuestionScoresByStage(bloomLevel string) map[string]int
+}
+
 // Manager handles adaptive quiz logic
 type Manager struct {
-	config *AdaptiveConfig
+	config      *AdaptiveConfig
+	bloomScorer BloomScoringInterface
 }
 
 // NewManager creates a new adaptive manager
@@ -18,7 +25,26 @@ func NewManager(config *AdaptiveConfig) *Manager {
 	if config == nil {
 		config = DefaultAdaptiveConfig()
 	}
-	return &Manager{config: config}
+	return &Manager{
+		config:      config,
+		bloomScorer: nil, // Will be set via SetBloomScorer
+	}
+}
+
+// NewManagerWithBloomScorer creates a new adaptive manager with Bloom scoring service
+func NewManagerWithBloomScorer(config *AdaptiveConfig, bloomScorer BloomScoringInterface) *Manager {
+	if config == nil {
+		config = DefaultAdaptiveConfig()
+	}
+	return &Manager{
+		config:      config,
+		bloomScorer: bloomScorer,
+	}
+}
+
+// SetBloomScorer sets the Bloom scoring service (for backwards compatibility)
+func (m *Manager) SetBloomScorer(bloomScorer BloomScoringInterface) {
+	m.bloomScorer = bloomScorer
 }
 
 // ProcessAnswer processes an answer and updates the session state with Bloom-aware scoring
@@ -151,14 +177,21 @@ func (m *Manager) calculatePoints(stage Stage, isRecovery bool, isCorrect bool) 
 	return config.BasePoints
 }
 
-// calculateBloomAwarePoints calculates points using question's Bloom score
+// calculateBloomAwarePoints calculates points using centralized Bloom scoring service
 func (m *Manager) calculateBloomAwarePoints(question *models.Question, stage Stage, isRecovery bool, isCorrect bool) float64 {
 	if !isCorrect {
 		return 0
 	}
 
-	// Get the question's score for the current stage
-	baseScore := float64(question.GetScoreForStage(string(stage)))
+	var baseScore float64
+	
+	// Use centralized scoring service if available
+	if m.bloomScorer != nil {
+		baseScore = float64(m.bloomScorer.GetQuestionScore(question.BloomLevel, string(stage)))
+	} else {
+		// Fallback to question's method for backwards compatibility
+		baseScore = float64(question.GetScoreForStage(string(stage)))
+	}
 
 	// Apply recovery penalty if in recovery mode
 	if isRecovery {

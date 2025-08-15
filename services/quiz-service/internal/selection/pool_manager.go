@@ -55,6 +55,14 @@ func getCacheKeys() []string {
 type PoolManager struct {
 	questionRepo *repository.QuestionRepository
 	selector     *WeightedSelector
+	bloomScorer  BloomScoringInterface // NEW: Centralized Bloom scoring
+}
+
+// BloomScoringInterface defines the interface for Bloom scoring services
+type BloomScoringInterface interface {
+	GetBloomDistribution(difficulty string, isRecovery bool) map[string]float64
+	GetRelaxedDistribution() map[string]float64
+	GetCustomBloomDistribution(targetBlooms []string) map[string]float64
 }
 
 // NewPoolManager creates a new pool manager
@@ -62,7 +70,22 @@ func NewPoolManager(questionRepo *repository.QuestionRepository) *PoolManager {
 	return &PoolManager{
 		questionRepo: questionRepo,
 		selector:     NewWeightedSelector(),
+		bloomScorer:  nil, // Will be set via SetBloomScorer
 	}
+}
+
+// NewPoolManagerWithBloomScorer creates a new pool manager with Bloom scoring service
+func NewPoolManagerWithBloomScorer(questionRepo *repository.QuestionRepository, bloomScorer BloomScoringInterface) *PoolManager {
+	return &PoolManager{
+		questionRepo: questionRepo,
+		selector:     NewWeightedSelector(),
+		bloomScorer:  bloomScorer,
+	}
+}
+
+// SetBloomScorer sets the Bloom scoring service (for backwards compatibility)
+func (pm *PoolManager) SetBloomScorer(bloomScorer BloomScoringInterface) {
+	pm.bloomScorer = bloomScorer
 }
 
 // SelectAdaptiveQuestionsWithBloom selects questions with Bloom's level consideration
@@ -285,7 +308,11 @@ func (pm *PoolManager) validateBloomBalance(validation *QuizPoolValidation) {
 
 // getRecoveryBloomDistribution returns simplified Bloom's distribution for recovery
 func (pm *PoolManager) getRecoveryBloomDistribution(difficulty string) map[string]float64 {
-	// For recovery, focus on lower Bloom's levels to help students succeed
+	if pm.bloomScorer != nil {
+		return pm.bloomScorer.GetBloomDistribution(difficulty, true)
+	}
+	
+	// Fallback to hardcoded recovery distribution
 	switch difficulty {
 	case "easy":
 		return map[string]float64{
@@ -315,7 +342,11 @@ func (pm *PoolManager) getRecoveryBloomDistribution(difficulty string) map[strin
 
 // getRelaxedBloomDistribution returns a more flexible Bloom's distribution
 func (pm *PoolManager) getRelaxedBloomDistribution(difficulty string) map[string]float64 {
-	// More balanced distribution when strict requirements can't be met
+	if pm.bloomScorer != nil {
+		return pm.bloomScorer.GetRelaxedDistribution()
+	}
+	
+	// Fallback to hardcoded relaxed distribution
 	return map[string]float64{
 		"remember":   0.2,
 		"understand": 0.2,
@@ -446,9 +477,12 @@ func (pm *PoolManager) SelectAdaptiveQuestions(
 	count int,
 	excludeIDs []string,
 ) (*SelectionResult, error) {
-	// Use default Bloom's distribution
-	bloomDist := DifficultyBloomMatrix[difficulty]
-	if bloomDist == nil {
+	// Use centralized Bloom's distribution
+	var bloomDist map[string]float64
+	if pm.bloomScorer != nil {
+		bloomDist = pm.bloomScorer.GetBloomDistribution(difficulty, false)
+	} else {
+		// Fallback to hardcoded distribution
 		bloomDist = map[string]float64{
 			"remember": 0.2, "understand": 0.2, "apply": 0.2,
 			"analyze": 0.2, "evaluate": 0.1, "create": 0.1,
