@@ -180,13 +180,62 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 
 	switch msg.RoutingKey {
 	case "input.skill":
-		return c.handleInputSkillEvent(msg.Body)
+		return c.handleInputSkillEventWithRecovery(msg.Body)
 	case "quiz.result.completed":
-		return c.handleQuizResultEvent(msg.Body)
+		return c.handleQuizResultEventWithRecovery(msg.Body)
 	default:
 		log.Printf("Unknown routing key: %s", msg.RoutingKey)
 		return nil // Don't requeue unknown message types
 	}
+}
+
+// handleQuizResultEventWithRecovery wraps the main handler with error recovery and metrics
+func (c *EventConsumer) handleQuizResultEventWithRecovery(body []byte) error {
+	startTime := time.Now()
+	
+	// Log raw message for debugging if validation fails
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC_RECOVERY in quiz result handler: %v", r)
+			log.Printf("Raw message body (first 500 chars): %s", string(body[:min(len(body), 500)]))
+		}
+	}()
+
+	err := c.handleQuizResultEvent(body)
+	
+	// Log processing metrics
+	processingTime := time.Since(startTime)
+	if err != nil {
+		log.Printf("EVENT_PROCESSING_FAILED: %v (processing_time: %v)", err, processingTime)
+		c.logFailedEventContext(body, err)
+	} else {
+		log.Printf("EVENT_PROCESSING_SUCCESS: quiz.result.completed (processing_time: %v)", processingTime)
+	}
+	
+	return err
+}
+
+// handleInputSkillEventWithRecovery wraps the input skill handler with error recovery
+func (c *EventConsumer) handleInputSkillEventWithRecovery(body []byte) error {
+	startTime := time.Now()
+	
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC_RECOVERY in input skill handler: %v", r)
+			log.Printf("Raw message body (first 500 chars): %s", string(body[:min(len(body), 500)]))
+		}
+	}()
+
+	err := c.handleInputSkillEvent(body)
+	
+	processingTime := time.Since(startTime)
+	if err != nil {
+		log.Printf("EVENT_PROCESSING_FAILED: %v (processing_time: %v)", err, processingTime)
+	} else {
+		log.Printf("EVENT_PROCESSING_SUCCESS: input.skill (processing_time: %v)", processingTime)
+	}
+	
+	return err
 }
 
 // Fixed handleInputSkillEvent method for your consumer.go
@@ -452,16 +501,23 @@ func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
 		}
 	}
 
+	// Comprehensive event validation and logging
+	if err := c.validateQuizResultEvent(&quizResult); err != nil {
+		c.logEventValidationFailure(&quizResult, err)
+		return fmt.Errorf("quiz result event validation failed: %w", err)
+	}
+
 	log.Printf("Processing enriched quiz completion event for user %s, session %s, config %s, score: %.2f",
 		quizResult.UserID, quizResult.SessionID, quizResult.ConfigID, quizResult.FinalScore)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Convert user ID from string to ObjectID
-	userObjectID, err := bson.ObjectIDFromHex(quizResult.UserID)
+	// Convert user ID from string to ObjectID with enhanced error handling
+	userObjectID, err := c.validateAndConvertUserID(quizResult.UserID)
 	if err != nil {
-		return fmt.Errorf("invalid user ID format: %w", err)
+		c.logUserIDConversionFailure(&quizResult, err)
+		return fmt.Errorf("user ID validation failed: %w", err)
 	}
 
 	// Process skill progressions if available
@@ -650,6 +706,169 @@ func (c *EventConsumer) Close() error {
 	}
 
 	return nil
+}
+
+// validateQuizResultEvent performs comprehensive validation of quiz result events
+func (c *EventConsumer) validateQuizResultEvent(event *QuizResultEvent) error {
+	// Check required fields
+	if event.UserID == "" {
+		return fmt.Errorf("missing required field: user_id")
+	}
+	if event.SessionID == "" {
+		return fmt.Errorf("missing required field: session_id")
+	}
+	if event.ResultID == "" {
+		return fmt.Errorf("missing required field: result_id")
+	}
+
+	// Validate UserID format
+	if !isValidObjectIDHex(event.UserID) {
+		return fmt.Errorf("invalid user_id format: '%s' is not a valid ObjectID hex string", event.UserID)
+	}
+
+	// Validate score ranges
+	if event.FinalScore < 0 || event.FinalScore > 100 {
+		return fmt.Errorf("invalid final_score: %.2f (must be between 0 and 100)", event.FinalScore)
+	}
+
+	// Validate skill progressions if present
+	for i, progression := range event.SkillProgressions {
+		if progression.SkillID == "" {
+			return fmt.Errorf("skill_progressions[%d]: missing skill_id", i)
+		}
+		if !isValidObjectIDHex(progression.SkillID) {
+			return fmt.Errorf("skill_progressions[%d]: invalid skill_id format: '%s'", i, progression.SkillID)
+		}
+	}
+
+	return nil
+}
+
+// validateAndConvertUserID validates and converts user ID to ObjectID with detailed error context
+func (c *EventConsumer) validateAndConvertUserID(userID string) (bson.ObjectID, error) {
+	// Check for empty UserID
+	if userID == "" {
+		return bson.ObjectID{}, fmt.Errorf("user ID is empty")
+	}
+
+	// Check string length (ObjectID hex strings are 24 characters)
+	if len(userID) != 24 {
+		return bson.ObjectID{}, fmt.Errorf("user ID length invalid: got %d characters, expected 24 for ObjectID hex string", len(userID))
+	}
+
+	// Validate hex format before conversion
+	if !isValidObjectIDHex(userID) {
+		return bson.ObjectID{}, fmt.Errorf("user ID contains invalid hex characters: '%s'", userID)
+	}
+
+	// Convert to ObjectID
+	objectID, err := bson.ObjectIDFromHex(userID)
+	if err != nil {
+		return bson.ObjectID{}, fmt.Errorf("failed to convert user ID '%s' to ObjectID: %w", userID, err)
+	}
+
+	return objectID, nil
+}
+
+// logEventValidationFailure logs detailed information about event validation failures
+func (c *EventConsumer) logEventValidationFailure(event *QuizResultEvent, validationErr error) {
+	log.Printf("EVENT_VALIDATION_FAILURE: %v", validationErr)
+	log.Printf("Event details - UserID: '%s' (len=%d), SessionID: '%s', ResultID: '%s', Score: %.2f",
+		event.UserID, len(event.UserID), event.SessionID, event.ResultID, event.FinalScore)
+	
+	// Log skill progressions if present
+	if len(event.SkillProgressions) > 0 {
+		log.Printf("SkillProgressions count: %d", len(event.SkillProgressions))
+		for i, prog := range event.SkillProgressions {
+			log.Printf("  [%d] SkillID: '%s' (len=%d, valid_hex=%t)", 
+				i, prog.SkillID, len(prog.SkillID), isValidObjectIDHex(prog.SkillID))
+		}
+	}
+	
+	// Log event metadata
+	log.Printf("Event metadata - ConfigID: '%s', TimeBreakdown: %+v", 
+		event.ConfigID, event.TimeBreakdown)
+}
+
+// logUserIDConversionFailure logs detailed information about UserID conversion failures
+func (c *EventConsumer) logUserIDConversionFailure(event *QuizResultEvent, conversionErr error) {
+	log.Printf("USER_ID_CONVERSION_FAILURE: %v", conversionErr)
+	log.Printf("UserID analysis - Value: '%s', Length: %d, IsHex: %t", 
+		event.UserID, len(event.UserID), isValidObjectIDHex(event.UserID))
+	
+	// Character-by-character analysis for debugging
+	if len(event.UserID) > 0 {
+		log.Printf("UserID character analysis:")
+		for i, char := range event.UserID {
+			log.Printf("  [%d]: '%c' (0x%02X)", i, char, char)
+			if i >= 10 { // Limit output for very long strings
+				log.Printf("  ... (truncated at 10 characters)")
+				break
+			}
+		}
+	}
+	
+	// Log full event context for debugging
+	log.Printf("Full event context - SessionID: '%s', ResultID: '%s'", 
+		event.SessionID, event.ResultID)
+}
+
+// logFailedEventContext logs comprehensive context for failed events
+func (c *EventConsumer) logFailedEventContext(body []byte, err error) {
+	log.Printf("FAILED_EVENT_CONTEXT: %v", err)
+	log.Printf("Raw message length: %d bytes", len(body))
+	
+	// Log first 1000 characters of raw message for debugging
+	maxLen := min(len(body), 1000)
+	log.Printf("Raw message content (first %d chars): %s", maxLen, string(body[:maxLen]))
+	
+	// Try to parse as generic JSON to understand structure
+	var genericData map[string]interface{}
+	if jsonErr := json.Unmarshal(body, &genericData); jsonErr == nil {
+		log.Printf("Generic JSON structure keys: %v", getMapKeys(genericData))
+		
+		// Log specific fields that might be problematic
+		if userID, exists := genericData["user_id"]; exists {
+			log.Printf("Raw user_id field: %v (type: %T)", userID, userID)
+		}
+		if payload, exists := genericData["payload"]; exists {
+			if payloadMap, ok := payload.(map[string]interface{}); ok {
+				if userID, exists := payloadMap["user_id"]; exists {
+					log.Printf("Raw payload.user_id field: %v (type: %T)", userID, userID)
+				}
+			}
+		}
+	} else {
+		log.Printf("Failed to parse as generic JSON: %v", jsonErr)
+	}
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// getMapKeys extracts keys from a map for logging
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// isValidObjectIDHex checks if a string is a valid ObjectID hex string
+func isValidObjectIDHex(s string) bool {
+	if len(s) != 24 {
+		return false
+	}
+	
+	// Try to convert and catch any errors
+	_, err := bson.ObjectIDFromHex(s)
+	return err == nil
 }
 
 // SkillMatch represents a skill detected in text
