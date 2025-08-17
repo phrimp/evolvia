@@ -758,21 +758,58 @@ func (s *SessionService) ResumeSession(ctx context.Context, sessionID string) er
 	return nil
 }
 
-// GetSessionStatus returns current session status
+// GetSessionStatus returns current session status with Bloom breakdown from cached answers
 func (s *SessionService) GetSessionStatus(ctx context.Context, sessionID string) (map[string]interface{}, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[SESSION_STATUS] [%s] PANIC RECOVERED: %v", sessionID, r)
+		}
+	}()
+
+	log.Printf("[SESSION_STATUS] [%s] Starting session status retrieval", sessionID)
+
 	session, err := s.Repo.FindByID(ctx, sessionID)
 	if err != nil {
+		log.Printf("[SESSION_STATUS] [%s] Session not found in database: %v", sessionID, err)
 		return nil, fmt.Errorf("session not found: %w", err)
 	}
 
+	log.Printf("[SESSION_STATUS] [%s] Session found, status: %s", sessionID, session.Status)
+
+	// Get basic adaptive session summary
 	adaptiveSession := s.reconstructAdaptiveSession(session)
 	summary := s.adaptiveManager.GetSessionSummary(adaptiveSession)
 
-	// Add additional info
-	summary["time_elapsed"] = int(time.Since(session.StartTime).Seconds())
-	summary["time_remaining"] = s.calculateTimeRemaining(session)
-	summary["skill_info"] = s.getSkillInfoFromSession(session)
+	// Calculate Bloom breakdown from cached answers
+	bloomBreakdown, err := s.calculateBloomBreakdownFromCache(sessionID)
+	if err != nil {
+		log.Printf("[SESSION_STATUS] [%s] Failed to calculate Bloom breakdown: %v", sessionID, err)
+		// Continue without Bloom breakdown but include error info
+		summary["bloom_breakdown_error"] = err.Error()
+	} else {
+		log.Printf("[SESSION_STATUS] [%s] Successfully calculated Bloom breakdown", sessionID)
+		summary["bloom_breakdown"] = bloomBreakdown
+	}
 
+	// Add additional info with comprehensive logging
+	timeElapsed := int(time.Since(session.StartTime).Seconds())
+	timeRemaining := s.calculateTimeRemaining(session)
+	skillInfo := s.getSkillInfoFromSession(session)
+
+	summary["time_elapsed"] = timeElapsed
+	summary["time_remaining"] = timeRemaining
+	summary["skill_info"] = skillInfo
+
+	// Add cached answers count for transparency
+	if cachedCount := s.GetCachedAnswerCount(sessionID); cachedCount > 0 {
+		summary["cached_answers_count"] = cachedCount
+		log.Printf("[SESSION_STATUS] [%s] Found %d cached answers", sessionID, cachedCount)
+	} else {
+		log.Printf("[SESSION_STATUS] [%s] No cached answers found", sessionID)
+		summary["cached_answers_count"] = 0
+	}
+
+	log.Printf("[SESSION_STATUS] [%s] Session status completed successfully", sessionID)
 	return summary, nil
 }
 
@@ -1509,7 +1546,303 @@ func (s *SessionService) calculateTimeRemaining(session *models.QuizSession) int
 	return remaining
 }
 
-// buildBloomBreakdown creates comprehensive Bloom taxonomy performance breakdown
+// calculateBloomBreakdownFromCache creates comprehensive Bloom taxonomy performance breakdown from cached answers
+func (s *SessionService) calculateBloomBreakdownFromCache(sessionID string) (models.BloomBreakdown, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[BLOOM_BREAKDOWN] [%s] PANIC RECOVERED: %v", sessionID, r)
+		}
+	}()
+
+	log.Printf("[BLOOM_BREAKDOWN] [%s] Starting Bloom breakdown calculation from cached answers", sessionID)
+	
+	// Get cached answers
+	cachedAnswers, exists := s.GetCachedAnswers(sessionID)
+	if !exists {
+		log.Printf("[BLOOM_BREAKDOWN] [%s] No cached answers found, returning empty breakdown", sessionID)
+		return models.BloomBreakdown{}, fmt.Errorf("no cached answers found for session %s", sessionID)
+	}
+
+	log.Printf("[BLOOM_BREAKDOWN] [%s] Found %d cached answers", sessionID, len(cachedAnswers))
+
+	// Validate inputs before processing
+	validation := s.ValidateBloomBreakdownInputs(sessionID, cachedAnswers)
+	if !validation.IsValid {
+		log.Printf("[BLOOM_BREAKDOWN] [%s] Input validation failed: %v", sessionID, validation.Errors)
+		return models.BloomBreakdown{}, fmt.Errorf("input validation failed: %v", validation.Errors)
+	}
+
+	if len(validation.Warnings) > 0 {
+		log.Printf("[BLOOM_BREAKDOWN] [%s] Input validation warnings: %v", sessionID, validation.Warnings)
+	}
+
+	log.Printf("[BLOOM_BREAKDOWN] [%s] Input validation passed: %d/%d valid answers", sessionID, validation.ValidAnswers, validation.TotalAnswers)
+
+	// Initialize Bloom level performance tracking
+	bloomData := make(map[string]*models.BloomLevelPerformance)
+	bloomLevels := []string{"remember", "understand", "apply", "analyze", "evaluate", "create"}
+	
+	for _, level := range bloomLevels {
+		bloomData[level] = &models.BloomLevelPerformance{}
+	}
+
+	// Process each cached answer
+	for i, answer := range cachedAnswers {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[BLOOM_BREAKDOWN] [%s] PANIC processing answer %d (QuestionID: %s): %v", sessionID, i, answer.QuestionID, r)
+				}
+			}()
+
+			if answer.BloomLevel == "" {
+				log.Printf("[BLOOM_BREAKDOWN] [%s] WARNING: Answer %d (QuestionID: %s) has empty BloomLevel, skipping", sessionID, i, answer.QuestionID)
+				return
+			}
+
+			level := strings.ToLower(answer.BloomLevel)
+			if bloomData[level] == nil {
+				log.Printf("[BLOOM_BREAKDOWN] [%s] WARNING: Unknown BloomLevel '%s' for QuestionID %s, skipping", sessionID, level, answer.QuestionID)
+				return
+			}
+
+			perf := bloomData[level]
+			perf.QuestionsAttempted++
+			
+			if answer.IsCorrect {
+				perf.QuestionsCorrect++
+			}
+			
+			perf.ActualScore += answer.PointsEarned
+			perf.TotalTimeSpent += answer.TimeSpentSeconds
+			
+			// Calculate possible score based on actual scoring or estimation
+			if answer.IsCorrect && answer.PointsEarned > 0 {
+				// For correct answers, the points earned IS the possible score
+				perf.PossibleScore += answer.PointsEarned
+			} else if answer.PointsEarned > 0 {
+				// For incorrect answers with points, estimate what full points would be
+				// This handles partial credit scenarios
+				estimatedFullScore := s.estimatePossibleScore(level)
+				if answer.PointsEarned < estimatedFullScore {
+					perf.PossibleScore += estimatedFullScore
+				} else {
+					// If earned points exceed estimate, use earned points as the ceiling
+					perf.PossibleScore += answer.PointsEarned
+				}
+			} else {
+				// No points earned, use estimation
+				perf.PossibleScore += s.estimatePossibleScore(level)
+			}
+
+			log.Printf("[BLOOM_BREAKDOWN] [%s] Processed answer %d: Level=%s, Correct=%v, Points=%.2f, Time=%ds", 
+				sessionID, i, level, answer.IsCorrect, answer.PointsEarned, answer.TimeSpentSeconds)
+		}()
+	}
+
+	// Calculate derived metrics for each level
+	breakdown := models.BloomBreakdown{}
+	for level, perf := range bloomData {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[BLOOM_BREAKDOWN] [%s] PANIC calculating metrics for level %s: %v", sessionID, level, r)
+				}
+			}()
+
+			s.calculateBloomLevelMetrics(perf)
+			
+			switch level {
+			case "remember":
+				breakdown.Remember = *perf
+			case "understand":
+				breakdown.Understand = *perf
+			case "apply":
+				breakdown.Apply = *perf
+			case "analyze":
+				breakdown.Analyze = *perf
+			case "evaluate":
+				breakdown.Evaluate = *perf
+			case "create":
+				breakdown.Create = *perf
+			}
+
+			log.Printf("[BLOOM_BREAKDOWN] [%s] Level %s: Attempted=%d, Correct=%d, Accuracy=%.2f%%, Score=%.2f/%.2f", 
+				sessionID, level, perf.QuestionsAttempted, perf.QuestionsCorrect, perf.AccuracyPercentage, perf.ActualScore, perf.PossibleScore)
+		}()
+	}
+
+	// Generate cognitive profile
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[BLOOM_BREAKDOWN] [%s] PANIC generating cognitive profile: %v", sessionID, r)
+			}
+		}()
+
+		breakdown.Summary = s.generateCognitiveProfileFromBreakdown(&breakdown)
+		log.Printf("[BLOOM_BREAKDOWN] [%s] Generated cognitive profile: %+v", sessionID, breakdown.Summary)
+	}()
+
+	// Validate the final breakdown result
+	if err := s.ValidateBloomBreakdownResult(sessionID, &breakdown, validation); err != nil {
+		log.Printf("[BLOOM_BREAKDOWN] [%s] Result validation failed: %v", sessionID, err)
+		// Continue anyway, just log the issue
+	}
+
+	log.Printf("[BLOOM_BREAKDOWN] [%s] Bloom breakdown calculation completed successfully", sessionID)
+	return breakdown, nil
+}
+
+// estimatePossibleScore estimates the possible score for a Bloom level when actual score is unavailable
+func (s *SessionService) estimatePossibleScore(bloomLevel string) float64 {
+	// Base scoring estimates per Bloom level (can be made configurable)
+	scoreMap := map[string]float64{
+		"remember":   1.0,
+		"understand": 1.5,
+		"apply":      2.0,
+		"analyze":    2.5,
+		"evaluate":   3.0,
+		"create":     3.5,
+	}
+	
+	if score, exists := scoreMap[bloomLevel]; exists {
+		return score
+	}
+	return 2.0 // Default score
+}
+
+// calculateBloomLevelMetrics calculates derived metrics for a Bloom level performance
+func (s *SessionService) calculateBloomLevelMetrics(perf *models.BloomLevelPerformance) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[BLOOM_METRICS] PANIC calculating metrics: %v", r)
+		}
+	}()
+
+	// Calculate accuracy percentage
+	if perf.QuestionsAttempted > 0 {
+		perf.AccuracyPercentage = float64(perf.QuestionsCorrect) / float64(perf.QuestionsAttempted) * 100
+	}
+
+	// Calculate score percentage
+	if perf.PossibleScore > 0 {
+		perf.ScorePercentage = perf.ActualScore / perf.PossibleScore * 100
+	}
+
+	// Calculate average question score
+	if perf.QuestionsAttempted > 0 {
+		perf.AverageQuestionScore = perf.ActualScore / float64(perf.QuestionsAttempted)
+	}
+
+	// Calculate average time per question
+	if perf.QuestionsAttempted > 0 {
+		perf.AverageTimePerQ = float64(perf.TotalTimeSpent) / float64(perf.QuestionsAttempted)
+	}
+
+	// Calculate efficiency rating
+	if perf.AccuracyPercentage >= 90 && perf.AverageTimePerQ <= 30 {
+		perf.EfficiencyRating = "excellent"
+	} else if perf.AccuracyPercentage >= 75 && perf.AverageTimePerQ <= 60 {
+		perf.EfficiencyRating = "good"
+	} else if perf.AccuracyPercentage >= 60 {
+		perf.EfficiencyRating = "fair"
+	} else {
+		perf.EfficiencyRating = "needs_improvement"
+	}
+
+	// Validate calculated values to prevent infinite values
+	if math.IsInf(perf.AccuracyPercentage, 0) || math.IsNaN(perf.AccuracyPercentage) {
+		perf.AccuracyPercentage = 0.0
+	}
+	if math.IsInf(perf.ScorePercentage, 0) || math.IsNaN(perf.ScorePercentage) {
+		perf.ScorePercentage = 0.0
+	}
+	if math.IsInf(perf.AverageQuestionScore, 0) || math.IsNaN(perf.AverageQuestionScore) {
+		perf.AverageQuestionScore = 0.0
+	}
+	if math.IsInf(perf.AverageTimePerQ, 0) || math.IsNaN(perf.AverageTimePerQ) {
+		perf.AverageTimePerQ = 0.0
+	}
+}
+
+// generateCognitiveProfileFromBreakdown generates cognitive profile from breakdown data
+func (s *SessionService) generateCognitiveProfileFromBreakdown(breakdown *models.BloomBreakdown) models.CognitiveProfile {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[COGNITIVE_PROFILE] PANIC generating profile: %v", r)
+		}
+	}()
+
+	profile := models.CognitiveProfile{}
+	
+	// Collect performance data
+	levels := []struct {
+		name string
+		perf models.BloomLevelPerformance
+	}{
+		{"remember", breakdown.Remember},
+		{"understand", breakdown.Understand},
+		{"apply", breakdown.Apply},
+		{"analyze", breakdown.Analyze},
+		{"evaluate", breakdown.Evaluate},
+		{"create", breakdown.Create},
+	}
+
+	var totalAttempted, totalCorrect int
+	var totalScore, totalPossible float64
+	var strengthLevels, weaknessLevels []string
+
+	for _, level := range levels {
+		if level.perf.QuestionsAttempted > 0 {
+			totalAttempted += level.perf.QuestionsAttempted
+			totalCorrect += level.perf.QuestionsCorrect
+			totalScore += level.perf.ActualScore
+			totalPossible += level.perf.PossibleScore
+
+			// Identify strengths and weaknesses
+			if level.perf.AccuracyPercentage >= 80 {
+				strengthLevels = append(strengthLevels, level.name)
+			} else if level.perf.AccuracyPercentage < 60 {
+				weaknessLevels = append(weaknessLevels, level.name)
+			}
+		}
+	}
+
+	// Set profile properties using existing CognitiveProfile structure
+	if totalAttempted > 0 {
+		profile.OverallPercentage = float64(totalCorrect) / float64(totalAttempted) * 100
+	}
+	if totalPossible > 0 {
+		// Use CognitiveComplexity to store overall score percentage
+		profile.CognitiveComplexity = totalScore / totalPossible * 100
+	}
+
+	profile.DominantStrengths = strengthLevels
+	profile.GrowthAreas = weaknessLevels
+
+	// Generate learning recommendations based on cognitive patterns
+	var recommendations []string
+	if breakdown.Create.AccuracyPercentage > breakdown.Remember.AccuracyPercentage {
+		recommendations = append(recommendations, "Focus on creative problem-solving exercises")
+	} else if breakdown.Analyze.AccuracyPercentage > 75 {
+		recommendations = append(recommendations, "Continue developing analytical thinking skills")
+	} else if breakdown.Apply.AccuracyPercentage > 75 {
+		recommendations = append(recommendations, "Practice more application-based problems")
+	} else {
+		recommendations = append(recommendations, "Strengthen foundational knowledge first")
+	}
+	
+	if len(weaknessLevels) > 0 {
+		recommendations = append(recommendations, fmt.Sprintf("Focus improvement on: %s", strings.Join(weaknessLevels, ", ")))
+	}
+	
+	profile.LearningRecommendations = recommendations
+
+	return profile
+}
+
+// buildBloomBreakdown creates comprehensive Bloom taxonomy performance breakdown (DEPRECATED - use calculateBloomBreakdownFromCache)
 func (s *SessionService) buildBloomBreakdown(session *adaptive.AdaptiveSession) models.BloomBreakdown {
 	breakdown := models.BloomBreakdown{}
 
@@ -1684,9 +2017,21 @@ func (s *SessionService) createQuizResult(session *models.QuizSession, completio
 		totalCorrect += progress.Correct
 	}
 
-	// Build comprehensive Bloom breakdown
-	adaptiveSession := s.reconstructAdaptiveSession(session)
-	bloomBreakdown := s.buildBloomBreakdown(adaptiveSession)
+	// Build comprehensive Bloom breakdown from cached answers
+	bloomBreakdown, err := s.calculateBloomBreakdownFromCache(session.ID)
+	if err != nil {
+		log.Printf("[SESSION_RESULT] [%s] Failed to calculate Bloom breakdown from cache: %v", session.ID, err)
+		// Fallback to empty breakdown with proper structure
+		bloomBreakdown = models.BloomBreakdown{
+			Remember:   models.BloomLevelPerformance{},
+			Understand: models.BloomLevelPerformance{},
+			Apply:      models.BloomLevelPerformance{},
+			Analyze:    models.BloomLevelPerformance{},
+			Evaluate:   models.BloomLevelPerformance{},
+			Create:     models.BloomLevelPerformance{},
+			Summary:    models.CognitiveProfile{},
+		}
+	}
 
 	// Calculate average time per question safely to prevent +Inf values
 	totalTimeSeconds := int(time.Since(session.StartTime).Seconds())

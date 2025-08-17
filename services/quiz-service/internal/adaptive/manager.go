@@ -65,25 +65,25 @@ func (m *Manager) ProcessAnswer(session *AdaptiveSession, question *models.Quest
 		currentStatus.CorrectAnswers++
 	}
 
-	// Initialize Bloom tracking if needed
-	session.InitializeBloomTracking()
+	// DEPRECATED: Bloom tracking moved to cached answers approach
+	// session.InitializeBloomTracking()
 
-	// Calculate question timing
-	questionDuration := 0
+	// Calculate question timing (kept for potential future use)
+	_ = 0
 	if !session.QuestionStartTime.IsZero() {
-		questionDuration = int(time.Since(session.QuestionStartTime).Seconds())
+		_ = int(time.Since(session.QuestionStartTime).Seconds())
 	}
 
-	// Calculate both actual and possible scores for Bloom tracking
+	// Calculate actual score for traditional scoring
 	actualScore := m.calculateBloomAwarePoints(question, session.CurrentStage, currentStatus.InRecovery, isCorrect)
-	possibleScore := m.calculateBloomAwarePoints(question, session.CurrentStage, currentStatus.InRecovery, true)
+	// possibleScore calculation removed - now handled in cached answers approach
 
 	// Update traditional scoring
 	currentStatus.Score += actualScore
 	session.TotalScore += actualScore
 
-	// Update Bloom performance tracking
-	m.updateBloomPerformance(session, question, actualScore, possibleScore, questionDuration)
+	// DEPRECATED: Bloom performance tracking moved to cached answers approach
+	// m.updateBloomPerformance(session, question, actualScore, possibleScore, questionDuration)
 
 	// Reset question timer for next question
 	session.QuestionStartTime = time.Now()
