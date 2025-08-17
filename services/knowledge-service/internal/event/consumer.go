@@ -497,7 +497,19 @@ func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
 
 		if err := json.Unmarshal(payloadBytes, &quizResult); err != nil {
 			log.Printf("failed to unmarshal quiz result from payload: %s", err)
+			log.Printf("payload content: %s", string(payloadBytes))
 			return fmt.Errorf("failed to unmarshal quiz result from payload: %w", err)
+		}
+		
+		// Verify that critical fields were populated from payload
+		if quizResult.UserID == "" {
+			log.Printf("WARNING: UserID still empty after payload parsing")
+			log.Printf("Payload content: %s", string(payloadBytes))
+			
+			// Manual field extraction as fallback
+			if err := c.extractCriticalFieldsFromPayload(payloadBytes, &quizResult); err != nil {
+				log.Printf("Failed to extract critical fields manually: %v", err)
+			}
 		}
 	}
 
@@ -869,6 +881,74 @@ func isValidObjectIDHex(s string) bool {
 	// Try to convert and catch any errors
 	_, err := bson.ObjectIDFromHex(s)
 	return err == nil
+}
+
+// extractCriticalFieldsFromPayload manually extracts required fields from payload when struct unmarshaling fails
+func (c *EventConsumer) extractCriticalFieldsFromPayload(payloadBytes []byte, quizResult *QuizResultEvent) error {
+	var payloadMap map[string]interface{}
+	if err := json.Unmarshal(payloadBytes, &payloadMap); err != nil {
+		return fmt.Errorf("failed to unmarshal payload as map: %w", err)
+	}
+	
+	log.Printf("Extracting critical fields from payload. Available keys: %v", getMapKeys(payloadMap))
+	
+	// Extract UserID
+	if userID, exists := payloadMap["user_id"]; exists {
+		if userIDStr, ok := userID.(string); ok && userIDStr != "" {
+			log.Printf("Manually extracted user_id: '%s'", userIDStr)
+			quizResult.UserID = userIDStr
+		}
+	}
+	
+	// Extract SessionID
+	if sessionID, exists := payloadMap["session_id"]; exists {
+		if sessionIDStr, ok := sessionID.(string); ok {
+			log.Printf("Manually extracted session_id: '%s'", sessionIDStr)
+			quizResult.SessionID = sessionIDStr
+		}
+	}
+	
+	// Extract ResultID
+	if resultID, exists := payloadMap["result_id"]; exists {
+		if resultIDStr, ok := resultID.(string); ok {
+			log.Printf("Manually extracted result_id: '%s'", resultIDStr)
+			quizResult.ResultID = resultIDStr
+		}
+	}
+	
+	// Extract QuizID
+	if quizID, exists := payloadMap["quiz_id"]; exists {
+		if quizIDStr, ok := quizID.(string); ok {
+			log.Printf("Manually extracted quiz_id: '%s'", quizIDStr)
+			quizResult.QuizID = quizIDStr
+		}
+	}
+	
+	// Extract ConfigID
+	if configID, exists := payloadMap["config_id"]; exists {
+		if configIDStr, ok := configID.(string); ok {
+			log.Printf("Manually extracted config_id: '%s'", configIDStr)
+			quizResult.ConfigID = configIDStr
+		}
+	}
+	
+	// Extract FinalScore
+	if finalScore, exists := payloadMap["final_score"]; exists {
+		if score, ok := finalScore.(float64); ok {
+			log.Printf("Manually extracted final_score: %.2f", score)
+			quizResult.FinalScore = score
+		}
+	}
+	
+	// Extract BadgeLevel
+	if badgeLevel, exists := payloadMap["badge_level"]; exists {
+		if badgeLevelStr, ok := badgeLevel.(string); ok {
+			log.Printf("Manually extracted badge_level: '%s'", badgeLevelStr)
+			quizResult.BadgeLevel = badgeLevelStr
+		}
+	}
+	
+	return nil
 }
 
 // SkillMatch represents a skill detected in text
