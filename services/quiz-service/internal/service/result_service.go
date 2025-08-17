@@ -38,32 +38,5 @@ func (s *ResultService) CreateResult(ctx context.Context, result *models.QuizRes
 		return err
 	}
 
-	// Publish quiz result event for knowledge service consumption
-	if s.Publisher != nil {
-		eventData := map[string]interface{}{
-			"result_id":           result.ID,
-			"session_id":          result.SessionID,
-			"user_id":             result.UserID,
-			"config_id":           result.ConfigID,
-			"final_score":         result.FinalScore,
-			"percentage":          result.Percentage,
-			"badge_level":         result.BadgeLevel,
-			"questions_attempted": result.QuestionsAttempted,
-			"questions_correct":   result.QuestionsCorrect,
-			"bloom_breakdown":     result.BloomBreakdown,
-			"stage_breakdown":     result.StageBreakdown,
-			"time_breakdown":      result.TimeBreakdown,
-			"completion_type":     result.CompletionType,
-			"created_at":          result.CreatedAt,
-		}
-
-		err := s.Publisher.Publish("quiz.result.completed", eventData)
-		if err != nil {
-			// Log the error but don't fail the result creation
-			// Event publishing is supplementary to core functionality
-			// In production, consider implementing retry logic or dead letter queues
-		}
-	}
-
 	return nil
 }

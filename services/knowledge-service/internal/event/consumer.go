@@ -181,7 +181,7 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 	switch msg.RoutingKey {
 	case "input.skill":
 		return c.handleInputSkillEventWithRecovery(msg.Body)
-	case "quiz.result.completed":
+	case "quiz_completed":
 		return c.handleQuizResultEventWithRecovery(msg.Body)
 	default:
 		log.Printf("Unknown routing key: %s", msg.RoutingKey)
@@ -192,7 +192,7 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 // handleQuizResultEventWithRecovery wraps the main handler with error recovery and metrics
 func (c *EventConsumer) handleQuizResultEventWithRecovery(body []byte) error {
 	startTime := time.Now()
-	
+
 	// Log raw message for debugging if validation fails
 	defer func() {
 		if r := recover(); r != nil {
@@ -202,7 +202,7 @@ func (c *EventConsumer) handleQuizResultEventWithRecovery(body []byte) error {
 	}()
 
 	err := c.handleQuizResultEvent(body)
-	
+
 	// Log processing metrics
 	processingTime := time.Since(startTime)
 	if err != nil {
@@ -211,14 +211,14 @@ func (c *EventConsumer) handleQuizResultEventWithRecovery(body []byte) error {
 	} else {
 		log.Printf("EVENT_PROCESSING_SUCCESS: quiz.result.completed (processing_time: %v)", processingTime)
 	}
-	
+
 	return err
 }
 
 // handleInputSkillEventWithRecovery wraps the input skill handler with error recovery
 func (c *EventConsumer) handleInputSkillEventWithRecovery(body []byte) error {
 	startTime := time.Now()
-	
+
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("PANIC_RECOVERY in input skill handler: %v", r)
@@ -227,14 +227,14 @@ func (c *EventConsumer) handleInputSkillEventWithRecovery(body []byte) error {
 	}()
 
 	err := c.handleInputSkillEvent(body)
-	
+
 	processingTime := time.Since(startTime)
 	if err != nil {
 		log.Printf("EVENT_PROCESSING_FAILED: %v (processing_time: %v)", err, processingTime)
 	} else {
 		log.Printf("EVENT_PROCESSING_SUCCESS: input.skill (processing_time: %v)", processingTime)
 	}
-	
+
 	return err
 }
 
@@ -500,12 +500,12 @@ func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
 			log.Printf("payload content: %s", string(payloadBytes))
 			return fmt.Errorf("failed to unmarshal quiz result from payload: %w", err)
 		}
-		
+
 		// Verify that critical fields were populated from payload
 		if quizResult.UserID == "" {
 			log.Printf("WARNING: UserID still empty after payload parsing")
 			log.Printf("Payload content: %s", string(payloadBytes))
-			
+
 			// Manual field extraction as fallback
 			if err := c.extractCriticalFieldsFromPayload(payloadBytes, &quizResult); err != nil {
 				log.Printf("Failed to extract critical fields manually: %v", err)
@@ -787,27 +787,27 @@ func (c *EventConsumer) logEventValidationFailure(event *QuizResultEvent, valida
 	log.Printf("EVENT_VALIDATION_FAILURE: %v", validationErr)
 	log.Printf("Event details - UserID: '%s' (len=%d), SessionID: '%s', ResultID: '%s', Score: %.2f",
 		event.UserID, len(event.UserID), event.SessionID, event.ResultID, event.FinalScore)
-	
+
 	// Log skill progressions if present
 	if len(event.SkillProgressions) > 0 {
 		log.Printf("SkillProgressions count: %d", len(event.SkillProgressions))
 		for i, prog := range event.SkillProgressions {
-			log.Printf("  [%d] SkillID: '%s' (len=%d, valid_hex=%t)", 
+			log.Printf("  [%d] SkillID: '%s' (len=%d, valid_hex=%t)",
 				i, prog.SkillID, len(prog.SkillID), isValidObjectIDHex(prog.SkillID))
 		}
 	}
-	
+
 	// Log event metadata
-	log.Printf("Event metadata - ConfigID: '%s', TimeBreakdown: %+v", 
+	log.Printf("Event metadata - ConfigID: '%s', TimeBreakdown: %+v",
 		event.ConfigID, event.TimeBreakdown)
 }
 
 // logUserIDConversionFailure logs detailed information about UserID conversion failures
 func (c *EventConsumer) logUserIDConversionFailure(event *QuizResultEvent, conversionErr error) {
 	log.Printf("USER_ID_CONVERSION_FAILURE: %v", conversionErr)
-	log.Printf("UserID analysis - Value: '%s', Length: %d, IsHex: %t", 
+	log.Printf("UserID analysis - Value: '%s', Length: %d, IsHex: %t",
 		event.UserID, len(event.UserID), isValidObjectIDHex(event.UserID))
-	
+
 	// Character-by-character analysis for debugging
 	if len(event.UserID) > 0 {
 		log.Printf("UserID character analysis:")
@@ -819,9 +819,9 @@ func (c *EventConsumer) logUserIDConversionFailure(event *QuizResultEvent, conve
 			}
 		}
 	}
-	
+
 	// Log full event context for debugging
-	log.Printf("Full event context - SessionID: '%s', ResultID: '%s'", 
+	log.Printf("Full event context - SessionID: '%s', ResultID: '%s'",
 		event.SessionID, event.ResultID)
 }
 
@@ -829,16 +829,16 @@ func (c *EventConsumer) logUserIDConversionFailure(event *QuizResultEvent, conve
 func (c *EventConsumer) logFailedEventContext(body []byte, err error) {
 	log.Printf("FAILED_EVENT_CONTEXT: %v", err)
 	log.Printf("Raw message length: %d bytes", len(body))
-	
+
 	// Log first 1000 characters of raw message for debugging
 	maxLen := min(len(body), 1000)
 	log.Printf("Raw message content (first %d chars): %s", maxLen, string(body[:maxLen]))
-	
+
 	// Try to parse as generic JSON to understand structure
 	var genericData map[string]interface{}
 	if jsonErr := json.Unmarshal(body, &genericData); jsonErr == nil {
 		log.Printf("Generic JSON structure keys: %v", getMapKeys(genericData))
-		
+
 		// Log specific fields that might be problematic
 		if userID, exists := genericData["user_id"]; exists {
 			log.Printf("Raw user_id field: %v (type: %T)", userID, userID)
@@ -877,7 +877,7 @@ func isValidObjectIDHex(s string) bool {
 	if len(s) != 24 {
 		return false
 	}
-	
+
 	// Try to convert and catch any errors
 	_, err := bson.ObjectIDFromHex(s)
 	return err == nil
@@ -889,9 +889,9 @@ func (c *EventConsumer) extractCriticalFieldsFromPayload(payloadBytes []byte, qu
 	if err := json.Unmarshal(payloadBytes, &payloadMap); err != nil {
 		return fmt.Errorf("failed to unmarshal payload as map: %w", err)
 	}
-	
+
 	log.Printf("Extracting critical fields from payload. Available keys: %v", getMapKeys(payloadMap))
-	
+
 	// Extract UserID
 	if userID, exists := payloadMap["user_id"]; exists {
 		if userIDStr, ok := userID.(string); ok && userIDStr != "" {
@@ -899,7 +899,7 @@ func (c *EventConsumer) extractCriticalFieldsFromPayload(payloadBytes []byte, qu
 			quizResult.UserID = userIDStr
 		}
 	}
-	
+
 	// Extract SessionID
 	if sessionID, exists := payloadMap["session_id"]; exists {
 		if sessionIDStr, ok := sessionID.(string); ok {
@@ -907,7 +907,7 @@ func (c *EventConsumer) extractCriticalFieldsFromPayload(payloadBytes []byte, qu
 			quizResult.SessionID = sessionIDStr
 		}
 	}
-	
+
 	// Extract ResultID
 	if resultID, exists := payloadMap["result_id"]; exists {
 		if resultIDStr, ok := resultID.(string); ok {
@@ -915,7 +915,7 @@ func (c *EventConsumer) extractCriticalFieldsFromPayload(payloadBytes []byte, qu
 			quizResult.ResultID = resultIDStr
 		}
 	}
-	
+
 	// Extract QuizID
 	if quizID, exists := payloadMap["quiz_id"]; exists {
 		if quizIDStr, ok := quizID.(string); ok {
@@ -923,7 +923,7 @@ func (c *EventConsumer) extractCriticalFieldsFromPayload(payloadBytes []byte, qu
 			quizResult.QuizID = quizIDStr
 		}
 	}
-	
+
 	// Extract ConfigID
 	if configID, exists := payloadMap["config_id"]; exists {
 		if configIDStr, ok := configID.(string); ok {
@@ -931,7 +931,7 @@ func (c *EventConsumer) extractCriticalFieldsFromPayload(payloadBytes []byte, qu
 			quizResult.ConfigID = configIDStr
 		}
 	}
-	
+
 	// Extract FinalScore
 	if finalScore, exists := payloadMap["final_score"]; exists {
 		if score, ok := finalScore.(float64); ok {
@@ -939,7 +939,7 @@ func (c *EventConsumer) extractCriticalFieldsFromPayload(payloadBytes []byte, qu
 			quizResult.FinalScore = score
 		}
 	}
-	
+
 	// Extract BadgeLevel
 	if badgeLevel, exists := payloadMap["badge_level"]; exists {
 		if badgeLevelStr, ok := badgeLevel.(string); ok {
@@ -947,7 +947,7 @@ func (c *EventConsumer) extractCriticalFieldsFromPayload(payloadBytes []byte, qu
 			quizResult.BadgeLevel = badgeLevelStr
 		}
 	}
-	
+
 	return nil
 }
 
