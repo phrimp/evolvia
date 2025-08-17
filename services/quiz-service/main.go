@@ -83,6 +83,7 @@ func main() {
 		configService,
 		resultService,
 	)
+	sessionService.SetEventPublisher(publisher)
 	sessionHandler := handlers.NewSessionHandler(sessionService, questionService)
 
 	// Timeout handler for session timeout management
@@ -229,13 +230,6 @@ func setupGlobalSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHan
 		// Global session questions and answers
 		protectedGlobalSession.GET("/:id/next-question", func(c *gin.Context) {
 			sessionHandler.NextQuestion(c)
-			if publisher != nil {
-				publisher.Publish("quiz.global_session.question_requested", gin.H{
-					"session_id": c.Param("id"),
-					"user_id":    c.GetHeader("X-User-ID"),
-					"timestamp":  time.Now(),
-				})
-			}
 		})
 
 		protectedGlobalSession.POST("/:id/answer", func(c *gin.Context) {
@@ -253,33 +247,11 @@ func setupGlobalSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHan
 
 		protectedGlobalSession.POST("/:id/submit", func(c *gin.Context) {
 			sessionHandler.SubmitSession(c)
-			if publisher != nil {
-				// Enhanced global session event routed to skills.events exchange
-				publisher.Publish("skills.events.session_submitted", gin.H{
-					"session_id":   c.Param("id"),
-					"user_id":      c.GetHeader("X-User-ID"),
-					"timestamp":    time.Now(),
-					"session_type": "global",
-					"event_type":   "session_submission",
-					"exchange":     "skills.events",
-					"client_info": gin.H{
-						"user_agent": c.GetHeader("User-Agent"),
-						"ip_address": c.ClientIP(),
-					},
-				})
-			}
 		})
 
 		// Global session status endpoints
 		protectedGlobalSession.GET("/:id/status", func(c *gin.Context) {
 			sessionHandler.GetSessionStatus(c)
-			if publisher != nil {
-				publisher.Publish("quiz.global_session.status_checked", gin.H{
-					"session_id": c.Param("id"),
-					"user_id":    c.GetHeader("X-User-ID"),
-					"timestamp":  time.Now(),
-				})
-			}
 		})
 
 		// Get detailed session progress
