@@ -156,17 +156,25 @@ func (c *EventConsumer) Start() error {
 
 	// Process messages in a goroutine
 	go func() {
-		retry := 10
 		for msg := range msgs {
-			if err := c.processMessage(msg); err != nil {
-				if retry == 0 {
+			maxRetries := 10
+			retryCount := 0
+
+			for retryCount <= maxRetries {
+				if err := c.processMessage(msg); err != nil {
+					retryCount++
+					if retryCount > maxRetries {
+						// Dead letter or error queue
+						log.Printf("Message failed after %d retries, sending to DLQ", maxRetries)
+						msg.Nack(false, false) // Don't requeue
+						break
+					}
+					log.Printf("Failed to process message: %v, retry %d/%d", err, retryCount, maxRetries)
+					time.Sleep(time.Duration(retryCount) * time.Second) // Exponential backoff
+				} else {
 					msg.Ack(false)
+					break
 				}
-				log.Printf("Failed to process message: %v, retry number remain: %v", err, retry)
-				msg.Nack(false, true) // Nack and requeue
-				retry--
-			} else {
-				msg.Ack(false) // Acknowledge message
 			}
 		}
 	}()
