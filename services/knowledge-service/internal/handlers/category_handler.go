@@ -265,11 +265,28 @@ func (h *CategoryHandler) ListCategories(c fiber.Ctx) error {
 	if parentIDStr := c.Query("parentID"); parentIDStr != "" {
 		if objID, err := bson.ObjectIDFromHex(parentIDStr); err == nil {
 			parentID = &objID
+		} else {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid parentID format",
+			})
 		}
 	}
 
 	level, _ := strconv.Atoi(c.Query("level", "-1"))
 	namePattern := c.Query("namePattern")
+
+	// Enhanced search parameter validation
+	searchQuery := c.Query("q") // Alternative search parameter for better API design
+	if searchQuery != "" && namePattern == "" {
+		namePattern = searchQuery // Use 'q' as alias for namePattern for better UX
+	}
+
+	// Validate search query length
+	if namePattern != "" && len(namePattern) < 2 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Search query must be at least 2 characters long",
+		})
+	}
 
 	opts := repository.CategoryListOptions{
 		Limit:       limit,
@@ -292,7 +309,8 @@ func (h *CategoryHandler) ListCategories(c fiber.Ctx) error {
 		})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+	// Enhanced response with search metadata
+	response := fiber.Map{
 		"data": fiber.Map{
 			"categories": categories,
 			"pagination": fiber.Map{
@@ -302,7 +320,18 @@ func (h *CategoryHandler) ListCategories(c fiber.Ctx) error {
 				"totalPages": (total + int64(limit) - 1) / int64(limit),
 			},
 		},
-	})
+	}
+
+	// Add search metadata if this was a search request
+	if namePattern != "" {
+		response["search"] = fiber.Map{
+			"query":         namePattern,
+			"results_found": len(categories),
+			"total_matches": total,
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
 }
 
 func (h *CategoryHandler) GetRootCategories(c fiber.Ctx) error {
