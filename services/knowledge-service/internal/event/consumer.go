@@ -521,6 +521,7 @@ func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
 		}
 	}
 
+	log.Printf("log quizResult event data: %v", quizResult)
 	// Comprehensive event validation and logging
 	if err := c.validateQuizResultEvent(&quizResult); err != nil {
 		c.logEventValidationFailure(&quizResult, err)
@@ -838,12 +839,10 @@ func (c *EventConsumer) logFailedEventContext(body []byte, err error) {
 	log.Printf("FAILED_EVENT_CONTEXT: %v", err)
 	log.Printf("Raw message length: %d bytes", len(body))
 
-	// Log first 1000 characters of raw message for debugging
-	maxLen := min(len(body), 1000)
-	log.Printf("Raw message content (first %d chars): %s", maxLen, string(body[:maxLen]))
+	log.Printf("Raw message content : %s", body)
 
 	// Try to parse as generic JSON to understand structure
-	var genericData map[string]interface{}
+	var genericData map[string]any
 	if jsonErr := json.Unmarshal(body, &genericData); jsonErr == nil {
 		log.Printf("Generic JSON structure keys: %v", getMapKeys(genericData))
 
