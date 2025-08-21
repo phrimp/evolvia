@@ -382,6 +382,7 @@ func (r *SkillRepository) SearchByKeywordsWithCategories(ctx context.Context, ke
 			TechnicalTerms: getStringArrayFromDoc(doc, "technical_terms"),
 			Tags:           getStringArrayFromDoc(doc, "tags"),
 			IsActive:       getBoolFromDoc(doc, "is_active"),
+			Addable:        getBoolFromDoc(doc, "addable"),
 			Version:        getIntFromDoc(doc, "version"),
 			UsageCount:     getIntFromDoc(doc, "usage_count"),
 			CreatedAt:      getTimeFromDoc(doc, "created_at"),
@@ -404,6 +405,10 @@ func (r *SkillRepository) SearchByKeywordsWithCategories(ctx context.Context, ke
 
 		if metadata, ok := doc["metadata"].(bson.M); ok {
 			skill.Metadata = parseMetadata(metadata)
+		}
+
+		if taggedSkill, ok := doc["tagged_skill"].(bson.M); ok {
+			skill.TaggedSkill = parseTaggedSkill(taggedSkill)
 		}
 
 		if relations, ok := doc["relations"].([]interface{}); ok {
@@ -598,6 +603,15 @@ func parseCategory(data bson.M) *models.SkillCategory {
 	}
 
 	return category
+}
+
+func parseTaggedSkill(data bson.M) models.TaggedSkill {
+	taggedSkill := models.TaggedSkill{
+		PrimaryTags:   getStringArrayFromDoc(data, "primary_tags"),
+		SecondaryTags: getStringArrayFromDoc(data, "secondary_tags"),
+		RelatedTags:   getStringArrayFromDoc(data, "related_tags"),
+	}
+	return taggedSkill
 }
 
 // GetByCategory retrieves skills by category

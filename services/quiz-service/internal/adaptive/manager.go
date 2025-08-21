@@ -53,8 +53,15 @@ func (m *Manager) ProcessAnswer(session *AdaptiveSession, question *models.Quest
 		return nil, fmt.Errorf("session already complete")
 	}
 
-	// Get current stage status
+	// Get current stage status with nil check
+	if session.StageStatuses == nil {
+		session.StageStatuses = make(map[Stage]*StageStatus)
+	}
 	currentStatus := session.StageStatuses[session.CurrentStage]
+	if currentStatus == nil {
+		currentStatus = &StageStatus{}
+		session.StageStatuses[session.CurrentStage] = currentStatus
+	}
 	stageConfig := m.config.StageConfigs[session.CurrentStage]
 
 	// Update counters

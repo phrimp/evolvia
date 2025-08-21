@@ -51,7 +51,7 @@ func (r *SessionRepository) Update(ctx context.Context, id string, update bson.M
 	if err != nil {
 		return err
 	}
-	
+
 	// Check if update contains special MongoDB operators that should not be wrapped in $set
 	hasOperators := false
 	for key := range update {
@@ -60,7 +60,7 @@ func (r *SessionRepository) Update(ctx context.Context, id string, update bson.M
 			break
 		}
 	}
-	
+
 	// If update contains MongoDB operators, use them directly; otherwise wrap in $set
 	var updateDoc bson.M
 	if hasOperators {
@@ -68,7 +68,70 @@ func (r *SessionRepository) Update(ctx context.Context, id string, update bson.M
 	} else {
 		updateDoc = bson.M{"$set": update}
 	}
-	
+
 	_, err = r.Col.UpdateOne(ctx, bson.M{"_id": objID}, updateDoc)
 	return err
+}
+
+func (r *SessionRepository) FindByUserID(ctx context.Context, userID string, limit int, offset int, status string) ([]*models.QuizSession, int, error) {
+	filter := bson.M{"user_id": userID}
+	if status != "" {
+		filter["status"] = status
+	}
+
+	// Count total documents matching filter
+	total, err := r.Col.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Find sessions with pagination, sorted by start_time descending
+	if limit > 0 {
+		cursor, err := r.Col.Find(ctx, filter)
+		if err != nil {
+			return nil, 0, err
+		}
+		defer cursor.Close(ctx)
+
+		var sessions []*models.QuizSession
+		skip := 0
+		count := 0
+
+		for cursor.Next(ctx) {
+			if skip < offset {
+				skip++
+				continue
+			}
+			if count >= limit {
+				break
+			}
+
+			var session models.QuizSession
+			if err := cursor.Decode(&session); err != nil {
+				return nil, 0, err
+			}
+			sessions = append(sessions, &session)
+			count++
+		}
+
+		return sessions, int(total), nil
+	}
+
+	// If no limit specified, return all
+	cursor, err := r.Col.Find(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var sessions []*models.QuizSession
+	for cursor.Next(ctx) {
+		var session models.QuizSession
+		if err := cursor.Decode(&session); err != nil {
+			return nil, 0, err
+		}
+		sessions = append(sessions, &session)
+	}
+
+	return sessions, int(total), nil
 }

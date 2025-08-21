@@ -15,6 +15,8 @@ type CachedAnswer struct {
 	AnsweredAt       time.Time `json:"answered_at"`
 	QuestionType     string    `json:"question_type"`
 	BloomLevel       string    `json:"bloom_level"`
+	Stage            string    `json:"stage"`            // Current difficulty stage (easy, medium, hard)
+	IsRecoveryQuestion bool    `json:"is_recovery_question"` // Whether this was a recovery question
 
 	// Additional timing and integrity fields
 	StartedAt       *time.Time `json:"started_at,omitempty"`
@@ -190,7 +192,7 @@ func (sac *SessionAnswerCache) cleanup() {
 }
 
 // ConvertQuizAnswerToCached converts a QuizAnswer to CachedAnswer
-func ConvertQuizAnswerToCached(answer *QuizAnswer, questionType, bloomLevel string) CachedAnswer {
+func ConvertQuizAnswerToCached(answer *QuizAnswer, questionType, bloomLevel, stage string, isRecoveryQuestion bool) CachedAnswer {
 	return CachedAnswer{
 		QuestionID:       answer.QuestionID,
 		UserAnswer:       answer.UserAnswer,
@@ -200,6 +202,8 @@ func ConvertQuizAnswerToCached(answer *QuizAnswer, questionType, bloomLevel stri
 		AnsweredAt:       answer.AnsweredAt,
 		QuestionType:     questionType,
 		BloomLevel:       bloomLevel,
+		Stage:            stage,
+		IsRecoveryQuestion: isRecoveryQuestion,
 	}
 }
 

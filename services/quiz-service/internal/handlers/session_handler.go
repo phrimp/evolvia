@@ -83,18 +83,18 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 	parseStart := time.Now()
 	if err := c.ShouldBindJSON(&req); err != nil {
 		parseDuration := time.Since(parseStart)
-		log.Printf("[SESSION_HANDLER] [%s] ❌ ERROR: Invalid request format (took %v): %v", 
+		log.Printf("[SESSION_HANDLER] [%s] ❌ ERROR: Invalid request format (took %v): %v",
 			requestID, parseDuration, err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":     "Invalid request format",
-			"details":   err.Error(),
+			"error":      "Invalid request format",
+			"details":    err.Error(),
 			"request_id": requestID,
 		})
 		return
 	}
 	parseDuration := time.Since(parseStart)
 	log.Printf("[SESSION_HANDLER] [%s] Request parsed successfully (took %v)", requestID, parseDuration)
-	log.Printf("[SESSION_HANDLER] [%s] Request parameters - SkillID: '%s', ConfigID: '%s', MasteryScore: %d", 
+	log.Printf("[SESSION_HANDLER] [%s] Request parameters - SkillID: '%s', ConfigID: '%s', MasteryScore: %d",
 		requestID, req.SkillID, req.ConfigID, req.MasteryScore)
 
 	// Extract and validate user ID
@@ -113,7 +113,7 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 	if len(req.PrimaryTags) == 0 && len(req.SkillTags) > 0 {
 		// Put all tags as primary for backward compatibility
 		req.PrimaryTags = req.SkillTags
-		log.Printf("[SESSION_HANDLER] [%s] Using legacy skill_tags field, treating %d tags as primary", 
+		log.Printf("[SESSION_HANDLER] [%s] Using legacy skill_tags field, treating %d tags as primary",
 			requestID, len(req.SkillTags))
 	}
 
@@ -127,11 +127,11 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 		})
 		return
 	}
-	log.Printf("[SESSION_HANDLER] [%s] Tag validation passed - Total: %d (P:%d, S:%d, R:%d)", 
+	log.Printf("[SESSION_HANDLER] [%s] Tag validation passed - Total: %d (P:%d, S:%d, R:%d)",
 		requestID, totalTags, len(req.PrimaryTags), len(req.SecondaryTags), len(req.RelatedTags))
 
 	// Set default weights if not provided
-	weightsProvided := req.TagWeights.PrimaryWeight > 0 || req.TagWeights.SecondaryWeight > 0 || 
+	weightsProvided := req.TagWeights.PrimaryWeight > 0 || req.TagWeights.SecondaryWeight > 0 ||
 		req.TagWeights.RelatedWeight > 0 || req.TagWeights.ExactMatchBonus > 0
 
 	if req.TagWeights.PrimaryWeight == 0 {
@@ -148,11 +148,11 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 	}
 
 	if weightsProvided {
-		log.Printf("[SESSION_HANDLER] [%s] Using provided tag weights - P:%.1f, S:%.1f, R:%.1f, EB:%.1f", 
+		log.Printf("[SESSION_HANDLER] [%s] Using provided tag weights - P:%.1f, S:%.1f, R:%.1f, EB:%.1f",
 			requestID, req.TagWeights.PrimaryWeight, req.TagWeights.SecondaryWeight,
 			req.TagWeights.RelatedWeight, req.TagWeights.ExactMatchBonus)
 	} else {
-		log.Printf("[SESSION_HANDLER] [%s] Using default tag weights - P:%.1f, S:%.1f, R:%.1f, EB:%.1f", 
+		log.Printf("[SESSION_HANDLER] [%s] Using default tag weights - P:%.1f, S:%.1f, R:%.1f, EB:%.1f",
 			requestID, req.TagWeights.PrimaryWeight, req.TagWeights.SecondaryWeight,
 			req.TagWeights.RelatedWeight, req.TagWeights.ExactMatchBonus)
 	}
@@ -182,7 +182,7 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 
 	// Log enhanced skill info creation
 	log.Printf("[SESSION_HANDLER] [%s] Creating enhanced skill info object", requestID)
-	log.Printf("[SESSION_HANDLER] [%s] Tag distribution - Primary: %d, Secondary: %d, Related: %d", 
+	log.Printf("[SESSION_HANDLER] [%s] Tag distribution - Primary: %d, Secondary: %d, Related: %d",
 		requestID, len(req.PrimaryTags), len(req.SecondaryTags), len(req.RelatedTags))
 	log.Printf("[SESSION_HANDLER] [%s] Tag details - Primary: %v", requestID, req.PrimaryTags)
 	log.Printf("[SESSION_HANDLER] [%s] Tag details - Secondary: %v", requestID, req.SecondaryTags)
@@ -213,25 +213,25 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 	)
 	sessionCreateDuration := time.Since(sessionCreateStart)
 	if err != nil {
-		log.Printf("[SESSION_HANDLER] [%s] ❌ ERROR: Session creation failed (took %v): %v", 
+		log.Printf("[SESSION_HANDLER] [%s] ❌ ERROR: Session creation failed (took %v): %v",
 			requestID, sessionCreateDuration, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":      "Failed to create global session",
-			"details":    err.Error(),
-			"request_id": requestID,
+			"error":       "Failed to create global session",
+			"details":     err.Error(),
+			"request_id":  requestID,
 			"duration_ms": sessionCreateDuration.Milliseconds(),
 		})
 		return
 	}
-	log.Printf("[SESSION_HANDLER] [%s] ✅ Session created successfully (took %v) - ID: %s", 
+	log.Printf("[SESSION_HANDLER] [%s] ✅ Session created successfully (took %v) - ID: %s",
 		requestID, sessionCreateDuration, session.ID)
 
 	// Return successful response
 	totalRequestDuration := time.Since(requestStart)
 	log.Printf("[SESSION_HANDLER] [%s] ✅ SUCCESS: Global session creation completed", requestID)
-	log.Printf("[SESSION_HANDLER] [%s] Performance summary - Total: %v, SessionCreate: %v, Parse: %v", 
+	log.Printf("[SESSION_HANDLER] [%s] Performance summary - Total: %v, SessionCreate: %v, Parse: %v",
 		requestID, totalRequestDuration, sessionCreateDuration, parseDuration)
-	log.Printf("[SESSION_HANDLER] [%s] Final session details - ID: %s, UserID: %s, ConfigID: %s", 
+	log.Printf("[SESSION_HANDLER] [%s] Final session details - ID: %s, UserID: %s, ConfigID: %s",
 		requestID, session.ID, userID, session.ConfigID)
 
 	responseData := gin.H{
@@ -240,13 +240,13 @@ func (h *SessionHandler) CreateGlobalSession(c *gin.Context) {
 		"mode":       "global", // Indicate this is using global configuration
 		"request_id": requestID,
 		"performance": gin.H{
-			"total_duration_ms":          totalRequestDuration.Milliseconds(),
+			"total_duration_ms":            totalRequestDuration.Milliseconds(),
 			"session_creation_duration_ms": sessionCreateDuration.Milliseconds(),
-			"request_parse_duration_ms":   parseDuration.Milliseconds(),
+			"request_parse_duration_ms":    parseDuration.Milliseconds(),
 		},
 		"metadata": gin.H{
-			"client_ip":         clientIP,
-			"total_tags":        totalTags,
+			"client_ip":  clientIP,
+			"total_tags": totalTags,
 			"tag_distribution": gin.H{
 				"primary":   len(req.PrimaryTags),
 				"secondary": len(req.SecondaryTags),
@@ -390,19 +390,14 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		return
 	}
 
-	// Store the answer record in cache instead of database
-	answer := models.QuizAnswer{
-		SessionID:        sessionID,
-		QuestionID:       answerData.QuestionID,
-		UserAnswer:       answerData.UserAnswer,
-		IsCorrect:        answerData.IsCorrect,
-		PointsEarned:     result.PointsEarned,
-		TimeSpentSeconds: answerData.TimeSpent,
-		AnsweredAt:       time.Now(),
+	// Answer is now cached automatically in ProcessAnswer method with stage and recovery information
+	// Update the cached answer with timing information from the handler
+	if cachedAnswers, exists := h.Service.GetCachedAnswers(sessionID); exists && len(cachedAnswers) > 0 {
+		// Get the last cached answer (the one we just added)
+		lastAnswer := &cachedAnswers[len(cachedAnswers)-1]
+		lastAnswer.TimeSpentSeconds = answerData.TimeSpent
+		// Note: We could update the cache here, but for now timing from handler is less critical
 	}
-
-	// Cache answer with question metadata for timing analysis and review
-	h.Service.CacheAnswer(sessionID, &answer, question.Type, question.BloomLevel)
 
 	// Return comprehensive adaptive result with integrity and question type information
 	response := gin.H{
@@ -589,9 +584,9 @@ func (h *SessionHandler) GetSessionStatus(c *gin.Context) {
 	userID := c.GetHeader("X-User-ID")
 
 	sessionID := c.Param("id")
-	log.Printf("[SESSION_STATUS_HANDLER] [%s] → GET /session/%s/status from IP: %s", 
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] → GET /session/%s/status from IP: %s",
 		requestID, sessionID, clientIP)
-	log.Printf("[SESSION_STATUS_HANDLER] [%s] User-Agent: %s, UserID: %s", 
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] User-Agent: %s, UserID: %s",
 		requestID, userAgent, userID)
 
 	// Validate session ID parameter
@@ -603,7 +598,7 @@ func (h *SessionHandler) GetSessionStatus(c *gin.Context) {
 		})
 		return
 	}
-	log.Printf("[SESSION_STATUS_HANDLER] [%s] Processing status request for session: %s", 
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] Processing status request for session: %s",
 		requestID, sessionID)
 
 	// Call service layer
@@ -613,42 +608,49 @@ func (h *SessionHandler) GetSessionStatus(c *gin.Context) {
 	serviceCallDuration := time.Since(serviceCallStart)
 
 	if err != nil {
-		log.Printf("[SESSION_STATUS_HANDLER] [%s] ❌ ERROR: Service call failed (took %v): %v", 
+		log.Printf("[SESSION_STATUS_HANDLER] [%s] ❌ ERROR: Service call failed (took %v): %v",
 			requestID, serviceCallDuration, err)
 		c.JSON(http.StatusNotFound, gin.H{
-			"error":      "Session not found",
-			"details":    err.Error(),
-			"request_id": requestID,
+			"error":       "Session not found",
+			"details":     err.Error(),
+			"request_id":  requestID,
 			"duration_ms": serviceCallDuration.Milliseconds(),
 		})
 		return
 	}
 
-	log.Printf("[SESSION_STATUS_HANDLER] [%s] Service call successful (took %v)", 
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] Service call successful (took %v)",
 		requestID, serviceCallDuration)
 
 	// Log key status information
-	log.Printf("[SESSION_STATUS_HANDLER] [%s] Status details - CurrentStage: %v, IsComplete: %v", 
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] Status details - CurrentStage: %v, IsComplete: %v",
 		requestID, status["current_stage"], status["is_complete"])
 	if timeElapsed, exists := status["time_elapsed"]; exists {
-		log.Printf("[SESSION_STATUS_HANDLER] [%s] Timing - Elapsed: %vs, Remaining: %vs", 
+		log.Printf("[SESSION_STATUS_HANDLER] [%s] Timing - Elapsed: %vs, Remaining: %vs",
 			requestID, timeElapsed, status["time_remaining"])
 	}
 	if skillInfo, exists := status["skill_info"]; exists {
 		if skill, ok := skillInfo.(map[string]interface{}); ok {
-			log.Printf("[SESSION_STATUS_HANDLER] [%s] Skill info - Name: %v, Tags: %d", 
-				requestID, skill["Name"], len(skill["Tags"].([]string)))
+			// Safely access Tags to prevent panic
+			tagsLen := 0
+			if tags, tagsOk := skill["Tags"]; tagsOk {
+				if tagsSlice, isSlice := tags.([]string); isSlice {
+					tagsLen = len(tagsSlice)
+				}
+			}
+			log.Printf("[SESSION_STATUS_HANDLER] [%s] Skill info - Name: %v, Tags: %d",
+				requestID, skill["Name"], tagsLen)
 		}
 	}
 
 	// Prepare response
 	totalHandlerDuration := time.Since(handlerStart)
 	responseData := gin.H{
-		"status":    status,
-		"timestamp": time.Now(),
+		"status":     status,
+		"timestamp":  time.Now(),
 		"request_id": requestID,
 		"performance": gin.H{
-			"handler_duration_ms":       totalHandlerDuration.Milliseconds(),
+			"handler_duration_ms":      totalHandlerDuration.Milliseconds(),
 			"service_call_duration_ms": serviceCallDuration.Milliseconds(),
 		},
 		"metadata": gin.H{
@@ -657,13 +659,13 @@ func (h *SessionHandler) GetSessionStatus(c *gin.Context) {
 		},
 	}
 
-	log.Printf("[SESSION_STATUS_HANDLER] [%s] ✅ Status request completed successfully (took %v)", 
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] ✅ Status request completed successfully (took %v)",
 		requestID, totalHandlerDuration)
-	log.Printf("[SESSION_STATUS_HANDLER] [%s] Performance - Handler: %v, Service: %v", 
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] Performance - Handler: %v, Service: %v",
 		requestID, totalHandlerDuration, serviceCallDuration)
 
 	c.JSON(http.StatusOK, responseData)
-	log.Printf("[SESSION_STATUS_HANDLER] [%s] → Response sent (200 OK) - SessionID: %s", 
+	log.Printf("[SESSION_STATUS_HANDLER] [%s] → Response sent (200 OK) - SessionID: %s",
 		requestID, sessionID)
 }
 
@@ -850,9 +852,9 @@ func (h *SessionHandler) generateSessionSummary(result *models.QuizResult) map[s
 		}
 	}
 
-	log.Printf("[SESSION_SUMMARY] [%s] Input data - SessionID: %s, UserID: %s, FinalScore: %.2f", 
+	log.Printf("[SESSION_SUMMARY] [%s] Input data - SessionID: %s, UserID: %s, FinalScore: %.2f",
 		summaryID, result.SessionID, result.UserID, result.FinalScore)
-	log.Printf("[SESSION_SUMMARY] [%s] Question stats - Attempted: %d, Correct: %d, BadgeLevel: %s", 
+	log.Printf("[SESSION_SUMMARY] [%s] Question stats - Attempted: %d, Correct: %d, BadgeLevel: %s",
 		summaryID, result.QuestionsAttempted, result.QuestionsCorrect, result.BadgeLevel)
 
 	// Calculate accuracy safely to avoid division by zero
@@ -860,7 +862,7 @@ func (h *SessionHandler) generateSessionSummary(result *models.QuizResult) map[s
 	accuracy := 0.0
 	if result.QuestionsAttempted > 0 {
 		accuracy = float64(result.QuestionsCorrect) / float64(result.QuestionsAttempted) * 100
-		log.Printf("[SESSION_SUMMARY] [%s] Accuracy calculated: %.2f%% (%d/%d)", 
+		log.Printf("[SESSION_SUMMARY] [%s] Accuracy calculated: %.2f%% (%d/%d)",
 			summaryID, accuracy, result.QuestionsCorrect, result.QuestionsAttempted)
 	} else {
 		log.Printf("[SESSION_SUMMARY] [%s] No questions attempted, accuracy remains 0%%", summaryID)
@@ -875,7 +877,7 @@ func (h *SessionHandler) generateSessionSummary(result *models.QuizResult) map[s
 		"accuracy":            accuracy,
 		"completion_type":     result.CompletionType,
 		"calculation_metadata": map[string]interface{}{
-			"summary_id":              summaryID,
+			"summary_id":             summaryID,
 			"generation_duration_ms": time.Since(summaryStart).Milliseconds(),
 			"accuracy_formula":       "(correct / attempted) * 100",
 			"input_validation":       "passed",
@@ -883,9 +885,9 @@ func (h *SessionHandler) generateSessionSummary(result *models.QuizResult) map[s
 	}
 
 	summaryDuration := time.Since(summaryStart)
-	log.Printf("[SESSION_SUMMARY] [%s] ✅ Session summary generated successfully (took %v)", 
+	log.Printf("[SESSION_SUMMARY] [%s] ✅ Session summary generated successfully (took %v)",
 		summaryID, summaryDuration)
-	log.Printf("[SESSION_SUMMARY] [%s] Summary values - Percentage: %.2f%%, Badge: %s, Accuracy: %.2f%%", 
+	log.Printf("[SESSION_SUMMARY] [%s] Summary values - Percentage: %.2f%%, Badge: %s, Accuracy: %.2f%%",
 		summaryID, result.Percentage, result.BadgeLevel, accuracy)
 
 	return summary
@@ -895,46 +897,46 @@ func (h *SessionHandler) generateSessionSummary(result *models.QuizResult) map[s
 func (h *SessionHandler) calculateDetailedProgress(session *models.QuizSession) map[string]interface{} {
 	progressStart := time.Now()
 	progressID := fmt.Sprintf("progress_%d", time.Now().UnixNano())
-	log.Printf("[DETAILED_PROGRESS] [%s] Starting detailed progress calculation for session %s", 
+	log.Printf("[DETAILED_PROGRESS] [%s] Starting detailed progress calculation for session %s",
 		progressID, session.ID)
 
 	// Calculate overall progress
 	totalPossibleQuestions := 15 // 5 per stage
-	log.Printf("[DETAILED_PROGRESS] [%s] Progress calculation - Questions asked: %d, Total possible: %d", 
+	log.Printf("[DETAILED_PROGRESS] [%s] Progress calculation - Questions asked: %d, Total possible: %d",
 		progressID, session.TotalQuestionsAsked, totalPossibleQuestions)
 	progressPercentage := float64(session.TotalQuestionsAsked) / float64(totalPossibleQuestions) * 100
-	log.Printf("[DETAILED_PROGRESS] [%s] Overall progress: %.2f%% (%d/%d questions)", 
+	log.Printf("[DETAILED_PROGRESS] [%s] Overall progress: %.2f%% (%d/%d questions)",
 		progressID, progressPercentage, session.TotalQuestionsAsked, totalPossibleQuestions)
 
 	// Calculate stage-specific progress
-	log.Printf("[DETAILED_PROGRESS] [%s] Calculating stage progress for %d stages", 
+	log.Printf("[DETAILED_PROGRESS] [%s] Calculating stage progress for %d stages",
 		progressID, len(session.StageProgress))
 	stageProgress := make(map[string]interface{})
 	stagesProcessed := 0
 
 	for stage, progress := range session.StageProgress {
-		log.Printf("[DETAILED_PROGRESS] [%s] Processing stage '%s' - Attempted: %d, Correct: %d, Passed: %v", 
+		log.Printf("[DETAILED_PROGRESS] [%s] Processing stage '%s' - Attempted: %d, Correct: %d, Passed: %v",
 			progressID, stage, progress.Attempted, progress.Correct, progress.Passed)
 
 		// Calculate stage accuracy
 		accuracy := 0.0
 		if progress.Attempted > 0 {
 			accuracy = float64(progress.Correct) / float64(progress.Attempted) * 100
-			log.Printf("[DETAILED_PROGRESS] [%s] Stage '%s' accuracy: %.2f%% (%d/%d)", 
+			log.Printf("[DETAILED_PROGRESS] [%s] Stage '%s' accuracy: %.2f%% (%d/%d)",
 				progressID, stage, accuracy, progress.Correct, progress.Attempted)
 		} else {
-			log.Printf("[DETAILED_PROGRESS] [%s] Stage '%s' not attempted, accuracy: 0%%", 
+			log.Printf("[DETAILED_PROGRESS] [%s] Stage '%s' not attempted, accuracy: 0%%",
 				progressID, stage)
 		}
 
 		// Create stage progress entry
 		stageEntry := map[string]interface{}{
-			"attempted":   progress.Attempted,
-			"correct":     progress.Correct,
-			"accuracy":    accuracy,
-			"passed":      progress.Passed,
-			"score":       progress.Score,
-			"in_recovery": progress.RecoveryRound > 0,
+			"attempted":      progress.Attempted,
+			"correct":        progress.Correct,
+			"accuracy":       accuracy,
+			"passed":         progress.Passed,
+			"score":          progress.Score,
+			"in_recovery":    progress.RecoveryRound > 0,
 			"recovery_round": progress.RecoveryRound,
 			"calculation_details": map[string]interface{}{
 				"accuracy_formula": "(correct / attempted) * 100",
@@ -946,7 +948,7 @@ func (h *SessionHandler) calculateDetailedProgress(session *models.QuizSession) 
 		stageProgress[stage] = stageEntry
 		stagesProcessed++
 
-		log.Printf("[DETAILED_PROGRESS] [%s] Stage '%s' completed - Score: %.2f, InRecovery: %v", 
+		log.Printf("[DETAILED_PROGRESS] [%s] Stage '%s' completed - Score: %.2f, InRecovery: %v",
 			progressID, stage, progress.Score, progress.RecoveryRound > 0)
 	}
 
@@ -954,7 +956,7 @@ func (h *SessionHandler) calculateDetailedProgress(session *models.QuizSession) 
 
 	// Calculate session duration
 	sessionDurationMinutes := time.Since(session.StartTime).Minutes()
-	log.Printf("[DETAILED_PROGRESS] [%s] Session duration: %.2f minutes (started: %v)", 
+	log.Printf("[DETAILED_PROGRESS] [%s] Session duration: %.2f minutes (started: %v)",
 		progressID, sessionDurationMinutes, session.StartTime)
 
 	// Create comprehensive progress report
@@ -968,7 +970,7 @@ func (h *SessionHandler) calculateDetailedProgress(session *models.QuizSession) 
 		"status":             session.Status,
 		"calculation_metadata": map[string]interface{}{
 			"progress_id":              progressID,
-			"calculation_duration_ms": time.Since(progressStart).Milliseconds(),
+			"calculation_duration_ms":  time.Since(progressStart).Milliseconds(),
 			"total_possible_questions": totalPossibleQuestions,
 			"stages_processed":         stagesProcessed,
 			"progress_formula":         "(questions_answered / total_possible) * 100",
@@ -977,9 +979,9 @@ func (h *SessionHandler) calculateDetailedProgress(session *models.QuizSession) 
 	}
 
 	progressDuration := time.Since(progressStart)
-	log.Printf("[DETAILED_PROGRESS] [%s] ✅ Detailed progress calculation completed (took %v)", 
+	log.Printf("[DETAILED_PROGRESS] [%s] ✅ Detailed progress calculation completed (took %v)",
 		progressID, progressDuration)
-	log.Printf("[DETAILED_PROGRESS] [%s] Final results - Progress: %.2f%%, CurrentStage: %s, Score: %.2f", 
+	log.Printf("[DETAILED_PROGRESS] [%s] Final results - Progress: %.2f%%, CurrentStage: %s, Score: %.2f",
 		progressID, progressPercentage, session.CurrentStage, session.FinalScore)
 
 	return progressReport
@@ -1106,4 +1108,52 @@ func (h *SessionHandler) GetSessionIntegrityReport(c *gin.Context) {
 			"start_time": session.StartTime,
 		},
 	})
+}
+
+// GetUserSessions retrieves all sessions for a user with pagination
+func (h *SessionHandler) GetUserSessions(c *gin.Context) {
+	userID := c.Param("userID")
+
+	// Parse query parameters
+	limitStr := c.DefaultQuery("limit", "50")
+	offsetStr := c.DefaultQuery("offset", "0")
+	status := c.Query("status")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		limit = 50
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil {
+		offset = 0
+	}
+
+	// Get sessions from service
+	overview, err := h.Service.GetUserSessions(context.Background(), userID, limit, offset, status)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to retrieve user sessions",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, overview)
+}
+
+// GetSessionDetails retrieves detailed session information with cached questions
+func (h *SessionHandler) GetSessionDetails(c *gin.Context) {
+	sessionID := c.Param("id")
+
+	details, err := h.Service.GetSessionDetails(context.Background(), sessionID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "Session not found",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, details)
 }

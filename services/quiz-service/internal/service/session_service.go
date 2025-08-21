@@ -501,11 +501,32 @@ func (s *SessionService) ProcessAnswer(
 	// Reconstruct adaptive session
 	adaptiveSession := s.reconstructAdaptiveSession(session)
 
+	// Get current stage and recovery status before processing
+	currentStage := string(adaptiveSession.CurrentStage)
+	isRecoveryQuestion := false
+	if adaptiveSession.StageStatuses != nil {
+		if status := adaptiveSession.StageStatuses[adaptiveSession.CurrentStage]; status != nil {
+			isRecoveryQuestion = status.InRecovery
+		}
+	}
+
 	// Process answer through adaptive manager with question object
 	result, err := s.adaptiveManager.ProcessAnswer(adaptiveSession, question, isCorrect)
 	if err != nil {
 		return nil, err
 	}
+
+	// Cache answer with stage and recovery information
+	answer := &models.QuizAnswer{
+		SessionID:        sessionID,
+		QuestionID:       questionID,
+		UserAnswer:       userAnswer,
+		IsCorrect:        isCorrect,
+		PointsEarned:     result.PointsEarned,
+		TimeSpentSeconds: 0, // Will be set by handler if needed
+		AnsweredAt:       time.Now(),
+	}
+	s.CacheAnswer(sessionID, answer, question.Type, question.BloomLevel, currentStage, isRecoveryQuestion)
 
 	// Update session with new state
 	s.updateSessionFromAdaptive(session, adaptiveSession, result)
@@ -967,7 +988,10 @@ func (s *SessionService) updateSessionFromAdaptive(
 	// Update current stage
 	session.CurrentStage = string(adaptiveSession.CurrentStage)
 
-	// Update stage progress
+	// Update stage progress with nil check
+	if session.StageProgress == nil {
+		session.StageProgress = make(map[string]models.StageProgress)
+	}
 	for stage, status := range adaptiveSession.StageStatuses {
 		session.StageProgress[string(stage)] = models.StageProgress{
 			Attempted:     status.QuestionsAsked,
@@ -1385,7 +1409,16 @@ func (s *SessionService) mapStageToDifficulty(stage adaptive.Stage) string {
 // generatePoolCacheKey generates a cache key for session-specific pools
 func (s *SessionService) generatePoolCacheKey(sessionID string, session *models.QuizSession) string {
 	stage := session.CurrentStage
-	progress := session.StageProgress[stage]
+	
+	// Safely access stage progress with nil check
+	if session.StageProgress == nil {
+		return fmt.Sprintf("session_%s_%s_initial", sessionID, stage)
+	}
+	
+	progress, exists := session.StageProgress[stage]
+	if !exists {
+		return fmt.Sprintf("session_%s_%s_initial", sessionID, stage)
+	}
 
 	if progress.RecoveryRound > 0 {
 		return fmt.Sprintf("session_%s_%s_recovery", sessionID, stage)
@@ -1992,29 +2025,20 @@ func (s *SessionService) createQuizResult(session *models.QuizSession, completio
 		badgeLevel = "Unidentified"
 	}
 
-	// Build stage breakdown
-	stageBreakdown := make(map[string]models.StageBreakdown)
-	for stage, progress := range session.StageProgress {
-		percentage := 0.0
-		if progress.Attempted > 0 {
-			percentage = (float64(progress.Correct) / float64(progress.Attempted)) * 100
-		}
-		stageBreakdown[stage] = models.StageBreakdown{
-			Attempted:    progress.Attempted,
-			Correct:      progress.Correct,
-			Score:        progress.Score,
-			Percentage:   percentage,
-			Passed:       progress.Passed,
-			RecoveryUsed: progress.RecoveryRound > 0,
-		}
+	// Build stage breakdown from cached answers (centralized approach)
+	stageBreakdown, err := s.calculateStageBreakdownFromCache(session.ID)
+	if err != nil {
+		log.Printf("[SUBMIT_SESSION] [%s] Failed to get stage breakdown from cache: %v", session.ID, err)
+		// Return empty breakdown as system should use cached data
+		stageBreakdown = make(map[string]models.StageBreakdown)
 	}
 
-	// Calculate totals
+	// Calculate totals from stage breakdown
 	totalAttempted := 0
 	totalCorrect := 0
-	for _, progress := range session.StageProgress {
-		totalAttempted += progress.Attempted
-		totalCorrect += progress.Correct
+	for _, breakdown := range stageBreakdown {
+		totalAttempted += breakdown.Attempted
+		totalCorrect += breakdown.Correct
 	}
 
 	// Build comprehensive Bloom breakdown from cached answers
@@ -2067,8 +2091,8 @@ func (s *SessionService) createQuizResult(session *models.QuizSession, completio
 }
 
 // CacheAnswer stores an answer in the session cache instead of database
-func (s *SessionService) CacheAnswer(sessionID string, answer *models.QuizAnswer, questionType, bloomLevel string) {
-	cachedAnswer := models.ConvertQuizAnswerToCached(answer, questionType, bloomLevel)
+func (s *SessionService) CacheAnswer(sessionID string, answer *models.QuizAnswer, questionType, bloomLevel, stage string, isRecoveryQuestion bool) {
+	cachedAnswer := models.ConvertQuizAnswerToCached(answer, questionType, bloomLevel, stage, isRecoveryQuestion)
 	s.answerCache.AddAnswer(sessionID, cachedAnswer)
 }
 
@@ -2080,6 +2104,195 @@ func (s *SessionService) GetCachedAnswers(sessionID string) ([]models.CachedAnsw
 // GetCachedAnswerCount returns the number of cached answers for a session
 func (s *SessionService) GetCachedAnswerCount(sessionID string) int {
 	return s.answerCache.GetAnswerCount(sessionID)
+}
+
+// calculateStageBreakdownFromCache builds stage breakdown from cached answers (centralized approach)
+func (s *SessionService) calculateStageBreakdownFromCache(sessionID string) (map[string]models.StageBreakdown, error) {
+	cachedAnswers, exists := s.GetCachedAnswers(sessionID)
+	if !exists {
+		return make(map[string]models.StageBreakdown), fmt.Errorf("no cached answers found for session %s", sessionID)
+	}
+
+	if len(cachedAnswers) == 0 {
+		return make(map[string]models.StageBreakdown), fmt.Errorf("no cached answers available for session %s", sessionID)
+	}
+
+	stageStats := make(map[string]struct{
+		attempted, correct int
+		totalScore         float64
+		hasRecovery        bool
+	})
+
+	// Aggregate from cached answers
+	for _, answer := range cachedAnswers {
+		stage := answer.Stage
+		if stage == "" {
+			stage = "unknown"
+		}
+
+		stats := stageStats[stage]
+		stats.attempted++
+		if answer.IsCorrect {
+			stats.correct++
+		}
+		stats.totalScore += answer.PointsEarned
+		if answer.IsRecoveryQuestion {
+			stats.hasRecovery = true
+		}
+		stageStats[stage] = stats
+	}
+
+	// Build StageBreakdown objects
+	stageBreakdown := make(map[string]models.StageBreakdown)
+	for stage, stats := range stageStats {
+		percentage := 0.0
+		if stats.attempted > 0 {
+			percentage = (float64(stats.correct) / float64(stats.attempted)) * 100
+		}
+
+		// Use configurable threshold for passing (60% default)
+		passingThreshold := 60.0
+		stageBreakdown[stage] = models.StageBreakdown{
+			Attempted:    stats.attempted,
+			Correct:      stats.correct,
+			Score:        stats.totalScore,
+			Percentage:   percentage,
+			Passed:       percentage >= passingThreshold,
+			RecoveryUsed: stats.hasRecovery,
+		}
+	}
+
+	log.Printf("[STAGE_BREAKDOWN] [%s] Built breakdown from %d cached answers across %d stages", 
+		sessionID, len(cachedAnswers), len(stageBreakdown))
+	return stageBreakdown, nil
+}
+
+// convertToStageProgressSummary converts detailed breakdown to summary format
+func convertToStageProgressSummary(breakdown map[string]models.StageBreakdown) map[string]models.StageProgressSummary {
+	summary := make(map[string]models.StageProgressSummary)
+	for stage, detail := range breakdown {
+		summary[stage] = models.StageProgressSummary{
+			Passed:   detail.Passed,
+			Accuracy: detail.Percentage,
+		}
+	}
+	return summary
+}
+
+// GetUserSessions retrieves paginated sessions for a user
+func (s *SessionService) GetUserSessions(ctx context.Context, userID string, limit int, offset int, status string) (*models.UserSessionOverview, error) {
+	// Set default limit if not provided
+	if limit <= 0 {
+		limit = 50
+	}
+
+	sessions, total, err := s.Repo.FindByUserID(ctx, userID, limit, offset, status)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build overview response
+	overview := &models.UserSessionOverview{
+		UserID:   userID,
+		Sessions: make([]models.SessionSummary, len(sessions)),
+		Pagination: models.Pagination{
+			Total:  total,
+			Limit:  limit,
+			Offset: offset,
+		},
+	}
+
+	// Convert each session to summary format
+	for i, session := range sessions {
+		overview.Sessions[i] = s.buildSessionSummary(session)
+	}
+
+	return overview, nil
+}
+
+// GetSessionDetails returns detailed session information with cached questions
+func (s *SessionService) GetSessionDetails(ctx context.Context, sessionID string) (*models.SessionDetails, error) {
+	// Get session from database
+	session, err := s.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get cached answers using existing method
+	cachedQuestions := []models.CachedAnswer{}
+	if detail_answers_cache, ok := s.GetCachedAnswers(sessionID); ok {
+		cachedQuestions = detail_answers_cache
+	}
+
+	// Get Bloom breakdown from cache
+	bloomBreakdown, _ := s.calculateBloomBreakdownFromCache(sessionID)
+
+	return &models.SessionDetails{
+		Session:         session,
+		CachedQuestions: cachedQuestions,
+		BloomBreakdown:  bloomBreakdown,
+		CacheInfo: map[string]interface{}{
+			"total_cached_answers": len(cachedQuestions),
+			"retention_expires_at": time.Now().Add(30 * time.Minute),
+		},
+	}, nil
+}
+
+// buildSessionSummary converts a QuizSession to SessionSummary for overview
+func (s *SessionService) buildSessionSummary(session *models.QuizSession) models.SessionSummary {
+	// Calculate progress summary
+	progressSummary := models.ProgressSummary{
+		QuestionsAnswered: session.TotalQuestionsAsked,
+		OverallProgress:   s.calculateOverallProgress(session),
+		StageBreakdown:    make(map[string]models.StageProgressSummary),
+	}
+
+	// Build stage breakdown from cached answers (centralized approach)
+	stageBreakdown, err := s.calculateStageBreakdownFromCache(session.ID)
+	if err != nil {
+		log.Printf("[SESSION_SUMMARY] [%s] Failed to get stage breakdown from cache: %v", session.ID, err)
+		// Use empty breakdown if cache is unavailable
+		progressSummary.StageBreakdown = make(map[string]models.StageProgressSummary)
+	} else {
+		// Convert detailed breakdown to summary format
+		progressSummary.StageBreakdown = convertToStageProgressSummary(stageBreakdown)
+	}
+
+	// Extract skill info from metadata
+	skillInfo := make(map[string]interface{})
+	if session.Metadata != nil {
+		if skillID, ok := session.Metadata["skill_id"]; ok {
+			skillInfo["skill_id"] = skillID
+		}
+		if skillName, ok := session.Metadata["skill_name"]; ok {
+			skillInfo["skill_name"] = skillName
+		}
+		if skillTags, ok := session.Metadata["skill_tags"]; ok {
+			skillInfo["tags"] = skillTags
+		}
+	}
+
+	return models.SessionSummary{
+		ID:             session.ID,
+		ConfigID:       session.ConfigID,
+		Status:         session.Status,
+		StartTime:      session.StartTime,
+		EndTime:        session.EndTime,
+		CurrentStage:   session.CurrentStage,
+		TotalQuestions: session.TotalQuestionsAsked,
+		FinalScore:     session.FinalScore,
+		SkillInfo:      skillInfo,
+		ProgressSummary: progressSummary,
+	}
+}
+
+// calculateOverallProgress calculates overall session progress percentage
+func (s *SessionService) calculateOverallProgress(session *models.QuizSession) float64 {
+	totalPossibleQuestions := 15 // 5 per stage (beginner, intermediate, advanced)
+	if session.TotalQuestionsAsked > 0 {
+		return (float64(session.TotalQuestionsAsked) / float64(totalPossibleQuestions)) * 100
+	}
+	return 0.0
 }
 
 // MarkSessionCacheCompleted marks a session as completed in cache for retention timing
