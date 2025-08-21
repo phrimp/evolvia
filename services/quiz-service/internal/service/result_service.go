@@ -31,12 +31,12 @@ func (s *ResultService) GetResultsByQuiz(ctx context.Context, quizID string) ([]
 	return s.Repo.FindByQuiz(ctx, quizID)
 }
 
-func (s *ResultService) CreateResult(ctx context.Context, result *models.QuizResult) error {
+func (s *ResultService) CreateResult(ctx context.Context, result *models.QuizResult) (string, error) {
 	// Create the result in database
-	err := s.Repo.Create(ctx, result)
+	id, err := s.Repo.Create(ctx, result)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return id, nil
 }

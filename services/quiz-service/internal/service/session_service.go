@@ -711,10 +711,11 @@ func (s *SessionService) SubmitSession(
 
 	// Store result if repository is available
 	if s.ResultService != nil {
-		err = s.ResultService.CreateResult(ctx, result)
+		id, err := s.ResultService.CreateResult(ctx, result)
 		if err != nil {
 			fmt.Printf("Failed to store result: %v\n", err)
 		}
+		result.ID = id
 	}
 
 	// Mark session cache as completed for proper retention timing

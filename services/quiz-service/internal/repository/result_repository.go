@@ -5,6 +5,7 @@ import (
 	"quiz-service/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -60,7 +61,9 @@ func (r *ResultRepository) FindByQuiz(ctx context.Context, quizID string) ([]mod
 	return results, nil
 }
 
-func (r *ResultRepository) Create(ctx context.Context, result *models.QuizResult) error {
-	_, err := r.Col.InsertOne(ctx, result)
-	return err
+func (r *ResultRepository) Create(ctx context.Context, result *models.QuizResult) (string, error) {
+	iresult, err := r.Col.InsertOne(ctx, result)
+	id := iresult.InsertedID.(primitive.ObjectID)
+
+	return id.Hex(), err
 }

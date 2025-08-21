@@ -90,7 +90,7 @@ func main() {
 	timeoutHandler := handlers.NewTimeoutHandler(sessionService)
 
 	// Public routes
-	resultHandler := handlers.NewResultHandler(resultService)
+	resultHandler := handlers.NewResultHandler(resultService, sessionService)
 	publicQuiz := r.Group("/public/quizz/quiz")
 	{
 		publicQuiz.GET("/", func(c *gin.Context) {

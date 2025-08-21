@@ -10,11 +10,12 @@ import (
 )
 
 type ResultHandler struct {
-	Service *service.ResultService
+	Service        *service.ResultService
+	SessionService *service.SessionService
 }
 
-func NewResultHandler(s *service.ResultService) *ResultHandler {
-	return &ResultHandler{Service: s}
+func NewResultHandler(s *service.ResultService, sessionService *service.SessionService) *ResultHandler {
+	return &ResultHandler{Service: s, SessionService: sessionService}
 }
 
 func (h *ResultHandler) GetResultBySession(c *gin.Context) {
@@ -24,7 +25,15 @@ func (h *ResultHandler) GetResultBySession(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Result not found"})
 		return
 	}
-	c.JSON(http.StatusOK, result)
+	detail_answers := []models.CachedAnswer{}
+	if detail_answers_cache, ok := h.SessionService.GetCachedAnswers(sessionID); ok {
+		detail_answers = detail_answers_cache
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"result":         result,
+		"detail_answers": detail_answers,
+	})
 }
 
 func (h *ResultHandler) GetResultsByUser(c *gin.Context) {
@@ -53,7 +62,7 @@ func (h *ResultHandler) CreateResult(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.Service.CreateResult(context.Background(), &result); err != nil {
+	if _, err := h.Service.CreateResult(context.Background(), &result); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
