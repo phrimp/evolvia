@@ -365,7 +365,7 @@ func setupGlobalSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHan
 
 	{
 		// Get all sessions for a user with pagination
-		protectedGlobalSession.GET("/:userID", func(c *gin.Context) {
+		protectedGlobalSession.GET("/user/:userID", func(c *gin.Context) {
 			sessionHandler.GetUserSessions(c)
 		})
 	}
