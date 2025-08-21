@@ -165,6 +165,7 @@ func main() {
 	protectedResult := r.Group("/protected/quizz/result")
 	{
 		protectedResult.POST("/", resultHandler.CreateResult)
+		protectedResult.GET("/bySession/:sessionID", resultHandler.GetResultBySession)
 	}
 
 	// Global Configuration routes

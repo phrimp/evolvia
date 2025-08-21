@@ -18,7 +18,7 @@ func NewResultHandler(s *service.ResultService) *ResultHandler {
 }
 
 func (h *ResultHandler) GetResultBySession(c *gin.Context) {
-	sessionID := c.Param("id")
+	sessionID := c.Param("sessionID")
 	result, err := h.Service.GetResultBySession(context.Background(), sessionID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Result not found"})
