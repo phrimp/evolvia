@@ -34,6 +34,40 @@ const (
 	EventTypeDataReloaded = "data.reloaded"
 )
 
+// ConsistentQuizCompletedEvent matches the quiz service event structure for compatibility
+type ConsistentQuizCompletedEvent struct {
+	// Core identifiers
+	ResultID  string `json:"result_id"`
+	SessionID string `json:"session_id"`
+	UserID    string `json:"user_id"`
+	QuizID    string `json:"quiz_id"`
+	ConfigID  string `json:"config_id"`
+
+	// Performance metrics
+	FinalScore         float64 `json:"final_score"`
+	Percentage         float64 `json:"percentage"`
+	BadgeLevel         string  `json:"badge_level"`
+	QuestionsAttempted int     `json:"questions_attempted"`
+	QuestionsCorrect   int     `json:"questions_correct"`
+
+	// Analysis data
+	BloomBreakdown interface{} `json:"bloom_breakdown"`
+	StageBreakdown interface{} `json:"stage_breakdown"`
+	TimeBreakdown  interface{} `json:"time_breakdown"`
+	CompletionType string      `json:"completion_type"`
+
+	// Enhanced analytics (optional)
+	SkillProgressions []interface{} `json:"skill_progressions,omitempty"`
+	CognitiveProfile  interface{}   `json:"cognitive_profile,omitempty"`
+	LearningPatterns  interface{}   `json:"learning_patterns,omitempty"`
+
+	// Event metadata
+	Timestamp time.Time `json:"timestamp"`
+	EventType string    `json:"event_type"`
+	Source    string    `json:"source"`
+	CreatedAt string    `json:"created_at"`
+}
+
 // SkillEvent represents skill-related events
 type SkillEvent struct {
 	EventType     string         `json:"eventType"`

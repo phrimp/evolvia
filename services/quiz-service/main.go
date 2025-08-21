@@ -363,38 +363,10 @@ func setupGlobalSessionRoutes(r *gin.Engine, sessionHandler *handlers.SessionHan
 		})
 	}
 
-	// User session overview routes
-	userSessions := r.Group("/users")
 	{
 		// Get all sessions for a user with pagination
-		userSessions.GET("/:userID/sessions", func(c *gin.Context) {
+		protectedGlobalSession.GET("/:userID", func(c *gin.Context) {
 			sessionHandler.GetUserSessions(c)
-			if publisher != nil {
-				publisher.Publish("quiz.user_sessions.overview_requested", gin.H{
-					"user_id":    c.Param("userID"),
-					"requester":  c.GetHeader("X-User-ID"),
-					"limit":      c.Query("limit"),
-					"offset":     c.Query("offset"),
-					"status":     c.Query("status"),
-					"timestamp":  time.Now(),
-				})
-			}
-		})
-	}
-
-	// Session details routes
-	sessionDetails := r.Group("/sessions")
-	{
-		// Get detailed session information with cached questions
-		sessionDetails.GET("/:id/details", func(c *gin.Context) {
-			sessionHandler.GetSessionDetails(c)
-			if publisher != nil {
-				publisher.Publish("quiz.session.details_requested", gin.H{
-					"session_id": c.Param("id"),
-					"user_id":    c.GetHeader("X-User-ID"),
-					"timestamp":  time.Now(),
-				})
-			}
 		})
 	}
 

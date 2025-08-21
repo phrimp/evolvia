@@ -9,6 +9,7 @@ import (
 	"knowledge-service/internal/services"
 	"log"
 	"math"
+	"runtime"
 	"strings"
 	"time"
 
@@ -198,14 +199,24 @@ func (c *EventConsumer) processMessage(msg amqp091.Delivery) error {
 }
 
 // handleQuizResultEventWithRecovery wraps the main handler with error recovery and metrics
-func (c *EventConsumer) handleQuizResultEventWithRecovery(body []byte) error {
+func (c *EventConsumer) handleQuizResultEventWithRecovery(body []byte) (retErr error) {
 	startTime := time.Now()
 
-	// Log raw message for debugging if validation fails
+	// Enhanced panic recovery with stack trace
 	defer func() {
 		if r := recover(); r != nil {
+			// Get stack trace
+			buf := make([]byte, 4096)
+			stackSize := runtime.Stack(buf, false)
+			stackTrace := string(buf[:stackSize])
+			
 			log.Printf("PANIC_RECOVERY in quiz result handler: %v", r)
+			log.Printf("Stack trace:\n%s", stackTrace)
 			log.Printf("Raw message body (first 500 chars): %s", string(body[:min(len(body), 500)]))
+			log.Printf("Processing time before panic: %v", time.Since(startTime))
+			
+			// Convert panic to error for proper handling
+			retErr = fmt.Errorf("panic recovered in quiz result handler: %v", r)
 		}
 	}()
 
@@ -482,7 +493,14 @@ func (c *EventConsumer) addSkillToUser(ctx context.Context, userID bson.ObjectID
 
 // handleQuizResultEvent processes quiz completion events and creates verification history
 func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
-	// Parse the enriched quiz result event directly
+	// First try parsing the consistent event structure
+	var consistentEvent ConsistentQuizCompletedEvent
+	if err := json.Unmarshal(body, &consistentEvent); err == nil {
+		log.Printf("INFO: Successfully parsed consistent quiz completed event for user %s", consistentEvent.UserID)
+		return c.processConsistentQuizEvent(&consistentEvent)
+	}
+
+	// Fallback: Parse the enriched quiz result event directly
 	var quizResult QuizResultEvent
 	if err := json.Unmarshal(body, &quizResult); err != nil {
 		// Try parsing legacy format with nested payload structure
@@ -492,7 +510,8 @@ func (c *EventConsumer) handleQuizResultEvent(body []byte) error {
 		}
 
 		if err := json.Unmarshal(body, &genericEvent); err != nil {
-			log.Printf("failed to unmarshal quiz result event: %s", err)
+			log.Printf("ERROR: Failed to unmarshal quiz result event as any known format: %s", err)
+			log.Printf("Raw event data (first 500 chars): %s", string(body[:min(len(body), 500)]))
 			return fmt.Errorf("failed to unmarshal quiz result event: %w", err)
 		}
 
@@ -964,4 +983,207 @@ type SkillMatch struct {
 	SkillName   string        `json:"skill_name"`
 	Confidence  float64       `json:"confidence"`
 	MatchedText string        `json:"matched_text"`
+}
+
+// processConsistentQuizEvent processes the consistent quiz completed event structure
+func (c *EventConsumer) processConsistentQuizEvent(event *ConsistentQuizCompletedEvent) error {
+	log.Printf("INFO: Processing consistent quiz completion event for user %s, session %s, score: %.2f",
+		event.UserID, event.SessionID, event.FinalScore)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Basic validation
+	if event.UserID == "" {
+		return fmt.Errorf("missing required field: user_id")
+	}
+	if len(event.UserID) != 24 {
+		return fmt.Errorf("invalid user_id format: expected 24 characters, got %d", len(event.UserID))
+	}
+	if event.SessionID == "" {
+		return fmt.Errorf("missing required field: session_id")
+	}
+	if event.FinalScore < 0 || event.FinalScore > 100 {
+		return fmt.Errorf("invalid final_score: %.2f (must be between 0 and 100)", event.FinalScore)
+	}
+
+	// Convert user ID to ObjectID
+	userObjectID, err := bson.ObjectIDFromHex(event.UserID)
+	if err != nil {
+		return fmt.Errorf("failed to convert user_id to ObjectID: %w", err)
+	}
+
+	// Process skill progressions if available
+	if len(event.SkillProgressions) > 0 {
+		log.Printf("INFO: Processing %d skill progressions for user %s", len(event.SkillProgressions), event.UserID)
+		
+		processedCount := 0
+		for i, progressionData := range event.SkillProgressions {
+			if err := c.processSkillProgressionFromConsistentEvent(ctx, userObjectID, progressionData, event); err != nil {
+				log.Printf("WARNING: Failed to process skill progression %d: %v", i, err)
+				continue
+			}
+			processedCount++
+		}
+		
+		log.Printf("INFO: Successfully processed %d/%d skill progressions for user %s", 
+			processedCount, len(event.SkillProgressions), event.UserID)
+	} else {
+		// Fallback to legacy processing for all user skills
+		log.Printf("INFO: No skill progressions found, falling back to legacy processing for user %s", event.UserID)
+		err := c.processLegacyQuizResultFromConsistentEvent(ctx, userObjectID, event)
+		if err != nil {
+			return fmt.Errorf("failed to process legacy quiz result: %w", err)
+		}
+	}
+
+	log.Printf("SUCCESS: Processed consistent quiz completion event for session %s", event.SessionID)
+	return nil
+}
+
+// processSkillProgressionFromConsistentEvent processes a single skill progression
+func (c *EventConsumer) processSkillProgressionFromConsistentEvent(ctx context.Context, userObjectID bson.ObjectID, progressionData interface{}, event *ConsistentQuizCompletedEvent) error {
+	// Convert interface{} to map for processing
+	progressionMap, ok := progressionData.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("skill progression data is not a map")
+	}
+
+	skillIDStr, ok := progressionMap["skill_id"].(string)
+	if !ok || skillIDStr == "" {
+		return fmt.Errorf("missing or invalid skill_id in skill progression")
+	}
+
+	skillObjectID, err := bson.ObjectIDFromHex(skillIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid skill_id format: %w", err)
+	}
+
+	// Create a basic bloom assessment from the consistent event data
+	bloomsAssessment := c.createBasicBloomAssessment(event.BloomBreakdown)
+
+	// Calculate total hours (assume 1 hour for simplicity)
+	totalHours := 1.0
+
+	// Create skill progress history entry
+	progressHistory := &models.SkillProgressHistory{
+		UserID:            userObjectID,
+		SkillID:           skillObjectID,
+		BloomsSnapshot:    bloomsAssessment,
+		TotalHours:        totalHours,
+		VerificationCount: 1,
+		Timestamp:         event.Timestamp,
+		TriggerEvent:      "quiz_completion",
+		OverallScore:      bloomsAssessment.GetOverallScore(),
+		IsAggregated:      false,
+	}
+
+	// Save to verification history repository
+	_, err = c.skillVerificationHistoryRepo.Create(ctx, progressHistory)
+	if err != nil {
+		return fmt.Errorf("failed to create verification history: %w", err)
+	}
+
+	log.Printf("INFO: Created verification history for skill %s, overall score %.2f",
+		skillIDStr, bloomsAssessment.GetOverallScore())
+
+	return nil
+}
+
+// processLegacyQuizResultFromConsistentEvent handles consistent events without skill progressions
+func (c *EventConsumer) processLegacyQuizResultFromConsistentEvent(ctx context.Context, userObjectID bson.ObjectID, event *ConsistentQuizCompletedEvent) error {
+	// Get user's skills to determine which ones to update verification history for
+	userSkills, err := c.userSkillService.GetUserSkills(ctx, userObjectID, repository.UserSkillListOptions{})
+	if err != nil {
+		log.Printf("WARNING: Could not retrieve user skills for verification update: %v", err)
+		return err
+	}
+
+	// Create verification history entries for each user skill
+	totalHistoryEntries := 0
+	for _, userSkill := range userSkills {
+		// Create basic bloom assessment from consistent event data
+		bloomsAssessment := c.createBasicBloomAssessment(event.BloomBreakdown)
+
+		// Create skill progress history entry
+		progressHistory := &models.SkillProgressHistory{
+			UserID:            userObjectID,
+			SkillID:           userSkill.SkillID,
+			BloomsSnapshot:    bloomsAssessment,
+			TotalHours:        1.0, // Simplified for consistency
+			VerificationCount: 1,
+			Timestamp:         event.Timestamp,
+			TriggerEvent:      "quiz_verification",
+			OverallScore:      bloomsAssessment.GetOverallScore(),
+			IsAggregated:      false,
+		}
+
+		// Save to verification history repository
+		_, err := c.skillVerificationHistoryRepo.Create(ctx, progressHistory)
+		if err != nil {
+			log.Printf("WARNING: Failed to create verification history for user %s, skill %s: %v",
+				event.UserID, userSkill.SkillID.Hex(), err)
+			continue
+		}
+
+		totalHistoryEntries++
+		log.Printf("INFO: Created legacy verification history entry for user %s, skill %s, overall score: %.2f",
+			event.UserID, userSkill.SkillID.Hex(), bloomsAssessment.GetOverallScore())
+	}
+
+	log.Printf("SUCCESS: Created %d legacy verification history entries for quiz session %s",
+		totalHistoryEntries, event.SessionID)
+
+	return nil
+}
+
+// createBasicBloomAssessment creates a basic bloom assessment from bloom breakdown data
+func (c *EventConsumer) createBasicBloomAssessment(bloomBreakdown interface{}) models.BloomsTaxonomyAssessment {
+	// Default bloom assessment
+	assessment := models.BloomsTaxonomyAssessment{
+		Remember:    0.5,
+		Understand:  0.5,
+		Apply:       0.5,
+		Analyze:     0.5,
+		Evaluate:    0.5,
+		Create:      0.5,
+		Verified:    true,
+		LastUpdated: time.Now(),
+	}
+
+	// Try to extract bloom data if available
+	if bloomMap, ok := bloomBreakdown.(map[string]interface{}); ok {
+		if remember, ok := bloomMap["remember"].(map[string]interface{}); ok {
+			if accuracy, ok := remember["accuracy_percentage"].(float64); ok {
+				assessment.Remember = c.normalizeBloomScore(accuracy)
+			}
+		}
+		if understand, ok := bloomMap["understand"].(map[string]interface{}); ok {
+			if accuracy, ok := understand["accuracy_percentage"].(float64); ok {
+				assessment.Understand = c.normalizeBloomScore(accuracy)
+			}
+		}
+		if apply, ok := bloomMap["apply"].(map[string]interface{}); ok {
+			if accuracy, ok := apply["accuracy_percentage"].(float64); ok {
+				assessment.Apply = c.normalizeBloomScore(accuracy)
+			}
+		}
+		if analyze, ok := bloomMap["analyze"].(map[string]interface{}); ok {
+			if accuracy, ok := analyze["accuracy_percentage"].(float64); ok {
+				assessment.Analyze = c.normalizeBloomScore(accuracy)
+			}
+		}
+		if evaluate, ok := bloomMap["evaluate"].(map[string]interface{}); ok {
+			if accuracy, ok := evaluate["accuracy_percentage"].(float64); ok {
+				assessment.Evaluate = c.normalizeBloomScore(accuracy)
+			}
+		}
+		if create, ok := bloomMap["create"].(map[string]interface{}); ok {
+			if accuracy, ok := create["accuracy_percentage"].(float64); ok {
+				assessment.Create = c.normalizeBloomScore(accuracy)
+			}
+		}
+	}
+
+	return assessment
 }

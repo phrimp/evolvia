@@ -725,9 +725,25 @@ func (s *SessionService) SubmitSession(
 
 	// Publish enhanced events
 	if s.EventPublisher != nil {
-		// Enhanced skills event with rich learning analytics
-		skillsData := s.extractKnowledgeData(session, result)
-		s.EventPublisher.Publish("quiz_completed", skillsData)
+		// Create consistent QuizCompletedEvent structure
+		eventData := s.createConsistentQuizEvent(session, result)
+
+		// Basic validation
+		if eventData.UserID == "" || eventData.SessionID == "" || eventData.ResultID == "" {
+			log.Printf("ERROR: Quiz completed event missing required fields - UserID: %s, SessionID: %s, ResultID: %s",
+				eventData.UserID, eventData.SessionID, eventData.ResultID)
+			return result, fmt.Errorf("event validation failed: missing required fields")
+		}
+
+		// Publish event with error handling
+		err := s.EventPublisher.Publish("quiz_completed", eventData)
+		if err != nil {
+			log.Printf("ERROR: Failed to publish quiz completed event: %v", err)
+			// Don't fail the session completion, but log the error
+		} else {
+			log.Printf("SUCCESS: Published quiz completed event for session %s, user %s",
+				eventData.SessionID, eventData.UserID)
+		}
 	}
 
 	return result, nil
@@ -1386,12 +1402,10 @@ func (s *SessionService) getBloomDistribution(difficulty string) map[string]floa
 	return s.bloomScoringService.GetBloomDistribution(difficulty, false)
 }
 
-
 // getRecoveryBloomDistribution returns recovery-specific Bloom distributions
 func (s *SessionService) getRecoveryBloomDistribution(difficulty string) map[string]float64 {
 	return s.bloomScoringService.GetBloomDistribution(difficulty, true)
 }
-
 
 func (s *SessionService) mapStageToDifficulty(stage adaptive.Stage) string {
 	switch stage {
@@ -1409,12 +1423,12 @@ func (s *SessionService) mapStageToDifficulty(stage adaptive.Stage) string {
 // generatePoolCacheKey generates a cache key for session-specific pools
 func (s *SessionService) generatePoolCacheKey(sessionID string, session *models.QuizSession) string {
 	stage := session.CurrentStage
-	
+
 	// Safely access stage progress with nil check
 	if session.StageProgress == nil {
 		return fmt.Sprintf("session_%s_%s_initial", sessionID, stage)
 	}
-	
+
 	progress, exists := session.StageProgress[stage]
 	if !exists {
 		return fmt.Sprintf("session_%s_%s_initial", sessionID, stage)
@@ -1588,7 +1602,7 @@ func (s *SessionService) calculateBloomBreakdownFromCache(sessionID string) (mod
 	}()
 
 	log.Printf("[BLOOM_BREAKDOWN] [%s] Starting Bloom breakdown calculation from cached answers", sessionID)
-	
+
 	// Get cached answers
 	cachedAnswers, exists := s.GetCachedAnswers(sessionID)
 	if !exists {
@@ -1614,7 +1628,7 @@ func (s *SessionService) calculateBloomBreakdownFromCache(sessionID string) (mod
 	// Initialize Bloom level performance tracking
 	bloomData := make(map[string]*models.BloomLevelPerformance)
 	bloomLevels := []string{"remember", "understand", "apply", "analyze", "evaluate", "create"}
-	
+
 	for _, level := range bloomLevels {
 		bloomData[level] = &models.BloomLevelPerformance{}
 	}
@@ -1641,14 +1655,14 @@ func (s *SessionService) calculateBloomBreakdownFromCache(sessionID string) (mod
 
 			perf := bloomData[level]
 			perf.QuestionsAttempted++
-			
+
 			if answer.IsCorrect {
 				perf.QuestionsCorrect++
 			}
-			
+
 			perf.ActualScore += answer.PointsEarned
 			perf.TotalTimeSpent += answer.TimeSpentSeconds
-			
+
 			// Calculate possible score based on actual scoring or estimation
 			if answer.IsCorrect && answer.PointsEarned > 0 {
 				// For correct answers, the points earned IS the possible score
@@ -1668,7 +1682,7 @@ func (s *SessionService) calculateBloomBreakdownFromCache(sessionID string) (mod
 				perf.PossibleScore += s.estimatePossibleScore(level)
 			}
 
-			log.Printf("[BLOOM_BREAKDOWN] [%s] Processed answer %d: Level=%s, Correct=%v, Points=%.2f, Time=%ds", 
+			log.Printf("[BLOOM_BREAKDOWN] [%s] Processed answer %d: Level=%s, Correct=%v, Points=%.2f, Time=%ds",
 				sessionID, i, level, answer.IsCorrect, answer.PointsEarned, answer.TimeSpentSeconds)
 		}()
 	}
@@ -1684,7 +1698,7 @@ func (s *SessionService) calculateBloomBreakdownFromCache(sessionID string) (mod
 			}()
 
 			s.calculateBloomLevelMetrics(perf)
-			
+
 			switch level {
 			case "remember":
 				breakdown.Remember = *perf
@@ -1700,7 +1714,7 @@ func (s *SessionService) calculateBloomBreakdownFromCache(sessionID string) (mod
 				breakdown.Create = *perf
 			}
 
-			log.Printf("[BLOOM_BREAKDOWN] [%s] Level %s: Attempted=%d, Correct=%d, Accuracy=%.2f%%, Score=%.2f/%.2f", 
+			log.Printf("[BLOOM_BREAKDOWN] [%s] Level %s: Attempted=%d, Correct=%d, Accuracy=%.2f%%, Score=%.2f/%.2f",
 				sessionID, level, perf.QuestionsAttempted, perf.QuestionsCorrect, perf.AccuracyPercentage, perf.ActualScore, perf.PossibleScore)
 		}()
 	}
@@ -1738,7 +1752,7 @@ func (s *SessionService) estimatePossibleScore(bloomLevel string) float64 {
 		"evaluate":   3.0,
 		"create":     3.5,
 	}
-	
+
 	if score, exists := scoreMap[bloomLevel]; exists {
 		return score
 	}
@@ -1808,7 +1822,7 @@ func (s *SessionService) generateCognitiveProfileFromBreakdown(breakdown *models
 	}()
 
 	profile := models.CognitiveProfile{}
-	
+
 	// Collect performance data
 	levels := []struct {
 		name string
@@ -1865,11 +1879,11 @@ func (s *SessionService) generateCognitiveProfileFromBreakdown(breakdown *models
 	} else {
 		recommendations = append(recommendations, "Strengthen foundational knowledge first")
 	}
-	
+
 	if len(weaknessLevels) > 0 {
 		recommendations = append(recommendations, fmt.Sprintf("Focus improvement on: %s", strings.Join(weaknessLevels, ", ")))
 	}
-	
+
 	profile.LearningRecommendations = recommendations
 
 	return profile
@@ -2117,7 +2131,7 @@ func (s *SessionService) calculateStageBreakdownFromCache(sessionID string) (map
 		return make(map[string]models.StageBreakdown), fmt.Errorf("no cached answers available for session %s", sessionID)
 	}
 
-	stageStats := make(map[string]struct{
+	stageStats := make(map[string]struct {
 		attempted, correct int
 		totalScore         float64
 		hasRecovery        bool
@@ -2162,7 +2176,7 @@ func (s *SessionService) calculateStageBreakdownFromCache(sessionID string) (map
 		}
 	}
 
-	log.Printf("[STAGE_BREAKDOWN] [%s] Built breakdown from %d cached answers across %d stages", 
+	log.Printf("[STAGE_BREAKDOWN] [%s] Built breakdown from %d cached answers across %d stages",
 		sessionID, len(cachedAnswers), len(stageBreakdown))
 	return stageBreakdown, nil
 }
@@ -2273,15 +2287,15 @@ func (s *SessionService) buildSessionSummary(session *models.QuizSession) models
 	}
 
 	return models.SessionSummary{
-		ID:             session.ID,
-		ConfigID:       session.ConfigID,
-		Status:         session.Status,
-		StartTime:      session.StartTime,
-		EndTime:        session.EndTime,
-		CurrentStage:   session.CurrentStage,
-		TotalQuestions: session.TotalQuestionsAsked,
-		FinalScore:     session.FinalScore,
-		SkillInfo:      skillInfo,
+		ID:              session.ID,
+		ConfigID:        session.ConfigID,
+		Status:          session.Status,
+		StartTime:       session.StartTime,
+		EndTime:         session.EndTime,
+		CurrentStage:    session.CurrentStage,
+		TotalQuestions:  session.TotalQuestionsAsked,
+		FinalScore:      session.FinalScore,
+		SkillInfo:       skillInfo,
 		ProgressSummary: progressSummary,
 	}
 }
@@ -2301,6 +2315,45 @@ func (s *SessionService) MarkSessionCacheCompleted(sessionID string) {
 }
 
 // extractKnowledgeData creates rich skills analytics from session and result data for skills.events exchange
+// createConsistentQuizEvent creates a consistent QuizCompletedEvent structure
+func (s *SessionService) createConsistentQuizEvent(session *models.QuizSession, result *models.QuizResult) *event.QuizCompletedEvent {
+	skillID := s.extractSkillID(session)
+
+	return &event.QuizCompletedEvent{
+		// Core identifiers
+		ResultID:  result.ID,
+		SessionID: session.ID,
+		UserID:    session.UserID,
+		QuizID:    result.ConfigID, // Using ConfigID as QuizID for compatibility
+		ConfigID:  result.ConfigID,
+
+		// Performance metrics
+		FinalScore:         result.FinalScore,
+		Percentage:         result.FinalScore,
+		BadgeLevel:         result.BadgeLevel,
+		QuestionsAttempted: result.QuestionsAttempted,
+		QuestionsCorrect:   result.QuestionsCorrect,
+
+		// Analysis data (keeping existing structure)
+		BloomBreakdown: result.BloomBreakdown,
+		StageBreakdown: result.StageBreakdown,
+		TimeBreakdown:  result.TimeBreakdown,
+		CompletionType: result.CompletionType,
+
+		// Enhanced analytics (using existing extractKnowledgeData logic)
+		SkillProgressions: s.extractSkillProgressions(session, result, skillID),
+		CognitiveProfile:  s.extractCognitiveProfile(session, result),
+		LearningPatterns:  s.extractLearningPatterns(session, result),
+
+		// Event metadata
+		Timestamp: time.Now(),
+		EventType: "quiz_completed",
+		Source:    "quiz-service",
+		CreatedAt: result.CreatedAt.Format(time.RFC3339),
+	}
+}
+
+// Legacy function kept for backward compatibility
 func (s *SessionService) extractKnowledgeData(session *models.QuizSession, result *models.QuizResult) map[string]interface{} {
 	// Extract skill progressions with Bloom level analysis
 	skillProgressions := make(map[string]interface{})
@@ -2398,6 +2451,35 @@ func (s *SessionService) getHardcodedBadgeLevel(score float64) string {
 		return "intermediate"
 	}
 	return "beginner"
+}
+
+// Simple helper functions for consistent event structure
+func (s *SessionService) extractSkillProgressions(session *models.QuizSession, result *models.QuizResult, skillID string) []interface{} {
+	if skillID == "" {
+		return []interface{}{}
+	}
+	return []interface{}{
+		map[string]interface{}{
+			"skill_id":        skillID,
+			"bloom_breakdown": result.BloomBreakdown,
+			"mastery_level":   result.BadgeLevel,
+		},
+	}
+}
+
+func (s *SessionService) extractCognitiveProfile(session *models.QuizSession, result *models.QuizResult) interface{} {
+	return map[string]interface{}{
+		"analytical_strength": result.FinalScore,
+		"overall_percentage":  result.FinalScore,
+		"dominant_strengths":  []string{result.BadgeLevel},
+	}
+}
+
+func (s *SessionService) extractLearningPatterns(session *models.QuizSession, result *models.QuizResult) interface{} {
+	return map[string]interface{}{
+		"learning_style":     "adaptive",
+		"adaptability_score": result.FinalScore / 100.0,
+	}
 }
 
 // createAnswerCacheFromConfig creates answer cache using configuration-based retention
