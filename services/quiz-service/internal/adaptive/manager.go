@@ -47,6 +47,11 @@ func (m *Manager) SetBloomScorer(bloomScorer BloomScoringInterface) {
 	m.bloomScorer = bloomScorer
 }
 
+// GetConfig returns the adaptive configuration
+func (m *Manager) GetConfig() *AdaptiveConfig {
+	return m.config
+}
+
 // ProcessAnswer processes an answer and updates the session state with Bloom-aware scoring
 func (m *Manager) ProcessAnswer(session *AdaptiveSession, question *models.Question, isCorrect bool) (*AnswerResult, error) {
 	if session.IsComplete {
@@ -191,7 +196,7 @@ func (m *Manager) calculateBloomAwarePoints(question *models.Question, stage Sta
 	}
 
 	var baseScore float64
-	
+
 	// Use centralized scoring service if available
 	if m.bloomScorer != nil {
 		baseScore = float64(m.bloomScorer.GetQuestionScore(question.BloomLevel, string(stage)))
@@ -266,17 +271,41 @@ func (m *Manager) CalculateFinalScore(session *AdaptiveSession) float64 {
 		return 0.0
 	}
 
-	// Maximum possible score if all stages completed perfectly
+	// Calculate full session potential score based on MaxQuestions and stage progression
 	maxScore := 0.0
 
-	// Easy: 5 questions * 3 points = 15
-	maxScore += float64(m.config.StageConfigs[StageEasy].InitialQuestions) * m.config.StageConfigs[StageEasy].BasePoints
-	// Medium: 5 questions * 7 points = 35
-	maxScore += float64(m.config.StageConfigs[StageMedium].InitialQuestions) * m.config.StageConfigs[StageMedium].BasePoints
-	// Hard: 5 questions * 10 points = 50
-	maxScore += float64(m.config.StageConfigs[StageHard].InitialQuestions) * m.config.StageConfigs[StageHard].BasePoints
+	// Check if MaxQuestions is set, otherwise fallback to stage-based calculation
+	if m.config.MaxQuestions > 0 {
+		// Calculate potential score for the entire session (not just attempted)
+		totalQuestionsBudget := float64(m.config.MaxQuestions)
 
-	// Total max = 100 points (15 + 35 + 50)
+		// Calculate total stage questions for weighting
+		totalStageQuestions := float64(m.config.StageConfigs[StageEasy].InitialQuestions +
+			m.config.StageConfigs[StageMedium].InitialQuestions +
+			m.config.StageConfigs[StageHard].InitialQuestions)
+
+		if totalStageQuestions > 0 {
+			// Use stage distribution as weights
+			easyWeight := float64(m.config.StageConfigs[StageEasy].InitialQuestions) / totalStageQuestions
+			mediumWeight := float64(m.config.StageConfigs[StageMedium].InitialQuestions) / totalStageQuestions
+			hardWeight := float64(m.config.StageConfigs[StageHard].InitialQuestions) / totalStageQuestions
+
+			weightedAvgPoints := (easyWeight * m.config.StageConfigs[StageEasy].BasePoints) +
+				(mediumWeight * m.config.StageConfigs[StageMedium].BasePoints) +
+				(hardWeight * m.config.StageConfigs[StageHard].BasePoints)
+
+			// Full session potential = MaxQuestions * weighted average points
+			maxScore = totalQuestionsBudget * weightedAvgPoints
+		} else {
+			// Fallback: use simple average if no stage config
+			maxScore = totalQuestionsBudget * 5.0 // default average
+		}
+	} else {
+		// Fallback to traditional stage-based calculation if MaxQuestions not set
+		maxScore += float64(m.config.StageConfigs[StageEasy].InitialQuestions) * m.config.StageConfigs[StageEasy].BasePoints
+		maxScore += float64(m.config.StageConfigs[StageMedium].InitialQuestions) * m.config.StageConfigs[StageMedium].BasePoints
+		maxScore += float64(m.config.StageConfigs[StageHard].InitialQuestions) * m.config.StageConfigs[StageHard].BasePoints
+	}
 
 	if maxScore == 0 {
 		return 0

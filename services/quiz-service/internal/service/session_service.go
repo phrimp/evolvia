@@ -1664,7 +1664,7 @@ func (s *SessionService) calculateBloomBreakdownFromCache(sessionID string) (mod
 			perf.ActualScore += answer.PointsEarned
 			perf.TotalTimeSpent += answer.TimeSpentSeconds
 
-			// Calculate possible score based on actual scoring or estimation
+			// Track actual possible score for attempted questions
 			if answer.IsCorrect && answer.PointsEarned > 0 {
 				// For correct answers, the points earned IS the possible score
 				perf.PossibleScore += answer.PointsEarned
@@ -1686,6 +1686,15 @@ func (s *SessionService) calculateBloomBreakdownFromCache(sessionID string) (mod
 			log.Printf("[BLOOM_BREAKDOWN] [%s] Processed answer %d: Level=%s, Correct=%v, Points=%.2f, Time=%ds",
 				sessionID, i, level, answer.IsCorrect, answer.PointsEarned, answer.TimeSpentSeconds)
 		}()
+	}
+
+	// Fix potential scores to reflect full session potential, not just attempted questions
+	for level, perf := range bloomData {
+		sessionPotential := s.calculateBloomLevelSessionPotential(sessionID, level)
+		// Replace attempted-only potential with full session potential
+		perf.PossibleScore = sessionPotential
+		log.Printf("[BLOOM_BREAKDOWN] [%s] Updated level %s potential: %.2f (full session) vs attempted-only (replaced)", 
+			sessionID, level, sessionPotential)
 	}
 
 	// Calculate derived metrics for each level
@@ -1758,6 +1767,46 @@ func (s *SessionService) estimatePossibleScore(bloomLevel string) float64 {
 		return score
 	}
 	return 2.0 // Default score
+}
+
+// calculateBloomLevelSessionPotential calculates the full session potential for a specific Bloom level
+func (s *SessionService) calculateBloomLevelSessionPotential(sessionID string, bloomLevel string) float64 {
+	// Get session to determine configuration
+	session, err := s.Repo.FindByID(context.Background(), sessionID)
+	if err != nil {
+		log.Printf("[BLOOM_POTENTIAL] [%s] Failed to get session for potential calculation: %v", sessionID, err)
+		// Fallback to default estimation
+		return s.estimatePossibleScore(bloomLevel) * 5.0 // Estimate 5 questions per level
+	}
+
+	// Reconstruct adaptive session to get config
+	adaptiveSession := s.reconstructAdaptiveSession(session)
+	if adaptiveSession == nil {
+		log.Printf("[BLOOM_POTENTIAL] [%s] Failed to reconstruct adaptive session", sessionID)
+		return s.estimatePossibleScore(bloomLevel) * 5.0
+	}
+
+	// Get MaxQuestions from adaptive manager config
+	maxQuestions := float64(s.adaptiveManager.GetConfig().MaxQuestions)
+	if maxQuestions <= 0 {
+		maxQuestions = 25.0 // Default fallback
+	}
+
+	// Estimate Bloom level distribution across the full session
+	// Typical distribution: each level gets roughly equal representation
+	bloomLevels := []string{"remember", "understand", "apply", "analyze", "evaluate", "create"}
+	questionsPerBloomLevel := maxQuestions / float64(len(bloomLevels))
+
+	// Get average points per question for this Bloom level
+	avgPointsForLevel := s.estimatePossibleScore(bloomLevel)
+
+	// Calculate full session potential for this Bloom level
+	sessionPotential := questionsPerBloomLevel * avgPointsForLevel
+
+	log.Printf("[BLOOM_POTENTIAL] [%s] Level=%s, MaxQuestions=%.0f, QuestionsPerLevel=%.1f, AvgPoints=%.1f, Potential=%.1f",
+		sessionID, bloomLevel, maxQuestions, questionsPerBloomLevel, avgPointsForLevel, sessionPotential)
+
+	return sessionPotential
 }
 
 // calculateBloomLevelMetrics calculates derived metrics for a Bloom level performance
