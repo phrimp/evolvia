@@ -39,11 +39,7 @@ func NewEventPublisher(amqpURL, exchange string) (*EventPublisher, error) {
 }
 
 func (p *EventPublisher) Publish(eventType string, payload any) error {
-	event := map[string]any{
-		"type":    eventType,
-		"payload": payload,
-	}
-	body, err := json.Marshal(event)
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
