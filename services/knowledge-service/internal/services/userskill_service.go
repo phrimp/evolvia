@@ -877,6 +877,69 @@ func (s *UserSkillService) CreateAggregatedSkillHistory(ctx context.Context, use
 	return s.skillVerificationHistoryRepo.Create(ctx, history)
 }
 
+// GetLatestPerLevelComposite creates a composite assessment using the latest verified score
+// for each individual Bloom's level from across all historical records
+func (s *UserSkillService) GetLatestPerLevelComposite(ctx context.Context, userID, skillID bson.ObjectID) (*models.BloomsTaxonomyAssessment, error) {
+	// Get ALL verification history for this skill (sorted by timestamp DESC)
+	allHistory, err := s.skillVerificationHistoryRepo.GetByUserAndSkill(ctx, userID, skillID)
+	if err != nil || len(allHistory) == 0 {
+		return &models.BloomsTaxonomyAssessment{}, nil
+	}
+
+	// Initialize composite assessment with zero values
+	composite := &models.BloomsTaxonomyAssessment{}
+
+	// Track latest timestamp for each Bloom's level
+	levelTimestamps := map[string]time.Time{
+		"remember":   {},
+		"understand": {},
+		"apply":      {},
+		"analyze":    {},
+		"evaluate":   {},
+		"create":     {},
+	}
+
+	// Process history records to find latest verified score for each level
+	for _, record := range allHistory {
+		if !record.BloomsSnapshot.Verified {
+			continue // Skip unverified assessments
+		}
+
+		ts := record.Timestamp
+		snapshot := record.BloomsSnapshot
+
+		// Update each Bloom's level if this is the latest verified assessment for that level
+		if levelTimestamps["remember"].IsZero() || ts.After(levelTimestamps["remember"]) {
+			composite.Remember = snapshot.Remember
+			levelTimestamps["remember"] = ts
+		}
+		if levelTimestamps["understand"].IsZero() || ts.After(levelTimestamps["understand"]) {
+			composite.Understand = snapshot.Understand
+			levelTimestamps["understand"] = ts
+		}
+		if levelTimestamps["apply"].IsZero() || ts.After(levelTimestamps["apply"]) {
+			composite.Apply = snapshot.Apply
+			levelTimestamps["apply"] = ts
+		}
+		if levelTimestamps["analyze"].IsZero() || ts.After(levelTimestamps["analyze"]) {
+			composite.Analyze = snapshot.Analyze
+			levelTimestamps["analyze"] = ts
+		}
+		if levelTimestamps["evaluate"].IsZero() || ts.After(levelTimestamps["evaluate"]) {
+			composite.Evaluate = snapshot.Evaluate
+			levelTimestamps["evaluate"] = ts
+		}
+		if levelTimestamps["create"].IsZero() || ts.After(levelTimestamps["create"]) {
+			composite.Create = snapshot.Create
+			levelTimestamps["create"] = ts
+		}
+	}
+
+	composite.Verified = true
+	composite.LastUpdated = time.Now()
+	return composite, nil
+}
+
 // GetSkillAssessmentWithAggregation gets skill assessment with the following priority:
 // 1. Hybrid verification history (builds_on + own verification with weight distribution)
 // 2. Direct self-assessment (fallback only if no verification history exists anywhere)
@@ -908,13 +971,8 @@ func (s *UserSkillService) GetSkillAssessmentWithAggregation(ctx context.Context
 			return s.calculateAggregatedBloomsFromHistory(aggregatedAssessment), nil
 		}
 	} else {
-		// For skills without builds_on relationships, check own verification history
-		ownHistory, err := s.skillVerificationHistoryRepo.GetByUserAndSkill(ctx, userID, skillID)
-		if err == nil && len(ownHistory) > 0 {
-			// Use skill's own verification history (most recent)
-			latestHistory := ownHistory[0] // Already sorted by timestamp desc
-			return &latestHistory.BloomsSnapshot, nil
-		}
+		// For skills without builds_on relationships, use latest-per-level composite
+		return s.GetLatestPerLevelComposite(ctx, userID, skillID)
 	}
 
 	// Second priority: Use self-assessment only if NO verification history exists
@@ -928,23 +986,32 @@ func (s *UserSkillService) GetSkillAssessmentWithAggregation(ctx context.Context
 }
 
 // calculateAggregatedBloomsFromHistory calculates Bloom's taxonomy scores from aggregated assessment
+// using latest-per-level composite for each weighted skill
 func (s *UserSkillService) calculateAggregatedBloomsFromHistory(aggregatedAssessment *models.AggregatedSkillAssessment) *models.BloomsTaxonomyAssessment {
 	var blooms models.BloomsTaxonomyAssessment
 	totalWeight := 0.0
 
 	for _, weightedSkill := range aggregatedAssessment.WeightedSkills {
-		if weightedSkill.LatestAssessment != nil {
+		if len(weightedSkill.History) > 0 {
 			weight := weightedSkill.RelationWeight
-			assessment := weightedSkill.LatestAssessment
 
-			blooms.Remember += assessment.Remember * weight
-			blooms.Understand += assessment.Understand * weight
-			blooms.Apply += assessment.Apply * weight
-			blooms.Analyze += assessment.Analyze * weight
-			blooms.Evaluate += assessment.Evaluate * weight
-			blooms.Create += assessment.Create * weight
+			// Use latest-per-level composite for this weighted skill
+			// Extract userID from the first history record
+			userID := weightedSkill.History[0].UserID
+			skillID := weightedSkill.SkillID
 
-			totalWeight += weight
+			// Get composite assessment for this skill
+			compositeAssessment, err := s.GetLatestPerLevelComposite(context.Background(), userID, skillID)
+			if err == nil && compositeAssessment != nil {
+				blooms.Remember += compositeAssessment.Remember * weight
+				blooms.Understand += compositeAssessment.Understand * weight
+				blooms.Apply += compositeAssessment.Apply * weight
+				blooms.Analyze += compositeAssessment.Analyze * weight
+				blooms.Evaluate += compositeAssessment.Evaluate * weight
+				blooms.Create += compositeAssessment.Create * weight
+
+				totalWeight += weight
+			}
 		}
 	}
 

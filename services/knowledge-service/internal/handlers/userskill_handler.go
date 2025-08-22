@@ -60,6 +60,7 @@ func (h *UserSkillHandler) RegisterRoutes(app *fiber.App) {
 	protectedGroup.Post("/user/:userId/skill/:skillID/aggregated-history", h.CreateAggregatedSkillHistory, utils.OwnerPermissionRequired(""))
 	protectedGroup.Get("/user/:userId/skill/:skillID/progress", h.GetSkillProgress, utils.OwnerPermissionRequired(""))
 	protectedGroup.Get("/user/:userId/skill/:skillID/comprehensive-history", h.GetComprehensiveVerificationHistory, utils.OwnerPermissionRequired(""))
+	protectedGroup.Get("/user/:userId/skill/:skillID/composite", h.GetLatestPerLevelComposite, utils.OwnerPermissionRequired(""))
 
 	// Top user skill progress endpoint
 	protectedGroup.Get("/user/:userId/top-progress", h.GetTopUserSkillProgress, utils.OwnerPermissionRequired(""))
@@ -1377,6 +1378,73 @@ func (h *UserSkillHandler) GetTopUserSkillProgress(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"data":    response,
 		"message": "Top user skill progress retrieved successfully",
+	})
+}
+
+// GetLatestPerLevelComposite retrieves the composite assessment using latest verified score per Bloom's level
+func (h *UserSkillHandler) GetLatestPerLevelComposite(c fiber.Ctx) error {
+	userIdStr := c.Params("userId")
+	skillIDStr := c.Params("skillID")
+
+	if userIdStr == "" || skillIDStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID and Skill ID are required",
+		})
+	}
+
+	userId, err := bson.ObjectIDFromHex(userIdStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
+	}
+
+	skillID, err := bson.ObjectIDFromHex(skillIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid skill ID format",
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get the latest-per-level composite assessment
+	composite, err := h.userSkillService.GetLatestPerLevelComposite(ctx, userId, skillID)
+	if err != nil {
+		log.Printf("Failed to get latest per level composite for user %s skill %s: %v", userIdStr, skillIDStr, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve composite assessment",
+		})
+	}
+
+	// Calculate overall score and additional details
+	overallScore := composite.GetOverallScore()
+	primaryStrength := composite.GetPrimaryStrength()
+	weakestArea := composite.GetWeakestArea()
+
+	response := fiber.Map{
+		"user_id":        userId,
+		"skill_id":       skillID,
+		"composite_assessment": fiber.Map{
+			"remember":     composite.Remember,
+			"understand":   composite.Understand,
+			"apply":        composite.Apply,
+			"analyze":      composite.Analyze,
+			"evaluate":     composite.Evaluate,
+			"create":       composite.Create,
+			"verified":     composite.Verified,
+			"last_updated": composite.LastUpdated,
+		},
+		"overall_score":    overallScore,
+		"primary_strength": primaryStrength,
+		"weakest_area":     weakestArea,
+		"calculation_method": "latest_per_level_composite",
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data":    response,
+		"message": "Latest per level composite assessment retrieved successfully",
 	})
 }
 
