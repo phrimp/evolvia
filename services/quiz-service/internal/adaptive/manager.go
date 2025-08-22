@@ -1,6 +1,7 @@
 package adaptive
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"quiz-service/internal/models"
@@ -14,10 +15,16 @@ type BloomScoringInterface interface {
 	GetQuestionScoresByStage(bloomLevel string) map[string]int
 }
 
+// ConfigBridgeInterface defines the interface for configuration bridge
+type ConfigBridgeInterface interface {
+	GetAdaptiveConfig(ctx context.Context) (*AdaptiveConfig, error)
+}
+
 // Manager handles adaptive quiz logic
 type Manager struct {
-	config      *AdaptiveConfig
-	bloomScorer BloomScoringInterface
+	config       *AdaptiveConfig
+	bloomScorer  BloomScoringInterface
+	configBridge ConfigBridgeInterface // NEW: Database configuration bridge
 }
 
 // NewManager creates a new adaptive manager
@@ -28,6 +35,15 @@ func NewManager(config *AdaptiveConfig) *Manager {
 	return &Manager{
 		config:      config,
 		bloomScorer: nil, // Will be set via SetBloomScorer
+	}
+}
+
+// NewManagerWithConfigBridge creates adaptive manager with database configuration support
+func NewManagerWithConfigBridge(configBridge ConfigBridgeInterface, bloomScorer BloomScoringInterface) *Manager {
+	return &Manager{
+		config:       nil, // Will be loaded from database
+		bloomScorer:  bloomScorer,
+		configBridge: configBridge,
 	}
 }
 
@@ -47,8 +63,23 @@ func (m *Manager) SetBloomScorer(bloomScorer BloomScoringInterface) {
 	m.bloomScorer = bloomScorer
 }
 
-// GetConfig returns the adaptive configuration
+// GetConfig returns the adaptive configuration, loading from database if needed
 func (m *Manager) GetConfig() *AdaptiveConfig {
+	// Try to load from database first if configBridge available
+	if m.configBridge != nil {
+		if dbConfig, err := m.configBridge.GetAdaptiveConfig(context.Background()); err == nil {
+			m.config = dbConfig // Cache the loaded config
+			return dbConfig
+		} else {
+			// Log warning but continue with cached/default config
+			fmt.Printf("[ADAPTIVE_MANAGER] Warning: Failed to load config from database, using cached/default: %v\n", err)
+		}
+	}
+
+	// Return cached config or default
+	if m.config == nil {
+		m.config = DefaultAdaptiveConfig()
+	}
 	return m.config
 }
 
@@ -67,7 +98,9 @@ func (m *Manager) ProcessAnswer(session *AdaptiveSession, question *models.Quest
 		currentStatus = &StageStatus{}
 		session.StageStatuses[session.CurrentStage] = currentStatus
 	}
-	stageConfig := m.config.StageConfigs[session.CurrentStage]
+	// Get current configuration (might load from database)
+	currentConfig := m.GetConfig()
+	stageConfig := currentConfig.StageConfigs[session.CurrentStage]
 
 	// Update counters
 	currentStatus.QuestionsAsked++
@@ -107,7 +140,7 @@ func (m *Manager) ProcessAnswer(session *AdaptiveSession, question *models.Quest
 	}
 
 	// Check if we've hit the max questions limit
-	if session.TotalQuestionsAsked >= m.config.MaxQuestions {
+	if session.TotalQuestionsAsked >= currentConfig.MaxQuestions {
 		session.IsComplete = true
 		result.IsComplete = true
 		return result, nil
@@ -197,12 +230,13 @@ func (m *Manager) calculateBloomAwarePoints(question *models.Question, stage Sta
 
 	var baseScore float64
 
-	// Use centralized scoring service if available
+	// Use centralized scoring service (pure service-based approach)
 	if m.bloomScorer != nil {
 		baseScore = float64(m.bloomScorer.GetQuestionScore(question.BloomLevel, string(stage)))
 	} else {
-		// Fallback to question's method for backwards compatibility
-		baseScore = float64(question.GetScoreForStage(string(stage)))
+		// ERROR: BloomScorer must be available for consistent scoring
+		fmt.Printf("[ADAPTIVE_MANAGER] ERROR: BloomScorer not available for question %s, stage %s\n", question.ID, stage)
+		return 0 // Return 0 to indicate scoring failure
 	}
 
 	// Apply recovery penalty if in recovery mode
@@ -274,25 +308,28 @@ func (m *Manager) CalculateFinalScore(session *AdaptiveSession) float64 {
 	// Calculate full session potential score based on MaxQuestions and stage progression
 	maxScore := 0.0
 
+	// Get current configuration (might load from database)
+	currentConfig := m.GetConfig()
+
 	// Check if MaxQuestions is set, otherwise fallback to stage-based calculation
-	if m.config.MaxQuestions > 0 {
+	if currentConfig.MaxQuestions > 0 {
 		// Calculate potential score for the entire session (not just attempted)
-		totalQuestionsBudget := float64(m.config.MaxQuestions)
+		totalQuestionsBudget := float64(currentConfig.MaxQuestions)
 
 		// Calculate total stage questions for weighting
-		totalStageQuestions := float64(m.config.StageConfigs[StageEasy].InitialQuestions +
-			m.config.StageConfigs[StageMedium].InitialQuestions +
-			m.config.StageConfigs[StageHard].InitialQuestions)
+		totalStageQuestions := float64(currentConfig.StageConfigs[StageEasy].InitialQuestions +
+			currentConfig.StageConfigs[StageMedium].InitialQuestions +
+			currentConfig.StageConfigs[StageHard].InitialQuestions)
 
 		if totalStageQuestions > 0 {
 			// Use stage distribution as weights
-			easyWeight := float64(m.config.StageConfigs[StageEasy].InitialQuestions) / totalStageQuestions
-			mediumWeight := float64(m.config.StageConfigs[StageMedium].InitialQuestions) / totalStageQuestions
-			hardWeight := float64(m.config.StageConfigs[StageHard].InitialQuestions) / totalStageQuestions
+			easyWeight := float64(currentConfig.StageConfigs[StageEasy].InitialQuestions) / totalStageQuestions
+			mediumWeight := float64(currentConfig.StageConfigs[StageMedium].InitialQuestions) / totalStageQuestions
+			hardWeight := float64(currentConfig.StageConfigs[StageHard].InitialQuestions) / totalStageQuestions
 
-			weightedAvgPoints := (easyWeight * m.config.StageConfigs[StageEasy].BasePoints) +
-				(mediumWeight * m.config.StageConfigs[StageMedium].BasePoints) +
-				(hardWeight * m.config.StageConfigs[StageHard].BasePoints)
+			weightedAvgPoints := (easyWeight * currentConfig.StageConfigs[StageEasy].BasePoints) +
+				(mediumWeight * currentConfig.StageConfigs[StageMedium].BasePoints) +
+				(hardWeight * currentConfig.StageConfigs[StageHard].BasePoints)
 
 			// Full session potential = MaxQuestions * weighted average points
 			maxScore = totalQuestionsBudget * weightedAvgPoints
@@ -302,9 +339,9 @@ func (m *Manager) CalculateFinalScore(session *AdaptiveSession) float64 {
 		}
 	} else {
 		// Fallback to traditional stage-based calculation if MaxQuestions not set
-		maxScore += float64(m.config.StageConfigs[StageEasy].InitialQuestions) * m.config.StageConfigs[StageEasy].BasePoints
-		maxScore += float64(m.config.StageConfigs[StageMedium].InitialQuestions) * m.config.StageConfigs[StageMedium].BasePoints
-		maxScore += float64(m.config.StageConfigs[StageHard].InitialQuestions) * m.config.StageConfigs[StageHard].BasePoints
+		maxScore += float64(currentConfig.StageConfigs[StageEasy].InitialQuestions) * currentConfig.StageConfigs[StageEasy].BasePoints
+		maxScore += float64(currentConfig.StageConfigs[StageMedium].InitialQuestions) * currentConfig.StageConfigs[StageMedium].BasePoints
+		maxScore += float64(currentConfig.StageConfigs[StageHard].InitialQuestions) * currentConfig.StageConfigs[StageHard].BasePoints
 	}
 
 	if maxScore == 0 {

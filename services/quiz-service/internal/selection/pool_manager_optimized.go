@@ -96,8 +96,8 @@ func (pm *PoolManager) GetGlobalPoolWithBloomCached(ctx context.Context, skillIn
 	}
 
 	for _, question := range filteredQuestions {
-		// Ensure question has Bloom scores
-		question.EnsureBloomScores()
+		// NOTE: Score initialization removed - using pure service-based scoring
+		// Question scoring is now handled directly through BloomScoringService
 
 		// Count by Bloom level
 		if question.BloomLevel != "" {

@@ -14,6 +14,7 @@ import (
 // BloomScoringService provides centralized Bloom taxonomy scoring and distribution management
 type BloomScoringService struct {
 	configService  *ConfigService
+	configBridge   *ConfigBridge // NEW: Bridge to database configuration
 	config         *models.BloomScoreConfig
 	cache          map[string]models.BloomDistribution
 	cacheMutex     sync.RWMutex
@@ -23,16 +24,19 @@ type BloomScoringService struct {
 
 // NewBloomScoringService creates a new centralized Bloom scoring service
 func NewBloomScoringService(configService *ConfigService) *BloomScoringService {
+	configBridge := NewConfigBridge(configService)
+	
 	service := &BloomScoringService{
 		configService: configService,
+		configBridge:  configBridge,
 		config:        models.DefaultBloomScoreConfig(),
 		cache:         make(map[string]models.BloomDistribution),
 		configTTL:     5 * time.Minute, // Cache config for 5 minutes
 	}
 
-	// Load configuration from database if available
-	if err := service.LoadFromConfig(context.Background()); err != nil {
-		log.Printf("[BLOOM_SERVICE] Warning: Failed to load config, using defaults: %v", err)
+	// Load configuration from database via bridge
+	if err := service.loadFromDatabase(context.Background()); err != nil {
+		log.Printf("[BLOOM_SERVICE] Warning: Failed to load database config, using defaults: %v", err)
 	}
 
 	return service
@@ -137,6 +141,25 @@ func (bs *BloomScoringService) GetQuestionScoresByStage(bloomLevel string) map[s
 	}
 
 	return scores
+}
+
+// loadFromDatabase loads configuration using the ConfigBridge (NEW)
+func (bs *BloomScoringService) loadFromDatabase(ctx context.Context) error {
+	if bs.configBridge == nil {
+		return fmt.Errorf("config bridge not available")
+	}
+
+	bloomConfig, err := bs.configBridge.GetBloomScoreConfig(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get bloom config from database: %w", err)
+	}
+
+	// Update the service configuration
+	bs.config = bloomConfig
+	bs.lastConfigLoad = time.Now()
+
+	log.Printf("[BLOOM_SERVICE] Successfully loaded configuration from database")
+	return nil
 }
 
 // ValidateDistribution checks if a distribution is valid

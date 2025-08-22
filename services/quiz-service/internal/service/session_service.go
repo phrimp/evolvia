@@ -44,14 +44,18 @@ func NewSessionService(
 	configService *ConfigService,
 	resultService *ResultService, // FIXED: Add ResultService dependency
 ) *SessionService {
+	// Create ConfigBridge for database-driven configuration
+	configBridge := NewConfigBridge(configService)
+	bloomScoringService := NewBloomScoringService(configService)
+
 	service := &SessionService{
 		Repo:                      repo,
 		ConfigService:             configService,
 		QuestionRepo:              questionRepo,
-		ResultService:             resultService, // FIXED: Initialize ResultService
-		adaptiveManager:           adaptive.NewManager(nil),
+		ResultService:             resultService,                                                          // FIXED: Initialize ResultService
+		adaptiveManager:           adaptive.NewManagerWithConfigBridge(configBridge, bloomScoringService), // NEW: Database-driven config
 		poolManager:               selection.NewPoolManager(questionRepo),
-		bloomScoringService:       NewBloomScoringService(configService), // NEW: Centralized Bloom scoring
+		bloomScoringService:       bloomScoringService, // NEW: Centralized Bloom scoring
 		sessionSkillCache:         make(map[string]*selection.SkillInfo),
 		sessionEnhancedSkillCache: make(map[string]*selection.EnhancedSkillInfo),
 	}
@@ -1693,7 +1697,7 @@ func (s *SessionService) calculateBloomBreakdownFromCache(sessionID string) (mod
 		sessionPotential := s.calculateBloomLevelSessionPotential(sessionID, level)
 		// Replace attempted-only potential with full session potential
 		perf.PossibleScore = sessionPotential
-		log.Printf("[BLOOM_BREAKDOWN] [%s] Updated level %s potential: %.2f (full session) vs attempted-only (replaced)", 
+		log.Printf("[BLOOM_BREAKDOWN] [%s] Updated level %s potential: %.2f (full session) vs attempted-only (replaced)",
 			sessionID, level, sessionPotential)
 	}
 
@@ -1792,21 +1796,93 @@ func (s *SessionService) calculateBloomLevelSessionPotential(sessionID string, b
 		maxQuestions = 25.0 // Default fallback
 	}
 
-	// Estimate Bloom level distribution across the full session
-	// Typical distribution: each level gets roughly equal representation
-	bloomLevels := []string{"remember", "understand", "apply", "analyze", "evaluate", "create"}
-	questionsPerBloomLevel := maxQuestions / float64(len(bloomLevels))
+	// Calculate stage-aware potential using real scoring system
+	adaptiveConfig := s.adaptiveManager.GetConfig()
+	sessionPotential := 0.0
 
-	// Get average points per question for this Bloom level
-	avgPointsForLevel := s.estimatePossibleScore(bloomLevel)
+	// Calculate potential for each stage (easy, medium, hard)
+	stages := []string{"easy", "medium", "hard"}
+	for _, stage := range stages {
+		// Get questions for this stage
+		stageConfig := adaptiveConfig.StageConfigs[adaptive.Stage(stage)]
+		stageQuestions := float64(stageConfig.InitialQuestions)
 
-	// Calculate full session potential for this Bloom level
-	sessionPotential := questionsPerBloomLevel * avgPointsForLevel
+		// Get Bloom distribution for this stage
+		distribution := s.getBloomDistributionForStage(stage, bloomLevel)
 
-	log.Printf("[BLOOM_POTENTIAL] [%s] Level=%s, MaxQuestions=%.0f, QuestionsPerLevel=%.1f, AvgPoints=%.1f, Potential=%.1f",
-		sessionID, bloomLevel, maxQuestions, questionsPerBloomLevel, avgPointsForLevel, sessionPotential)
+		// Get real score for this Bloom level at this stage
+		realScore := float64(s.bloomScoringService.GetQuestionScore(bloomLevel, stage))
+
+		// Calculate potential for this stage
+		stagePotential := stageQuestions * distribution * realScore
+		sessionPotential += stagePotential
+
+		log.Printf("[BLOOM_POTENTIAL] [%s] Stage=%s, Questions=%.0f, Distribution=%.2f, Score=%.0f, StagePotential=%.1f",
+			sessionID, stage, stageQuestions, distribution, realScore, stagePotential)
+	}
+
+	log.Printf("[BLOOM_POTENTIAL] [%s] Level=%s, TotalSessionPotential=%.1f (using real scoring system)",
+		sessionID, bloomLevel, sessionPotential)
 
 	return sessionPotential
+}
+
+// getBloomDistributionForStage returns the distribution percentage for a Bloom level in a specific stage
+func (s *SessionService) getBloomDistributionForStage(stage, bloomLevel string) float64 {
+	// Get Bloom distribution config from database via ConfigBridge
+	bloomConfig, err := s.bloomScoringService.configBridge.GetBloomScoreConfig(context.Background())
+	if err != nil {
+		log.Printf("[BLOOM_DISTRIBUTION] Failed to get config from database for stage %s: %v, using fallback", stage, err)
+		// Fallback to hardcoded config if database unavailable
+		distributions := s.bloomScoringService.config.InitialDistributions
+		stageDistribution, exists := distributions[stage]
+		if !exists {
+			return 0.0
+		}
+		// Use fallback distribution
+		switch bloomLevel {
+		case "remember":
+			return stageDistribution.Remember
+		case "understand":
+			return stageDistribution.Understand
+		case "apply":
+			return stageDistribution.Apply
+		case "analyze":
+			return stageDistribution.Analyze
+		case "evaluate":
+			return stageDistribution.Evaluate
+		case "create":
+			return stageDistribution.Create
+		default:
+			return 0.0
+		}
+	}
+
+	// Use database configuration
+	stageDistribution, exists := bloomConfig.InitialDistributions[stage]
+	if !exists {
+		log.Printf("[BLOOM_DISTRIBUTION] No distribution found for stage %s in database config, using 0.0", stage)
+		return 0.0
+	}
+
+	// Map Bloom level to distribution value
+	switch bloomLevel {
+	case "remember":
+		return stageDistribution.Remember
+	case "understand":
+		return stageDistribution.Understand
+	case "apply":
+		return stageDistribution.Apply
+	case "analyze":
+		return stageDistribution.Analyze
+	case "evaluate":
+		return stageDistribution.Evaluate
+	case "create":
+		return stageDistribution.Create
+	default:
+		log.Printf("[BLOOM_DISTRIBUTION] Unknown Bloom level %s, using 0.0", bloomLevel)
+		return 0.0
+	}
 }
 
 // calculateBloomLevelMetrics calculates derived metrics for a Bloom level performance
@@ -2932,10 +3008,10 @@ func (s *SessionService) validateQuestionEligibility(question *models.Question, 
 		return fmt.Errorf("question missing Bloom level: %s", question.ID)
 	}
 
-	// Validate question has appropriate stage scoring
-	stageScore := question.GetScoreForStage(stage)
+	// Validate question has appropriate stage scoring using service
+	stageScore := s.bloomScoringService.GetQuestionScore(question.BloomLevel, stage)
 	if stageScore <= 0 {
-		return fmt.Errorf("question has invalid score for stage %s: %d", stage, stageScore)
+		return fmt.Errorf("question has invalid score for stage %s: %d (BloomLevel: %s)", stage, stageScore, question.BloomLevel)
 	}
 
 	// Check question type compatibility

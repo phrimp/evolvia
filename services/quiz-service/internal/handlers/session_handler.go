@@ -316,8 +316,8 @@ func (h *SessionHandler) SubmitAnswer(c *gin.Context) {
 		return
 	}
 
-	// Ensure question has Bloom scores calculated using centralized service
-	question.EnsureBloomScoresWithService(h.Service.GetBloomScoringService())
+	// NOTE: Score initialization removed - using pure service-based scoring
+	// Question scoring is now handled directly through BloomScoringService
 
 	// Validate and determine correctness based on question type
 	var isAnswerCorrect bool

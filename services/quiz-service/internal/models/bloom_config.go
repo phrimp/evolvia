@@ -201,4 +201,3 @@ func DefaultBloomScoreConfig() *BloomScoreConfig {
 		},
 	}
 }
-

@@ -56,9 +56,10 @@ type Question struct {
 	EstimatedTimeSeconds int      `bson:"estimated_time_seconds" json:"estimated_time_seconds"`
 	TopicTags            []string `bson:"topic_tags" json:"topic_tags"`
 	QuestionPoolID       string   `bson:"question_pool_id" json:"question_pool_id"`
-	// New Bloom scoring fields
-	BloomScore         int            `bson:"bloom_score" json:"bloom_score"`
-	BloomScoresByStage map[string]int `bson:"bloom_scores_by_stage" json:"bloom_scores_by_stage"`
+	// DEPRECATED: Bloom scoring fields - use BloomScoringService instead
+	// These fields are kept for backward compatibility but should not be used
+	BloomScore         int            `bson:"bloom_score" json:"bloom_score"`                     // Deprecated: Use BloomScoringService.GetQuestionScore()
+	BloomScoresByStage map[string]int `bson:"bloom_scores_by_stage" json:"bloom_scores_by_stage"` // Deprecated: Use BloomScoringService.GetQuestionScore()
 }
 
 // BloomScoringInterface defines the interface for Bloom scoring services
@@ -86,6 +87,7 @@ var StageMultipliers = map[string]float64{
 }
 
 // CalculateBloomScore calculates and sets the Bloom score based on Bloom level
+// Deprecated: Use BloomScoringService.GetQuestionScore() instead
 func (q *Question) CalculateBloomScore() {
 	if baseScore, exists := BloomBaseScores[q.BloomLevel]; exists {
 		q.BloomScore = baseScore
@@ -95,6 +97,7 @@ func (q *Question) CalculateBloomScore() {
 }
 
 // CalculateBloomScoresByStage calculates scores for all difficulty stages
+// Deprecated: Use BloomScoringService.GetQuestionScoresByStage() instead
 func (q *Question) CalculateBloomScoresByStage() {
 	q.CalculateBloomScore() // Ensure base score is calculated
 
@@ -105,6 +108,7 @@ func (q *Question) CalculateBloomScoresByStage() {
 }
 
 // GetScoreForStage returns the appropriate score for a given stage
+// Deprecated: Use BloomScoringService.GetQuestionScore(bloomLevel, stage) instead
 func (q *Question) GetScoreForStage(stage string) int {
 	if q.BloomScoresByStage == nil {
 		q.CalculateBloomScoresByStage()
@@ -119,6 +123,7 @@ func (q *Question) GetScoreForStage(stage string) int {
 }
 
 // EnsureBloomScores ensures both bloom score fields are populated
+// Deprecated: Use BloomScoringService directly instead of storing scores in Question
 func (q *Question) EnsureBloomScores() {
 	if q.BloomScore == 0 {
 		q.CalculateBloomScore()
@@ -361,8 +366,8 @@ func (q *Question) GetCorrectOptions() []Option {
 }
 
 // GetQuestionTypeInfo returns information about the question type
-func (q *Question) GetQuestionTypeInfo() map[string]interface{} {
-	info := map[string]interface{}{
+func (q *Question) GetQuestionTypeInfo() map[string]any {
+	info := map[string]any{
 		"type":           q.Type,
 		"options_count":  len(q.Options),
 		"correct_answer": q.CorrectAnswer,
@@ -395,7 +400,7 @@ type SafeOption struct {
 
 // ToSafeResponse returns a sanitized question for GET /next-question endpoint
 // Hides: correct_answer, correct_answer_boolean, explanation, bloom_score, bloom_scores_by_stage, question_pool_id, options.is_correct
-func (q *Question) ToSafeResponse() map[string]interface{} {
+func (q *Question) ToSafeResponse() map[string]any {
 	// Sanitize options to remove is_correct field
 	safeOptions := make([]SafeOption, len(q.Options))
 	for i, option := range q.Options {
@@ -405,11 +410,11 @@ func (q *Question) ToSafeResponse() map[string]interface{} {
 		}
 	}
 
-	return map[string]interface{}{
-		"id":                     q.ID,
-		"content":                q.Content,
-		"type":                   q.Type,
-		"options":                safeOptions,
+	return map[string]any{
+		"id":      q.ID,
+		"content": q.Content,
+		"type":    q.Type,
+		"options": safeOptions,
 		// Visible fields that don't reveal answers
 		"skill_id":               q.SkillID,
 		"difficulty_level":       q.DifficultyLevel,
@@ -421,8 +426,8 @@ func (q *Question) ToSafeResponse() map[string]interface{} {
 }
 
 // GetSensitiveFields returns the sensitive fields that should be shown after answer submission
-func (q *Question) GetSensitiveFields() map[string]interface{} {
-	return map[string]interface{}{
+func (q *Question) GetSensitiveFields() map[string]any {
+	return map[string]any{
 		"correct_answer":         q.CorrectAnswer,
 		"correct_answer_boolean": q.CorrectAnswerBoolean,
 		"explanation":            q.Explanation,
